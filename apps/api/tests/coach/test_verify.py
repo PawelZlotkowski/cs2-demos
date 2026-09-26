@@ -75,6 +75,15 @@ def test_knowledge_ids_must_come_from_a_tool():
     assert not check("Palace is a common spot to be isolated [F12][K7].").ok
 
 
+def test_numbers_from_a_cited_passage_are_allowed():
+    ctx = VerifyContext.build([F12])
+    ctx.knowledge["K7"] = "A trade has to land within 2 seconds to count."
+    ok = verify_text("You were not traded [F12]. Trades land within 2 seconds, so stay close [K7].", ctx, "en")
+    assert ok.ok, ok.errors
+    bad = verify_text("You were not traded [F12]. Trades land within 3 seconds [K7].", ctx, "en")
+    assert not bad.ok
+
+
 def test_time_after_round_end_fails():
     assert not check("You died in Palace [F12][t:140].").ok
 

@@ -79,3 +79,16 @@ def test_select_player_takes_a_language(analysed):
     r = client.post(f"/matches/{mid}/player", json={"playerId": pid, "language": "pl"})
     assert r.status_code == 200
     assert client.post(f"/matches/{mid}/player", json={"playerId": pid, "language": "de"}).status_code == 422
+
+
+def test_round_explain_queues_a_clip_and_lists_it(analysed):
+    mid, pid = analysed
+    client.post(f"{base(mid, pid)}/rounds/1/explain", json={})
+    jobs = client.get(f"{base(mid, pid)}/clips").json()
+    assert len(jobs) == 1 and jobs[0]["round"] == 1 and jobs[0]["status"] == "queued"
+
+
+def test_knowledge_passage_route(analysed):
+    r = client.get("/knowledge/K1")
+    assert r.status_code == 200 and r.json()["id"] == "K1" and r.json()["text"]
+    assert client.get("/knowledge/K999").status_code == 404

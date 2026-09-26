@@ -28,6 +28,8 @@ def sample_args(mid: str, pid: str) -> dict[str, dict]:
         "get_player_state": {"match_id": mid, "round": 1, "t": 12.0},
         "get_player_history": {"player_id": pid},
         "select_moments": {"match_id": mid, "player_id": pid, "moments": []},
+        "search_knowledge": {"query": "trading a teammate", "k": 2},
+        "request_clip": {"match_id": mid, "player_id": pid, "round": 1, "t0": 10.0, "t1": 18.0},
     }
 
 
@@ -90,6 +92,7 @@ def test_stdio_server_subprocess(analysed, tmp_path):
         "RR_MATCHES_DIR": str(repo.matches_dir),
         "RR_UPLOAD_DIR": str(repo.upload_dir),
         "RR_FIXTURE_PATH": str(settings.resolved_fixture_path()),
+        "RR_KNOWLEDGE_DIR": str(Path(__file__).resolve().parents[4] / "data" / "knowledge"),
     }
     params = StdioServerParameters(command=sys.executable, args=["-m", "cs2_demo_mcp"], env=env)
     out = asyncio.run(call_every_tool(MCPTools(params), mid, pid))

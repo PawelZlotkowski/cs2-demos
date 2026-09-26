@@ -43,7 +43,8 @@ class VerifyContext:
     findings: dict[str, Finding]
     round_stats: dict[int, RoundStats] = field(default_factory=dict)
     moment_ids: set[str] = field(default_factory=set)
-    knowledge_ids: set[str] = field(default_factory=set)  # RAG passages (T32)
+    # RAG passages the tools returned in this run: id -> text (T32)
+    knowledge: dict[str, str] = field(default_factory=dict)
     round_durations: dict[int, float] = field(default_factory=dict)
     # Numbers the user or the Studio context supplied (question text, round, t)
     extra_numbers: set[float] = field(default_factory=set)
@@ -105,7 +106,7 @@ def verify_text(
             errors.append(f"[{c}] is not a finding of this player in this match.")
         elif c.startswith("m") and c not in ctx.moment_ids:
             errors.append(f"[{c}] is not one of the selected moments.")
-        elif c.startswith("K") and c not in ctx.knowledge_ids:
+        elif c.startswith("K") and c not in ctx.knowledge:
             errors.append(f"[{c}] is not a knowledge passage returned by a tool.")
         elif c.startswith("t:"):
             t = float(c[2:])
@@ -179,6 +180,8 @@ def _allowed_numbers(ctx: VerifyContext, finding_ids: list[str], cites: list[str
             for v in stats.model_dump().values():
                 allowed.update(_numbers_in(v))
     for c in cites:
+        if c.startswith("K") and c in ctx.knowledge:
+            allowed.update(_numbers_in(ctx.knowledge[c]))
         if c.startswith("t:"):
             allowed.add(float(c[2:]))
         elif c.startswith("m"):

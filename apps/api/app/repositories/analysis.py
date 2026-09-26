@@ -56,6 +56,17 @@ CREATE TABLE IF NOT EXISTS explanations (
     json TEXT NOT NULL,
     PRIMARY KEY (match_id, player_id, target, lang)
 );
+CREATE TABLE IF NOT EXISTS clip_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    match_id TEXT NOT NULL,
+    player_id TEXT NOT NULL,
+    round INTEGER NOT NULL,
+    t0 REAL NOT NULL,
+    t1 REAL NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (match_id, player_id, round, t0, t1)
+);
 """
 
 
@@ -179,6 +190,30 @@ class AnalysisRepository:
                 (match_id, player_id, target, lang),
             ).fetchone()
         return MomentExplanation.model_validate(json.loads(row[0])) if row else None
+
+    # --- clip jobs (CS Demo Manager recorder, T40) ---
+
+    def queue_clip(self, match_id: str, player_id: str, round_no: int, t0: float, t1: float) -> dict:
+        """Queue a clip once per window; returns ``{clipJobId, status, round, t0, t1}``."""
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO clip_jobs (match_id, player_id, round, t0, t1, status, created_at) "
+                "VALUES (?, ?, ?, ?, ?, 'queued', ?)",
+                (match_id, player_id, round_no, t0, t1, datetime.now(timezone.utc).isoformat()),
+            )
+            row = conn.execute(
+                "SELECT id, status FROM clip_jobs WHERE match_id = ? AND player_id = ? AND round = ? AND t0 = ? AND t1 = ?",
+                (match_id, player_id, round_no, t0, t1),
+            ).fetchone()
+        return {"clipJobId": f"c{row[0]}", "status": row[1], "round": round_no, "t0": t0, "t1": t1}
+
+    def clip_jobs(self, match_id: str, player_id: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, round, t0, t1, status FROM clip_jobs WHERE match_id = ? AND player_id = ? ORDER BY id",
+                (match_id, player_id),
+            ).fetchall()
+        return [{"clipJobId": f"c{i}", "round": r, "t0": t0, "t1": t1, "status": st} for i, r, t0, t1, st in rows]
 
     # --- player history across matches ---
 

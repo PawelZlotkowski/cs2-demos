@@ -48,7 +48,15 @@ T = TypeVar("T")
 # Candidates shown to the selection model (plan §6.2: top ~40 by severity)
 MAX_CANDIDATES = 40
 MIN_GOOD_CANDIDATES = 12
-EXPLAIN_TOOLS = {"get_finding", "list_findings", "get_round_stats", "get_round_timeline", "get_player_state", "get_player_history"}
+EXPLAIN_TOOLS = {
+    "get_finding",
+    "list_findings",
+    "get_round_stats",
+    "get_round_timeline",
+    "get_player_state",
+    "get_player_history",
+    "search_knowledge",
+}
 
 
 def run_sync(coro: Awaitable[T]) -> T:
@@ -418,7 +426,8 @@ class CoachJobs:
                         on_step=on_step,
                     )
                     runs.append(run)
-                    # Tool results may add knowledge ids later (RAG, T32)
+                    # Passages the model looked up may be cited as [K..]
+                    ctx.knowledge.update(knowledge_in(run.messages))
                     check = verify_text(
                         run.text, ctx, lang, require_citation=require_citation, max_sentences=max_sentences
                     )
@@ -464,6 +473,22 @@ def default_tools_factory() -> Any:
     if settings.coach_tools == "inprocess":
         return InProcessTools()
     return MCPTools.from_settings(settings.mcp_url, settings.mcp_command)
+
+
+def knowledge_in(messages: list[dict[str, Any]]) -> dict[str, str]:
+    """``search_knowledge`` passages returned in a run: id -> text."""
+    found: dict[str, str] = {}
+    for m in messages:
+        if m.get("role") != "tool" or '"passages"' not in (m.get("content") or ""):
+            continue
+        try:
+            body = json.loads(m["content"])
+        except json.JSONDecodeError:
+            continue
+        for p in body.get("passages") or []:
+            if isinstance(p, dict) and isinstance(p.get("id"), str):
+                found[p["id"]] = str(p.get("text") or "")
+    return found
 
 
 def repair_message(errors: list[str], *, json_only: bool = False) -> str:
