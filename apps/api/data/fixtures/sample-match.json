@@ -1,0 +1,2221 @@
+{
+  "matchId": "match-sample-mirage",
+  "match": {
+    "id": "match-sample-mirage",
+    "map": "Mirage",
+    "score": "11–13",
+    "when": "yesterday",
+    "rounds": 24,
+    "won": [
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0
+    ],
+    "status": "complete",
+    "clipDuration": 20
+  },
+  "last7": [
+    "this match",
+    "Ancient, Tue 22 Sep",
+    "Anubis, Sun 20 Sep",
+    "Mirage, Fri 18 Sep",
+    "Anubis, Wed 16 Sep",
+    "Mirage, Sat 12 Sep",
+    "Ancient, Thu 10 Sep"
+  ],
+  "moments": [
+    {
+      "id": "m1",
+      "round": 3,
+      "clockStart": 85,
+      "key": 10,
+      "kind": "mistake",
+      "cat": "Peek",
+      "side": "T",
+      "title": "Dry peek into Connector",
+      "label": "Dry peek",
+      "pick": "Lost mid control and the round",
+      "finding": "You peeked Connector alone with no flash and died untraded.",
+      "why": "The CT already had the angle, so he got the first shot. Kuba was 4 s away, too far to trade.",
+      "instead": "Ask Kuba for the Connector flash, or wait until he's close enough to trade.",
+      "pattern": {
+        "text": "Dry peeks into a held angle in 3 of your last 7 matches.",
+        "last7": [
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1
+        ]
+      },
+      "related": [
+        5
+      ],
+      "ev": [
+        [
+          "Enemy aim before your peek",
+          "On the angle 0.9 s early",
+          "F4",
+          9.8
+        ],
+        [
+          "Flash available on a teammate",
+          "Yes, Kuba, not thrown",
+          "F4",
+          7
+        ],
+        [
+          "Time for a teammate to trade",
+          "4.1 s",
+          "F5",
+          11.2
+        ]
+      ],
+      "bracket": [
+        11.2,
+        15.3,
+        "No trade for 4.1 s"
+      ],
+      "zones": [
+        "Mid",
+        "Connector",
+        "T spawn"
+      ],
+      "youDeath": 11.2,
+      "players": [
+        {
+          "n": "You",
+          "r": "you",
+          "p": [
+            [
+              0,
+              76,
+              48
+            ],
+            [
+              6,
+              62,
+              48
+            ],
+            [
+              9,
+              50,
+              50
+            ],
+            [
+              10,
+              46,
+              53
+            ],
+            [
+              11.2,
+              45,
+              54
+            ]
+          ],
+          "death": 11.2
+        },
+        {
+          "n": "Kuba",
+          "r": "team",
+          "f": 1,
+          "p": [
+            [
+              0,
+              84,
+              50
+            ],
+            [
+              8,
+              70,
+              49
+            ],
+            [
+              14,
+              60,
+              49
+            ],
+            [
+              20,
+              56,
+              49
+            ]
+          ]
+        },
+        {
+          "n": "Lena",
+          "r": "team",
+          "p": [
+            [
+              0,
+              86,
+              44
+            ],
+            [
+              12,
+              80,
+              36
+            ],
+            [
+              20,
+              76,
+              24
+            ]
+          ]
+        },
+        {
+          "n": "CT",
+          "r": "enemy",
+          "p": [
+            [
+              0,
+              40,
+              61
+            ],
+            [
+              20,
+              40,
+              61
+            ]
+          ],
+          "from": 9.8
+        }
+      ],
+      "rov": [
+        {
+          "type": "sight",
+          "x1": 40,
+          "y1": 61,
+          "x2": 46,
+          "y2": 53,
+          "t0": 9.8,
+          "t1": 12,
+          "pri": 2
+        },
+        {
+          "type": "link",
+          "a": 0,
+          "b": 1,
+          "t0": 9.5,
+          "t1": 14,
+          "pri": 1,
+          "label": "Kuba 4.1 s away"
+        }
+      ],
+      "cam": [
+        [
+          0,
+          0
+        ],
+        [
+          6,
+          0.15
+        ],
+        [
+          9.5,
+          -0.05
+        ],
+        [
+          20,
+          -0.05
+        ]
+      ],
+      "gtracks": {
+        "e1": {
+          "p": [
+            [
+              9.6,
+              82,
+              41,
+              1
+            ],
+            [
+              11.4,
+              80,
+              41,
+              1
+            ]
+          ],
+          "vis": [
+            9.6,
+            11.4
+          ]
+        }
+      },
+      "gov": [
+        {
+          "type": "arrow",
+          "d": "M60 80 Q 70 64 78 52",
+          "t0": 5.5,
+          "t1": 9.4,
+          "pri": 2
+        },
+        {
+          "type": "zone",
+          "pts": [
+            [
+              72,
+              28
+            ],
+            [
+              92,
+              28
+            ],
+            [
+              92,
+              54
+            ],
+            [
+              72,
+              54
+            ]
+          ],
+          "t0": 9.2,
+          "t1": 11.6,
+          "pri": 2
+        },
+        {
+          "type": "los",
+          "track": "e1",
+          "to": [
+            80,
+            45
+          ],
+          "t0": 9.8,
+          "t1": 11.3,
+          "pri": 2
+        },
+        {
+          "type": "ring",
+          "track": "e1",
+          "t0": 9.8,
+          "t1": 11.4,
+          "pri": 1
+        },
+        {
+          "type": "anno",
+          "at": {
+            "track": "e1"
+          },
+          "t0": 9.8,
+          "t1": 13.5,
+          "pri": 1,
+          "lab": "Dry peek",
+          "text": "pre-aimed, no trade"
+        }
+      ],
+      "events": [
+        [
+          "insight",
+          10,
+          "mistake",
+          "Dry peek",
+          "F4"
+        ],
+        [
+          "you",
+          11.2,
+          "death",
+          "You die to the Connector CT"
+        ],
+        [
+          "team",
+          7,
+          "flash",
+          "Kuba holds a flash, not thrown",
+          "F4"
+        ],
+        [
+          "enemy",
+          9.8,
+          "spot",
+          "CT spotted in Connector",
+          "F4"
+        ],
+        [
+          "enemy",
+          11.2,
+          "kill",
+          "CT kills you",
+          "F5"
+        ],
+        [
+          "util",
+          3.2,
+          "smoke",
+          "Team smoke on Top mid"
+        ]
+      ],
+      "qa": [
+        [
+          "Why was this peek risky?",
+          "The CT was aimed at the doorway 0.9 s before you swung [F4]. You gave him the first shot with no flash, and Kuba was 4.1 s away, too far to trade [F5]."
+        ],
+        [
+          "What should I have done instead?",
+          "Wait for Kuba's flash [t:7] and swing as it pops. If he can't throw it, hold Top mid until he's close enough to trade [F5]."
+        ],
+        [
+          "Have I done this before?",
+          "Yes, in 3 of your last 7 matches, and again in this match at [m6]. Earlier cases: Mirage, Fri 18 Sep and Ancient, Thu 10 Sep."
+        ]
+      ]
+    },
+    {
+      "id": "m2",
+      "round": 7,
+      "clockStart": 52,
+      "key": 8,
+      "kind": "mistake",
+      "cat": "Rotation",
+      "side": "CT",
+      "title": "Rotated off A too early",
+      "label": "Leaves A",
+      "pick": "Repeats a pattern, and A fell",
+      "finding": "You left A on a sound cue. A fell nine seconds later.",
+      "why": "Nobody had seen a T at B. With you gone, Connector and Jungle had no crossfire.",
+      "instead": "Hold Connector until your B player calls a sighting or utility.",
+      "pattern": {
+        "text": "Early rotations off A in 4 of your last 7 matches. Three followed sound only.",
+        "last7": [
+          1,
+          1,
+          0,
+          1,
+          0,
+          1,
+          0
+        ]
+      },
+      "related": [],
+      "ev": [
+        [
+          "Contact before you left",
+          "Footsteps only, no sighting",
+          "F12",
+          4.6
+        ],
+        [
+          "Time from first B sound to leaving",
+          "3.1 s",
+          "F12",
+          8
+        ],
+        [
+          "Players entering A after you left",
+          "4 within 9 s",
+          "F13",
+          16
+        ]
+      ],
+      "bracket": [
+        4.9,
+        8,
+        "Left 3.1 s after the first sound"
+      ],
+      "zones": [
+        "Connector",
+        "A site",
+        "B site",
+        "Window",
+        "Short",
+        "Ramp",
+        "Palace"
+      ],
+      "players": [
+        {
+          "n": "You",
+          "r": "you",
+          "p": [
+            [
+              0,
+              42,
+              60
+            ],
+            [
+              8,
+              42,
+              59
+            ],
+            [
+              10,
+              37,
+              50
+            ],
+            [
+              13,
+              35,
+              42
+            ],
+            [
+              16,
+              37,
+              32
+            ],
+            [
+              20,
+              30,
+              24
+            ]
+          ]
+        },
+        {
+          "n": "Max",
+          "r": "team",
+          "f": 1,
+          "p": [
+            [
+              0,
+              32,
+              76
+            ],
+            [
+              20,
+              32,
+              76
+            ]
+          ],
+          "death": 18.5
+        },
+        {
+          "n": "Rik",
+          "r": "team",
+          "p": [
+            [
+              0,
+              22,
+              22
+            ],
+            [
+              20,
+              24,
+              24
+            ]
+          ]
+        },
+        {
+          "n": "T",
+          "r": "enemy",
+          "p": [
+            [
+              0,
+              70,
+              62
+            ],
+            [
+              15,
+              50,
+              70
+            ],
+            [
+              18,
+              42,
+              74
+            ],
+            [
+              20,
+              38,
+              76
+            ]
+          ],
+          "from": 15
+        },
+        {
+          "n": "T",
+          "r": "enemy",
+          "p": [
+            [
+              0,
+              72,
+              64
+            ],
+            [
+              15.5,
+              56,
+              72
+            ],
+            [
+              20,
+              40,
+              72
+            ]
+          ],
+          "from": 15.5
+        },
+        {
+          "n": "T",
+          "r": "enemy",
+          "p": [
+            [
+              0,
+              66,
+              76
+            ],
+            [
+              16,
+              54,
+              77
+            ],
+            [
+              20,
+              44,
+              78
+            ]
+          ],
+          "from": 16
+        },
+        {
+          "n": "T",
+          "r": "enemy",
+          "p": [
+            [
+              0,
+              60,
+              50
+            ],
+            [
+              16.5,
+              44,
+              56
+            ],
+            [
+              20,
+              40,
+              62
+            ]
+          ],
+          "from": 16.5
+        }
+      ],
+      "rov": [
+        {
+          "type": "mark",
+          "pl": 0,
+          "at": 8,
+          "t0": 7.8,
+          "t1": 20,
+          "pri": 1,
+          "label": "Left at 0:44"
+        },
+        {
+          "type": "zone",
+          "pts": [
+            [
+              22,
+              56
+            ],
+            [
+              47,
+              56
+            ],
+            [
+              47,
+              86
+            ],
+            [
+              22,
+              86
+            ]
+          ],
+          "t0": 11,
+          "t1": 20,
+          "pri": 1,
+          "label": "Left open",
+          "lx": 23,
+          "ly": 54.5
+        },
+        {
+          "type": "link",
+          "a": 0,
+          "b": 1,
+          "t0": 9,
+          "t1": 18.5,
+          "pri": 2,
+          "label": "Max alone on A"
+        }
+      ],
+      "cam": [
+        [
+          0,
+          0
+        ],
+        [
+          8,
+          0
+        ],
+        [
+          9.2,
+          0.7
+        ],
+        [
+          20,
+          0.7
+        ]
+      ],
+      "gtracks": {},
+      "gov": [
+        {
+          "type": "anno",
+          "at": {
+            "x": 30,
+            "y": 40
+          },
+          "t0": 4.6,
+          "t1": 8.2,
+          "pri": 2,
+          "text": "Footsteps at B, nobody seen"
+        },
+        {
+          "type": "arrow",
+          "d": "M100 76 Q 76 66 52 62",
+          "t0": 8.2,
+          "t1": 11.5,
+          "pri": 2
+        },
+        {
+          "type": "anno",
+          "at": {
+            "x": 52,
+            "y": 62
+          },
+          "side": "left",
+          "t0": 8.2,
+          "t1": 11.5,
+          "pri": 1,
+          "lab": "Leaves A",
+          "text": "on sound only"
+        },
+        {
+          "type": "anno",
+          "at": {
+            "x": 6,
+            "y": 30
+          },
+          "t0": 15.2,
+          "t1": 20,
+          "pri": 1,
+          "lab": "A falls",
+          "g": "note",
+          "text": "4 players behind you"
+        }
+      ],
+      "events": [
+        [
+          "insight",
+          8,
+          "mistake",
+          "Leaves A",
+          "F12"
+        ],
+        [
+          "insight",
+          16,
+          "note",
+          "A falls",
+          "F13"
+        ],
+        [
+          "you",
+          8,
+          "move",
+          "You start rotating"
+        ],
+        [
+          "team",
+          18.5,
+          "death",
+          "Max dies on A",
+          "F13"
+        ],
+        [
+          "enemy",
+          4.6,
+          "sound",
+          "Footsteps at B",
+          "F12"
+        ],
+        [
+          "enemy",
+          15,
+          "spot",
+          "Ramp push spotted",
+          "F13"
+        ],
+        [
+          "enemy",
+          18.5,
+          "kill",
+          "Max killed"
+        ],
+        [
+          "util",
+          14.2,
+          "smoke",
+          "T smoke on CT"
+        ],
+        [
+          "util",
+          15.2,
+          "flash",
+          "T flash over A"
+        ]
+      ],
+      "qa": [
+        [
+          "Was this rotation too early?",
+          "Yes. The first footsteps were at [t:4.6] and you left at [t:8], before anyone saw a player [F12]. Four Ts then took A within 9 s [F13]."
+        ],
+        [
+          "What should I have waited for?",
+          "A sighting, a utility call or the bomb carrier being spotted. Footsteps alone can be one player making noise, and Rik was still holding B."
+        ],
+        [
+          "Compare with previous matches",
+          "Early rotations off A appear in 4 of your last 7 matches: this one, Ancient on Tue 22 Sep, Mirage on Fri 18 Sep and Mirage on Sat 12 Sep. Three were triggered by sound only. It's your most repeated mistake right now."
+        ]
+      ]
+    },
+    {
+      "id": "m3",
+      "round": 11,
+      "clockStart": 100,
+      "key": 6.5,
+      "kind": "strength",
+      "cat": "Utility",
+      "side": "T",
+      "title": "Window smoke landed on time",
+      "label": "Smoke on time",
+      "pick": "Won Top mid without a trade",
+      "finding": "Your Window smoke landed just before the team crossed mid.",
+      "why": "The AWP was the only threat to the mid take. Blinded, he had to move and gave up the angle.",
+      "instead": "Call the smoke as you throw it, so the entry knows exactly when it blooms.",
+      "pattern": {
+        "text": "Window smoke on time in 5 of your last 7 matches as T.",
+        "last7": [
+          1,
+          1,
+          0,
+          1,
+          1,
+          0,
+          1
+        ]
+      },
+      "related": [
+        4
+      ],
+      "ev": [
+        [
+          "Smoke landed before the first cross",
+          "0.4 s",
+          "F21",
+          6.5
+        ],
+        [
+          "Enemy AWP forced to move",
+          "Window to Short",
+          "F22",
+          9
+        ],
+        [
+          "Mid control gained",
+          "Top mid by 1:24",
+          "F22",
+          15
+        ]
+      ],
+      "bracket": [
+        6.5,
+        6.9,
+        "0.4 s before the cross"
+      ],
+      "zones": [
+        "Window",
+        "Mid",
+        "T spawn",
+        "Short"
+      ],
+      "players": [
+        {
+          "n": "You",
+          "r": "you",
+          "p": [
+            [
+              0,
+              86,
+              48
+            ],
+            [
+              4,
+              80,
+              48
+            ],
+            [
+              6,
+              78,
+              48
+            ],
+            [
+              12,
+              70,
+              48
+            ],
+            [
+              20,
+              62,
+              48
+            ]
+          ]
+        },
+        {
+          "n": "Kuba",
+          "r": "team",
+          "f": 1,
+          "p": [
+            [
+              0,
+              80,
+              46
+            ],
+            [
+              6.9,
+              62,
+              47
+            ],
+            [
+              12,
+              50,
+              48
+            ],
+            [
+              20,
+              44,
+              46
+            ]
+          ]
+        },
+        {
+          "n": "Lena",
+          "r": "team",
+          "p": [
+            [
+              0,
+              82,
+              50
+            ],
+            [
+              8,
+              66,
+              49
+            ],
+            [
+              20,
+              52,
+              50
+            ]
+          ]
+        },
+        {
+          "n": "AWP",
+          "r": "enemy",
+          "p": [
+            [
+              0,
+              33,
+              43
+            ],
+            [
+              8,
+              33,
+              43
+            ],
+            [
+              11,
+              37,
+              34
+            ],
+            [
+              20,
+              37,
+              32
+            ]
+          ],
+          "from": 0
+        }
+      ],
+      "rov": [
+        {
+          "type": "sight",
+          "x1": 33,
+          "y1": 43,
+          "x2": 62,
+          "y2": 48,
+          "t0": 0,
+          "t1": 6.5,
+          "pri": 2
+        },
+        {
+          "type": "smoke",
+          "x": 36,
+          "y": 45,
+          "r": 4.5,
+          "t0": 6.5,
+          "t1": 20,
+          "pri": 1,
+          "label": "Your smoke",
+          "lx": 30,
+          "ly": 39.5,
+          "good": true
+        }
+      ],
+      "cam": [
+        [
+          0,
+          0
+        ],
+        [
+          4,
+          -0.3
+        ],
+        [
+          6.5,
+          -0.3
+        ],
+        [
+          9,
+          0
+        ],
+        [
+          20,
+          0
+        ]
+      ],
+      "gtracks": {
+        "e1": {
+          "p": [
+            [
+              0,
+              58,
+              34,
+              0.55
+            ],
+            [
+              6,
+              58,
+              34,
+              0.55
+            ]
+          ],
+          "vis": [
+            0,
+            6.4
+          ]
+        }
+      },
+      "gov": [
+        {
+          "type": "ring",
+          "track": "e1",
+          "t0": 2.5,
+          "t1": 6.2,
+          "pri": 2
+        },
+        {
+          "type": "anno",
+          "at": {
+            "track": "e1"
+          },
+          "t0": 2.5,
+          "t1": 6.2,
+          "pri": 2,
+          "text": "AWP on mid"
+        },
+        {
+          "type": "arrow",
+          "d": "M92 84 Q 80 12 60 34",
+          "t0": 4,
+          "t1": 6.5,
+          "pri": 2
+        },
+        {
+          "type": "blob",
+          "x": 58,
+          "y": 36,
+          "r": 13,
+          "t0": 6.5,
+          "t1": 20,
+          "pri": 1
+        },
+        {
+          "type": "anno",
+          "at": {
+            "x": 71,
+            "y": 36
+          },
+          "t0": 6.5,
+          "t1": 11,
+          "pri": 1,
+          "lab": "Smoke on time",
+          "text": "0.4 s before the cross"
+        }
+      ],
+      "events": [
+        [
+          "insight",
+          6.5,
+          "strength",
+          "Smoke on time",
+          "F21"
+        ],
+        [
+          "you",
+          4,
+          "smoke",
+          "You throw the Window smoke",
+          "F21"
+        ],
+        [
+          "team",
+          6.9,
+          "move",
+          "Kuba crosses mid"
+        ],
+        [
+          "enemy",
+          9,
+          "move",
+          "AWP leaves Window",
+          "F22"
+        ],
+        [
+          "util",
+          6.5,
+          "smoke",
+          "Window smoke blooms",
+          "F21"
+        ],
+        [
+          "util",
+          5.2,
+          "flash",
+          "Lena flashes Top mid"
+        ],
+        [
+          "team",
+          15,
+          "note",
+          "Top mid taken",
+          "F22"
+        ]
+      ],
+      "qa": [
+        [
+          "Why did this smoke work?",
+          "It landed 0.4 s before Kuba crossed [F21], so the AWP never had a clean line. He moved to Short [t:9] and the team took Top mid without a trade [F22]."
+        ],
+        [
+          "How can I make it more reliable?",
+          "Call it the moment you throw. Kuba crossed on his own timing and the 0.4 s margin was partly luck."
+        ],
+        [
+          "Is this a strength or luck?",
+          "It's consistent: on time in 5 of your last 7 matches as T. Your other good play this match, the trade at [m5], also came from timing."
+        ]
+      ]
+    },
+    {
+      "id": "m4",
+      "round": 15,
+      "clockStart": 30,
+      "key": 12,
+      "kind": "opportunity",
+      "cat": "Utility",
+      "side": "CT",
+      "title": "Died with a flash unused",
+      "label": "Flash unused",
+      "pick": "The retake failed with utility left",
+      "finding": "You led the retake and died with your flash unused.",
+      "why": "Both Ts faced your entry, and the team had no other flash.",
+      "instead": "Throw the flash over the site wall from CT, then enter as it pops.",
+      "pattern": {
+        "text": "Improving: 2 of your last 7 matches, down from 5 of the 7 before.",
+        "last7": [
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "related": [
+        0
+      ],
+      "ev": [
+        [
+          "Flashes in your inventory at death",
+          "1",
+          "F31",
+          12
+        ],
+        [
+          "Enemies facing your entry",
+          "2 of 2",
+          "F31",
+          10.8
+        ],
+        [
+          "Team flashes left",
+          "0",
+          "F32",
+          9
+        ]
+      ],
+      "bracket": [
+        9,
+        12,
+        "No team flash left"
+      ],
+      "zones": [
+        "A site",
+        "CT",
+        "Connector"
+      ],
+      "youDeath": 12,
+      "players": [
+        {
+          "n": "You",
+          "r": "you",
+          "p": [
+            [
+              0,
+              16,
+              58
+            ],
+            [
+              8,
+              22,
+              64
+            ],
+            [
+              11,
+              28,
+              70
+            ],
+            [
+              12,
+              30,
+              72
+            ]
+          ],
+          "death": 12
+        },
+        {
+          "n": "Max",
+          "r": "team",
+          "f": 1,
+          "p": [
+            [
+              0,
+              14,
+              60
+            ],
+            [
+              12,
+              20,
+              64
+            ],
+            [
+              16,
+              26,
+              70
+            ],
+            [
+              20,
+              28,
+              72
+            ]
+          ]
+        },
+        {
+          "n": "T",
+          "r": "enemy",
+          "p": [
+            [
+              0,
+              38,
+              76
+            ],
+            [
+              20,
+              38,
+              76
+            ]
+          ],
+          "from": 10.8
+        },
+        {
+          "n": "T",
+          "r": "enemy",
+          "p": [
+            [
+              0,
+              42,
+              69
+            ],
+            [
+              20,
+              42,
+              69
+            ]
+          ],
+          "from": 10.8
+        }
+      ],
+      "rov": [
+        {
+          "type": "zone",
+          "pts": [
+            [
+              24,
+              66
+            ],
+            [
+              46,
+              66
+            ],
+            [
+              46,
+              86
+            ],
+            [
+              24,
+              86
+            ]
+          ],
+          "t0": 9,
+          "t1": 13,
+          "pri": 2,
+          "label": "Two Ts on site",
+          "lx": 25,
+          "ly": 64.5
+        },
+        {
+          "type": "sight",
+          "x1": 38,
+          "y1": 76,
+          "x2": 30,
+          "y2": 72,
+          "t0": 10.8,
+          "t1": 12,
+          "pri": 1
+        },
+        {
+          "type": "sight",
+          "x1": 42,
+          "y1": 69,
+          "x2": 30,
+          "y2": 72,
+          "t0": 10.8,
+          "t1": 12,
+          "pri": 1
+        }
+      ],
+      "cam": [
+        [
+          0,
+          0
+        ],
+        [
+          10,
+          0.1
+        ],
+        [
+          20,
+          0.1
+        ]
+      ],
+      "gtracks": {
+        "e1": {
+          "p": [
+            [
+              10.8,
+              70,
+              46,
+              0.9
+            ],
+            [
+              12,
+              70,
+              46,
+              0.9
+            ]
+          ],
+          "vis": [
+            10.8,
+            12.2
+          ]
+        },
+        "e2": {
+          "p": [
+            [
+              10.8,
+              100,
+              44,
+              0.75
+            ],
+            [
+              12,
+              100,
+              44,
+              0.75
+            ]
+          ],
+          "vis": [
+            10.8,
+            12.2
+          ]
+        }
+      },
+      "gov": [
+        {
+          "type": "zone",
+          "pts": [
+            [
+              60,
+              26
+            ],
+            [
+              110,
+              26
+            ],
+            [
+              110,
+              56
+            ],
+            [
+              60,
+              56
+            ]
+          ],
+          "t0": 9.5,
+          "t1": 12.5,
+          "pri": 2
+        },
+        {
+          "type": "ring",
+          "track": "e1",
+          "t0": 11,
+          "t1": 12.2,
+          "pri": 1
+        },
+        {
+          "type": "ring",
+          "track": "e2",
+          "t0": 11,
+          "t1": 12.2,
+          "pri": 2
+        },
+        {
+          "type": "anno",
+          "at": {
+            "track": "e1"
+          },
+          "side": "left",
+          "t0": 11,
+          "t1": 14,
+          "pri": 1,
+          "lab": "Flash unused",
+          "text": "both Ts facing you"
+        }
+      ],
+      "events": [
+        [
+          "insight",
+          12,
+          "opportunity",
+          "Flash unused",
+          "F31"
+        ],
+        [
+          "you",
+          12,
+          "death",
+          "You die entering A",
+          "F31"
+        ],
+        [
+          "enemy",
+          10.8,
+          "spot",
+          "Two Ts spotted on site",
+          "F31"
+        ],
+        [
+          "enemy",
+          12,
+          "kill",
+          "T kills you"
+        ],
+        [
+          "util",
+          9,
+          "flash",
+          "Last team flash used",
+          "F32"
+        ],
+        [
+          "team",
+          16,
+          "move",
+          "Max enters alone"
+        ]
+      ],
+      "qa": [
+        [
+          "Where should the flash have gone?",
+          "Over the site wall from CT, so it pops above the Ts on site. Both faced your entry [F31] and the team had no flash left [F32]."
+        ],
+        [
+          "Was entering first the mistake?",
+          "Not on its own. Someone has to go first on a retake. Going first without the flash was the problem."
+        ],
+        [
+          "Am I getting better at this?",
+          "Yes. It happened in 2 of your last 7 matches, down from 5 of the 7 before. The same gap shows at [m1], where Kuba's flash stayed unthrown."
+        ]
+      ]
+    },
+    {
+      "id": "m5",
+      "round": 19,
+      "clockStart": 70,
+      "key": 9.4,
+      "kind": "strength",
+      "cat": "Teamplay",
+      "side": "T",
+      "title": "Traded the Apartments entry",
+      "label": "Trade",
+      "pick": "Kept B at 4 against 4, bomb planted",
+      "finding": "You traded Lena's killer in 1.4 seconds.",
+      "why": "You stayed close enough that the CT couldn't reset. B stayed 4 against 4 and the plant went down.",
+      "instead": "Keep this spacing: one step off her line, so one flash covers you both.",
+      "pattern": {
+        "text": "First time this has been flagged. It needs a few more matches before it counts as a strength.",
+        "last7": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "related": [
+        2
+      ],
+      "ev": [
+        [
+          "Trade time",
+          "1.4 s",
+          "F41",
+          9.4
+        ],
+        [
+          "Distance behind the entry",
+          "About 5 m",
+          "F41",
+          7
+        ],
+        [
+          "Result",
+          "Bomb planted at 0:51",
+          "F42",
+          19
+        ]
+      ],
+      "bracket": [
+        8,
+        9.4,
+        "Trade in 1.4 s"
+      ],
+      "zones": [
+        "Apartments",
+        "B site",
+        "Short"
+      ],
+      "players": [
+        {
+          "n": "You",
+          "r": "you",
+          "p": [
+            [
+              0,
+              74,
+              22
+            ],
+            [
+              7,
+              50,
+              22
+            ],
+            [
+              9.4,
+              44,
+              22
+            ],
+            [
+              12,
+              36,
+              20
+            ],
+            [
+              20,
+              26,
+              18
+            ]
+          ]
+        },
+        {
+          "n": "Lena",
+          "r": "team",
+          "f": 1,
+          "p": [
+            [
+              0,
+              70,
+              20
+            ],
+            [
+              6,
+              46,
+              21
+            ],
+            [
+              8,
+              41,
+              22
+            ]
+          ],
+          "death": 8
+        },
+        {
+          "n": "CT",
+          "r": "enemy",
+          "p": [
+            [
+              0,
+              26,
+              20
+            ],
+            [
+              20,
+              26,
+              20
+            ]
+          ],
+          "from": 7.5,
+          "death": 9.4
+        }
+      ],
+      "rov": [
+        {
+          "type": "link",
+          "a": 0,
+          "b": 1,
+          "t0": 5,
+          "t1": 8,
+          "pri": 2,
+          "label": "5 m behind"
+        },
+        {
+          "type": "sight",
+          "x1": 26,
+          "y1": 20,
+          "x2": 41,
+          "y2": 22,
+          "t0": 7.5,
+          "t1": 8.3,
+          "pri": 2
+        },
+        {
+          "type": "sight",
+          "x1": 44,
+          "y1": 22,
+          "x2": 26,
+          "y2": 20,
+          "t0": 9,
+          "t1": 10.2,
+          "pri": 1,
+          "good": true
+        }
+      ],
+      "cam": [
+        [
+          0,
+          0
+        ],
+        [
+          8,
+          0.1
+        ],
+        [
+          9.4,
+          -0.2
+        ],
+        [
+          20,
+          -0.2
+        ]
+      ],
+      "gtracks": {
+        "e1": {
+          "p": [
+            [
+              7.6,
+              70,
+              40,
+              1
+            ],
+            [
+              9.4,
+              72,
+              40,
+              1
+            ]
+          ],
+          "vis": [
+            7.6,
+            9.5
+          ]
+        }
+      },
+      "gov": [
+        {
+          "type": "ring",
+          "track": "e1",
+          "t0": 8,
+          "t1": 9.4,
+          "pri": 1
+        },
+        {
+          "type": "anno",
+          "at": {
+            "track": "e1"
+          },
+          "t0": 8,
+          "t1": 12.5,
+          "pri": 1,
+          "lab": "Trade",
+          "text": "1.4 s after Lena falls"
+        }
+      ],
+      "events": [
+        [
+          "insight",
+          9.4,
+          "strength",
+          "Trade",
+          "F41"
+        ],
+        [
+          "you",
+          9.4,
+          "kill",
+          "You kill the CT",
+          "F41"
+        ],
+        [
+          "team",
+          8,
+          "death",
+          "Lena dies"
+        ],
+        [
+          "enemy",
+          7.5,
+          "spot",
+          "CT at the Apartments exit"
+        ],
+        [
+          "enemy",
+          8,
+          "kill",
+          "CT kills Lena"
+        ],
+        [
+          "util",
+          5,
+          "flash",
+          "Lena flashes out"
+        ],
+        [
+          "util",
+          19,
+          "plant",
+          "Bomb planted",
+          "F42"
+        ]
+      ],
+      "qa": [
+        [
+          "Why did this trade work?",
+          "You stayed about 5 m behind Lena [F41], so the CT had no time to reset after his kill at [t:8]."
+        ],
+        [
+          "Could Lena have survived?",
+          "She flashed out for herself, which was right. A second flash from you would have helped, but the spacing already made it an even trade."
+        ],
+        [
+          "Is this a strength of mine?",
+          "It's the first time this has been flagged, so it's too early to say. The smoke at [m3] is the good play you repeat most."
+        ]
+      ]
+    },
+    {
+      "id": "m6",
+      "round": 24,
+      "clockStart": 65,
+      "key": 7.8,
+      "kind": "mistake",
+      "cat": "Positioning",
+      "side": "T",
+      "title": "Crossed Mid in the AWP's line",
+      "label": "Open cross",
+      "pick": "Last round of the match",
+      "finding": "You crossed Mid without a Window smoke and the AWP punished it.",
+      "why": "The AWP had held Window for three rounds straight. Crossing open gave him a clean line.",
+      "instead": "Cross behind a Window smoke or a flash over mid. With neither, go through Underpass.",
+      "pattern": {
+        "text": "Open mid crosses in 3 of your last 7 matches.",
+        "last7": [
+          1,
+          0,
+          1,
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "related": [
+        0
+      ],
+      "ev": [
+        [
+          "Window smoke when you crossed",
+          "None",
+          "F51",
+          7.8
+        ],
+        [
+          "AWP position in rounds 21 to 23",
+          "Window each round",
+          "F52",
+          2
+        ],
+        [
+          "Time exposed",
+          "0.7 s",
+          "F51",
+          7.1
+        ]
+      ],
+      "bracket": [
+        7.1,
+        7.8,
+        "Exposed 0.7 s"
+      ],
+      "zones": [
+        "Mid",
+        "Window",
+        "T spawn"
+      ],
+      "youDeath": 7.8,
+      "players": [
+        {
+          "n": "You",
+          "r": "you",
+          "p": [
+            [
+              0,
+              74,
+              48
+            ],
+            [
+              6,
+              60,
+              46
+            ],
+            [
+              7.8,
+              55,
+              49
+            ]
+          ],
+          "death": 7.8
+        },
+        {
+          "n": "Kuba",
+          "r": "team",
+          "f": 1,
+          "p": [
+            [
+              0,
+              80,
+              48
+            ],
+            [
+              10,
+              68,
+              48
+            ],
+            [
+              20,
+              64,
+              48
+            ]
+          ]
+        },
+        {
+          "n": "AWP",
+          "r": "enemy",
+          "p": [
+            [
+              0,
+              33,
+              44
+            ],
+            [
+              20,
+              33,
+              44
+            ]
+          ],
+          "from": 7.1
+        }
+      ],
+      "rov": [
+        {
+          "type": "sight",
+          "x1": 33,
+          "y1": 44,
+          "x2": 55,
+          "y2": 48,
+          "t0": 5,
+          "t1": 8.2,
+          "pri": 1
+        },
+        {
+          "type": "zone",
+          "pts": [
+            [
+              50,
+              42
+            ],
+            [
+              60,
+              42
+            ],
+            [
+              60,
+              54
+            ],
+            [
+              50,
+              54
+            ]
+          ],
+          "t0": 5,
+          "t1": 8.2,
+          "pri": 2,
+          "label": "Open cross",
+          "lx": 50,
+          "ly": 40.5
+        }
+      ],
+      "cam": [
+        [
+          0,
+          0
+        ],
+        [
+          6,
+          -0.1
+        ],
+        [
+          20,
+          -0.1
+        ]
+      ],
+      "gtracks": {
+        "e1": {
+          "p": [
+            [
+              7.1,
+              46,
+              36,
+              0.55
+            ],
+            [
+              7.8,
+              46,
+              36,
+              0.55
+            ]
+          ],
+          "vis": [
+            7.1,
+            7.9
+          ]
+        }
+      },
+      "gov": [
+        {
+          "type": "zone",
+          "pts": [
+            [
+              48,
+              54
+            ],
+            [
+              112,
+              54
+            ],
+            [
+              132,
+              90
+            ],
+            [
+              28,
+              90
+            ]
+          ],
+          "t0": 5.5,
+          "t1": 7.9,
+          "pri": 2
+        },
+        {
+          "type": "los",
+          "track": "e1",
+          "to": [
+            80,
+            45
+          ],
+          "t0": 7.1,
+          "t1": 8.2,
+          "pri": 1
+        },
+        {
+          "type": "ring",
+          "track": "e1",
+          "t0": 7.1,
+          "t1": 7.9,
+          "pri": 2
+        },
+        {
+          "type": "anno",
+          "at": {
+            "x": 84,
+            "y": 47
+          },
+          "t0": 7.8,
+          "t1": 12,
+          "pri": 1,
+          "lab": "Open cross",
+          "text": "no smoke on Window"
+        }
+      ],
+      "events": [
+        [
+          "insight",
+          7.8,
+          "mistake",
+          "Open cross",
+          "F51"
+        ],
+        [
+          "you",
+          7.8,
+          "death",
+          "You die in Mid",
+          "F51"
+        ],
+        [
+          "enemy",
+          7.1,
+          "spot",
+          "AWP at Window",
+          "F52"
+        ],
+        [
+          "enemy",
+          7.8,
+          "kill",
+          "AWP kills you"
+        ],
+        [
+          "util",
+          3,
+          "flash",
+          "Kuba flashes Palace"
+        ],
+        [
+          "team",
+          14,
+          "death",
+          "Kuba dies on Ramp"
+        ]
+      ],
+      "qa": [
+        [
+          "How could I have known the AWP was there?",
+          "He held Window in rounds 21, 22 and 23 [F52]. When one player holds the same spot three rounds running, expect it again."
+        ],
+        [
+          "What should I have done instead?",
+          "Cross behind a Window smoke or a flash over mid. With neither, go through Underpass or wait for your team [F51]."
+        ],
+        [
+          "Have I done this before?",
+          "In 3 of your last 7 matches. The mid entry at [m1] in this match has the same root: taking mid without utility."
+        ]
+      ]
+    }
+  ],
+  "home": {
+    "focusMoment": 1,
+    "focusTitle": "Hold A until someone confirms the push.",
+    "focusBody": "You rotated off A on sound alone in 4 of your last 7 matches. The rate hasn't dropped yet.",
+    "focusCta": "Review the round 7 example",
+    "matches": [
+      [
+        "Mirage",
+        "11–13",
+        "Yesterday",
+        [
+          "mistake",
+          "mistake",
+          "strength",
+          "opportunity",
+          "strength",
+          "mistake"
+        ],
+        "Not reviewed"
+      ],
+      [
+        "Ancient",
+        "13–9",
+        "Tue 22 Sep",
+        [
+          "strength",
+          "mistake",
+          "strength",
+          "opportunity",
+          "mistake"
+        ],
+        "Reviewed"
+      ],
+      [
+        "Anubis",
+        "13–11",
+        "Sun 20 Sep",
+        [
+          "mistake",
+          "strength",
+          "mistake",
+          "strength",
+          "strength",
+          "opportunity"
+        ],
+        "Reviewed"
+      ],
+      [
+        "Mirage",
+        "10–13",
+        "Fri 18 Sep",
+        [
+          "mistake",
+          "mistake",
+          "opportunity",
+          "strength",
+          "mistake",
+          "mistake"
+        ],
+        "Reviewed"
+      ],
+      [
+        "Anubis",
+        "7–13",
+        "Wed 16 Sep",
+        [
+          "mistake",
+          "opportunity",
+          "mistake",
+          "strength",
+          "mistake"
+        ],
+        "Reviewed"
+      ]
+    ],
+    "patterns": [
+      [
+        4,
+        "Rotating off A on sound alone",
+        "Recurring, not improving yet",
+        "neg"
+      ],
+      [
+        3,
+        "Dry peeks into held angles",
+        "Recurring",
+        "neg"
+      ],
+      [
+        5,
+        "Window smoke timing as T",
+        "Consistent good play",
+        "pos"
+      ]
+    ],
+    "qa": [
+      [
+        "Which mistake cost me the most rounds?",
+        "Early rotations off A. They show up in 4 of your last 7 matches and came before 5 lost rounds, including round 7 yesterday."
+      ],
+      [
+        "Am I getting better at rotations?",
+        "Not yet. The rate is flat: 4 of the last 7 matches, and 4 of the 7 before. Dying with utility unused has improved over the same period."
+      ],
+      [
+        "What should I practise before the next match?",
+        "Holding A as CT until a sighting or a utility call. Start with round 7 from yesterday, it's the clearest example."
+      ]
+    ]
+  }
+}

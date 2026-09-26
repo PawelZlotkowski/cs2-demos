@@ -1,0 +1,42 @@
+# Round Reviewer — API + Web
+# From repo root: docker compose up --build
+
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: ../../docker/Dockerfile.api
+    ports:
+      - "8000:8000"
+    volumes:
+      - api-data:/app/data
+    environment:
+      RR_DATA_DIR: /app/data
+      RR_FIXTURE_PATH: /app/fixtures/sample-match.json
+      RR_MOCK_STAGE_SECONDS: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: ../../docker/Dockerfile.web
+      args:
+        # Browser calls the API via the published host port (not the compose service name).
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      # Server-side fetch (if used) reaches the API on the compose network.
+      API_INTERNAL_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  api-data:

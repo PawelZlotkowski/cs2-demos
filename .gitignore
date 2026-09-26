@@ -1,0 +1,56 @@
+# Dependencies & build
+node_modules/
+.next/
+dist/
+out/
+*.tsbuildinfo
+
+# Python
+*.pyc
+__pycache__/
+.venv/
+apps/api/.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+!.env*.example
+credentials.json
+*.pem
+
+# Demo binaries (keep small JSON fixtures only)
+*.dem
+*.dem.zst
+
+# Runtime / generated data
+apps/api/data/uploads/*
+!apps/api/data/uploads/.gitkeep
+apps/api/data/work/
+apps/api/data/matches/
+!apps/api/data/matches/.gitkeep
+apps/api/data/matches.db
+apps/api/data/matches.db-*
+
+# QA / agent junk
+qa-out/
+.playwright/
+test-results/
+playwright-report/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+!.vscode/extensions.json
+
+# Logs
+*.log
+npm-debug.log*

@@ -1,0 +1,25 @@
+.venv
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+tests
+# Keep fixtures only; runtime uploads/parsed matches stay out of the image.
+data/uploads
+data/work
+data/matches
+data/**/uploads
+data/**/work
+data/**/matches
+*.db
+*.dem
+*.dem.zst
+.env
+.env.*
+package-lock.json
+.git
+.gitignore
