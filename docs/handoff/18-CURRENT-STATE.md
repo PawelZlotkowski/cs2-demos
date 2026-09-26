@@ -55,6 +55,10 @@ Still in `prototype/analysis-studio.html` (reference): moment rail, Coach panel,
 - **Gameplay video / clip rendering:** not built.
 - **LLM moment selection / explanations / Ask:** built (phase 2) but only exercised with a scripted model. With `RR_LLM_ENABLED` off, the code ranker's moments and the finding templates stand in. The web app does not call the new explanation and Ask routes yet (T42, T43).
 
+## Implemented (AI Coach phase 3 — knowledge base, in review)
+
+- **Knowledge base (T30):** `data/knowledge/` with Mirage (58 sections) and Anubis (49) notes on callouts, T and CT play, utility and rotations, plus 25 fundamentals sections tied to the detectors. One chunk per `##` section, frontmatter `map/side/topic/source/license/lang/review`, `Zones:` and `Detectors:` lines. First draft from general CS2 knowledge, not checked in-game. Liquipedia pages come from `data/knowledge/fetch_liquipedia.py` run locally (the cloud sessions cannot reach the site). Content test: `pytest tests/knowledge`. The index and `search_knowledge` (T31, T32) are built in the phase 2 PR.
+
 ## Planned next (AI Coach milestone, kicked off 26 Sep 2026)
 
 Plan: [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN.md). Tasks and status: [docs/coach/TASKS.md](../coach/TASKS.md).

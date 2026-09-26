@@ -53,7 +53,7 @@ Built 26 Sep 2026 in one draft PR (branch `claude/coach-phase-2-r2gzvt`, on top 
 
 | ID | Task | Depends | Paths | Done when | Size | Owner | Status |
 |---|---|---|---|---|---|---|---|
-| T30 | Knowledge base content: Mirage + Anubis notes, fundamentals, licensed excerpts with attribution | – | `data/knowledge/` | ≥ 40 sections per map; sources listed | M | | todo |
+| T30 | Knowledge base content: Mirage + Anubis notes, fundamentals, licensed excerpts with attribution | – | `data/knowledge/` | ≥ 40 sections per map; sources listed | M | | review (58 Mirage, 49 Anubis, 25 fundamentals; draft notes need an in-game check; Liquipedia via `fetch_liquipedia.py`, run locally) |
 | T31 | Ingest + index (FTS5 + sqlite-vec, bge-m3) | T30 | `apps/api/app/rag/` | re-index command; test retrieval | M | | todo |
 | T32 | `search_knowledge` + player-memory retrieval wired into tools | T31 T20 | `rag/`, `coach/tools.py` | `[K..]` citations resolve in verifier | S | | todo |
 
