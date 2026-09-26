@@ -35,6 +35,7 @@ apps/api/data/matches/
 !apps/api/data/matches/.gitkeep
 apps/api/data/matches.db
 apps/api/data/matches.db-*
+apps/api/data/traces/
 
 # QA / agent junk
 qa-out/
