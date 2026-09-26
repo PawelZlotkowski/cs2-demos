@@ -12,6 +12,8 @@ type Props = {
   rounds: RoundSummary[];
   /** Per-round result from the match (1 = won), for the match strip. */
   won: (0 | 1)[];
+  /** Round number -> glyph of its coaching moment, drawn above the match strip. */
+  momentRounds?: ReadonlyMap<number, "mistake" | "strength">;
   roundId: string | null;
   selectedEventId: string | null;
   laneH: number;
@@ -23,6 +25,12 @@ type Props = {
 type Tip = { x: number; y: number; label: string; detail?: string };
 
 const CLUSTER_GAP = 20;
+/** Coach markers closer than this keep only their glyph; the label moves to the tooltip. */
+const LABEL_GAP = 120;
+/** Coach findings closer than this share one marker, led by the highest priority. */
+const STACK_GAP = 14;
+
+type CoachStack = { lead: LaneMark; rest: LaneMark[] };
 
 export function ReplayTimeline({
   duration,
@@ -30,6 +38,7 @@ export function ReplayTimeline({
   marks,
   rounds,
   won,
+  momentRounds,
   roundId,
   selectedEventId,
   laneH,
@@ -61,10 +70,29 @@ export function ReplayTimeline({
   // Markers closer than CLUSTER_GAP px collapse into a count.
   const items = useMemo(() => {
     const out: Array<
-      { kind: "mark"; lane: Lane; mark: LaneMark } | { kind: "cluster"; lane: Lane; group: LaneMark[] }
+      | { kind: "mark"; lane: Lane; mark: LaneMark }
+      | { kind: "cluster"; lane: Lane; group: LaneMark[] }
+      | { kind: "coach"; lane: Lane; stack: CoachStack }
     > = [];
     for (const lane of lanes) {
       const ms = marks.filter((m) => m.lane === lane).sort((a, b) => a.t - b.t);
+      if (lane === "coach") {
+        // Primary events: never collapsed into a count (08 Timeline). Findings at the
+        // same moment share one marker so their glyphs do not pile up.
+        let group: LaneMark[] = [];
+        const flushCoach = () => {
+          if (!group.length) return;
+          const sorted = [...group].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+          out.push({ kind: "coach", lane, stack: { lead: sorted[0], rest: sorted.slice(1) } });
+          group = [];
+        };
+        for (const m of ms) {
+          if (group.length && ((m.t - group[0].t) / max) * trackW >= STACK_GAP) flushCoach();
+          group.push(m);
+        }
+        flushCoach();
+        continue;
+      }
       let group: LaneMark[] = [];
       const flush = () => {
         if (group.length === 1) out.push({ kind: "mark", lane, mark: group[0] });
@@ -83,6 +111,17 @@ export function ReplayTimeline({
     }
     return out;
   }, [lanes, marks, max, trackW]);
+
+  // A label runs to the right of its glyph, so it needs room before the next marker.
+  const crowded = useMemo(() => {
+    const out = new Set<string>();
+    const coach = items.flatMap((it) => (it.kind === "coach" ? [it.stack.lead] : []));
+    coach.forEach((m, i) => {
+      const next = coach[i + 1];
+      if (next && ((next.t - m.t) / max) * trackW < LABEL_GAP) out.add(m.key);
+    });
+    return out;
+  }, [items, max, trackW]);
 
   const ticks = useMemo(() => {
     const step = duration > 90 ? 15 : duration > 40 ? 10 : 5;
@@ -115,17 +154,20 @@ export function ReplayTimeline({
         >
           {rounds.map((r, i) => {
             const detail = `${r.winner ? `${r.winner} win` : "No result"}, ${reasonLabel(r.reason).toLowerCase()}`;
+            const moment = momentRounds?.get(r.number);
             return (
               <button
                 key={r.id}
                 type="button"
                 className={`rcell${won[i] ? " won" : ""}${r.id === roundId ? " cur" : ""}`}
-                aria-label={`Round ${r.number}, ${detail}`}
+                aria-label={`Round ${r.number}, ${detail}${moment ? ", has a coaching moment" : ""}`}
                 aria-current={r.id === roundId ? "true" : undefined}
                 onClick={() => onSelectRound(r.id)}
                 onMouseEnter={(e) => showTip(e.currentTarget, `Round ${r.number}`, detail)}
                 onMouseLeave={hideTip}
-              />
+              >
+                {moment ? <i className={`g g-${moment} rmark`} aria-hidden /> : null}
+              </button>
             );
           })}
         </div>
@@ -137,7 +179,19 @@ export function ReplayTimeline({
             {items
               .filter((it) => it.lane === lane)
               .map((it) =>
-                it.kind === "mark" ? (
+                it.kind === "coach" ? (
+                  <CoachMarker
+                    key={it.stack.lead.key}
+                    stack={it.stack}
+                    left={pct(it.stack.lead.t)}
+                    live={[it.stack.lead, ...it.stack.rest].some(now)}
+                    selected={[it.stack.lead, ...it.stack.rest].some((m) => m.eventId === selectedEventId)}
+                    showLabel={!crowded.has(it.stack.lead.key)}
+                    onSeek={onSeek}
+                    showTip={showTip}
+                    hideTip={hideTip}
+                  />
+                ) : it.kind === "mark" ? (
                   <button
                     key={it.mark.key}
                     type="button"
@@ -265,11 +319,53 @@ export function ReplayTimeline({
   );
 }
 
+function CoachMarker({
+  stack,
+  left,
+  live,
+  selected,
+  showLabel,
+  onSeek,
+  showTip,
+  hideTip,
+}: {
+  stack: CoachStack;
+  left: string;
+  live: boolean;
+  selected: boolean;
+  showLabel: boolean;
+  onSeek: (t: number, eventId?: string) => void;
+  showTip: (el: HTMLElement, label: string, detail?: string) => void;
+  hideTip: () => void;
+}) {
+  const { lead, rest } = stack;
+  const all = [lead, ...rest];
+  const label = rest.length ? `${lead.label} +${rest.length}` : lead.label;
+  const tipLabel = all.map((m) => m.label).join(", ");
+  const tipDetail = `${formatClock(lead.t)}, ${all.length > 1 ? "findings" : "finding"} ${all.map((m) => m.eventId).join(", ")}`;
+  return (
+    <button
+      type="button"
+      className={`mk mk-ins${live ? " live" : ""}${selected ? " sel" : ""}`}
+      style={{ left }}
+      aria-label={`${tipLabel}, ${formatClock(lead.t)}${lead.detail ? `. ${lead.detail}` : ""}`}
+      onClick={() => onSeek(lead.t, lead.eventId)}
+      onMouseEnter={(e) => showTip(e.currentTarget, tipLabel, tipDetail)}
+      onMouseLeave={hideTip}
+      onFocus={(e) => showTip(e.currentTarget, tipLabel, tipDetail)}
+      onBlur={hideTip}
+    >
+      <i className={`g g-${lead.glyph}`} aria-hidden />
+      {showLabel ? <span className="lbl">{label}</span> : null}
+    </button>
+  );
+}
+
 function LaneRow({ lane, children }: { lane: Lane; children: ReactNode }) {
   return (
     <>
-      <div className="lane-n">{LANE_NAMES[lane]}</div>
-      <div className="lane-t" data-lane={lane}>
+      <div className={`lane-n l-${lane}`}>{LANE_NAMES[lane]}</div>
+      <div className={`lane-t l-${lane}`} data-lane={lane}>
         {children}
       </div>
     </>

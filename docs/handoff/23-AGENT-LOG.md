@@ -2,6 +2,26 @@
 
 Concise log for the next engineer or agent. British spelling.
 
+## 26 September 2026 — Player picker and Studio coach UI (T41, T42, T44, part of T43), same branch
+
+### Done
+
+- Processing page stops at `awaiting_player` and shows a player picker: two teams, name and K/D from the kill events, arrow keys and Enter, the last picked player focused first. Picking calls `POST /matches/{id}/player`, shows the detecting stage and opens the Studio when the analysis completes. "Watch the replay without analysis" skips it.
+- Studio loads the selected player's moments, findings and round stats. The rail lists the moments first (glyph, label, round clock, pick reason on the current one) and all rounds below; picking a moment loads its round and seeks to its start.
+- Timeline: a Coach lane on top with labelled markers (orange ▲ mistake, blue ● good play); findings at one spot share a marker led by the moment's lead finding. The match strip marks rounds that hold a moment.
+- Analysis tab: lead finding, kind and rank with finding citations that seek, the moment's findings, the player's round stats, and all findings in the round. The Ask tab is unchanged until the coach model exists.
+- Home page text no longer says analysis is out of scope.
+
+### Tested
+
+- `npm run typecheck`, `npm run lint`, `npm run build`, API `pytest` (92 passed, 3 skipped).
+- Playwright on the synthetic two-round demo at 1440, 1920, 1024, 834, 390 and 430 px: keyboard pick through to the Studio, and a moment jump across rounds landing on the moment's start. Screenshots in `docs/coach/screenshots/`.
+
+### Not done / not verified
+
+- Not checked on a real demo in the cloud session; needs a run on the owner's PC.
+- Labels on the Coach lane drop to glyphs when markers are closer than 120 px; the tooltip carries them.
+
 ## 26 September 2026 — AI Coach phase 1 (T10–T17), branch `claude/coach-phase-1-hrt6pm`
 
 Owner asked for phase one of the plan. One branch and one draft PR for all of phase 1 instead of one per task (owner's request covered the whole phase); commits are split by task.

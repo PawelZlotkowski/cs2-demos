@@ -16,10 +16,11 @@ export function makeRosterLookup(roster: ReplayPlayer[]): RosterLookup {
   };
 }
 
-/** Lanes follow the prototype: the followed player, their team, the other team. */
-export type Lane = "you" | "team" | "enemy" | "bomb" | "util";
+/** Lanes follow the prototype: coach findings, the followed player, their team, the other team. */
+export type Lane = "coach" | "you" | "team" | "enemy" | "bomb" | "util";
 
 export const LANE_NAMES: Record<Lane, string> = {
+  coach: "Coach",
   you: "You",
   team: "Team",
   enemy: "Enemy",
@@ -27,7 +28,7 @@ export const LANE_NAMES: Record<Lane, string> = {
   util: "Utility",
 };
 
-export const LANE_ORDER: Lane[] = ["you", "team", "enemy", "bomb", "util"];
+export const LANE_ORDER: Lane[] = ["coach", "you", "team", "enemy", "bomb", "util"];
 
 export function roleOf(
   player: ReplayPlayer | undefined,
@@ -44,9 +45,13 @@ export type LaneMark = {
   eventId: string;
   lane: Lane;
   t: number;
-  /** Timeline glyph: d-kill, d-death, d-smoke, … */
+  /** Timeline glyph: d-kill, d-death, d-smoke, …; on the Coach lane g-mistake or g-strength */
   glyph: string;
   label: string;
+  /** Coach lane: the finding's one-line summary for the tooltip. */
+  detail?: string;
+  /** Coach lane: which marker leads when several share a spot (higher first). */
+  priority?: number;
 };
 
 const UTIL_TYPES = new Set(["smoke", "flash", "he", "molotov", "incendiary", "decoy"]);

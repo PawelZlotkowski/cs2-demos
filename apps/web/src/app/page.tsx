@@ -14,8 +14,9 @@ export default function HomePage() {
         </Link>
       </p>
       <p className="meta" style={{ marginTop: 24 }}>
-        Coaching moments and analysis detectors are not part of this milestone. The fixture sample
-        match has no Radar positions — use a real upload.
+        After parsing you choose a player. The coach then finds that player's mistakes and good
+        plays and picks five or six moments to review. The fixture sample match has no Radar
+        positions, so use a real upload.
       </p>
     </main>
   );

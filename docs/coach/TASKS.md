@@ -60,10 +60,10 @@ Sizes: S ≈ half a day, M ≈ 1–2 days, L ≈ 3–5 days. Status: `todo`, `do
 | ID | Task | Depends | Paths | Done when | Size | Owner | Status |
 |---|---|---|---|---|---|---|---|
 | T40 | CS:DM per-moment recording with focus player; queue priority; `request_clip` tool | T00 T25 | `processing/video_clips.py`, tools | real clip recorded on Windows host; timings noted | M | | todo |
-| T41 | Player picker UI on processing page | T13 | `apps/web/src/app/processing/` | screenshots at six sizes; keyboard path | S | | todo |
-| T42 | Studio moment rail (selected moments primary, all rounds secondary) | T25 | `apps/web/src/app/studio/` | screenshots; seek sync checks pass | M | | todo |
-| T43 | Panel tabs Analysis + Ask; citation tokens seek the clock | T26 T27 | Studio components | [09](../handoff/09-AI-COACH.md) rules met; overlay sync checks | M | | todo |
-| T44 | Coach lane on timeline with finding markers | T42 | timeline components | colours/shapes per decision 4 | S | | todo |
+| T41 | Player picker UI on processing page | T13 | `apps/web/src/app/processing/` | screenshots at six sizes; keyboard path | S | | review |
+| T42 | Studio moment rail (selected moments primary, all rounds secondary) | T25 | `apps/web/src/app/studio/` | screenshots; seek sync checks pass | M | | review (code ranker moments until T25) |
+| T43 | Panel tabs Analysis + Ask; citation tokens seek the clock | T26 T27 | Studio components | [09](../handoff/09-AI-COACH.md) rules met; overlay sync checks | M | | doing (Analysis tab with findings, round stats and seeking citations done; Ask waits for T26 T27) |
+| T44 | Coach lane on timeline with finding markers | T42 | timeline components | colours/shapes per decision 4 | S | | review |
 | T45 | Language setting (en/pl/nl) end to end | T26 T27 | web settings, API param | answers in chosen language; UI copy stays English | S | | todo |
 
 ## Phase 5 — fine-tuning and bigger model

@@ -414,6 +414,101 @@ h1 {
 }
 
 
+/* ---- Player picker (processing page, T41) ---- */
+
+.picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 24px;
+}
+
+@media (max-width: 560px) {
+  .picker {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+}
+
+.pick-team h2 {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--text-3);
+  margin: 0 0 4px;
+}
+
+.pick-team h2 span {
+  font-weight: 500;
+}
+
+.pick-team ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.pick-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: var(--fs-14);
+  color: var(--text);
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--border-soft);
+  border-radius: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pick-row:hover:not(:disabled) {
+    background: var(--surface-raised);
+  }
+}
+
+.pick-row:disabled {
+  cursor: default;
+  color: var(--text-3);
+}
+
+.pick-row[aria-busy="true"] {
+  color: var(--text);
+  background: var(--surface-raised);
+}
+
+.pick-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pick-note {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+
+.pick-kd {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-13);
+  color: var(--text-2);
+  min-width: 4.5em;
+  text-align: right;
+}
+
+.stage-list.compact {
+  margin-top: 32px;
+}
+
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
