@@ -140,3 +140,21 @@ def test_liquipedia_fetch_asks_for_gzip(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(fl.urllib.request, "urlopen", fake_urlopen)
     assert fl.fetch_html("Mirage") == "<p>hi</p>"
     assert seen["encoding"] == "gzip"
+
+
+def test_liquipedia_skips_downloaded_pages(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    sys.path.insert(0, str(KNOWLEDGE))
+    try:
+        import fetch_liquipedia as fl
+    finally:
+        sys.path.pop(0)
+    (tmp_path / "mirage.md").write_text("cached", encoding="utf-8")
+    calls: list[str] = []
+    monkeypatch.setattr(fl, "OUT_DIR", tmp_path)
+    monkeypatch.setattr(fl, "fetch_html", lambda page: calls.append(page) or "<p>x</p>")
+    monkeypatch.setattr(fl.time, "sleep", lambda s: None)
+    assert fl.main(["Mirage", "Anubis"]) == 0
+    assert calls == ["Anubis"]
+    assert (tmp_path / "mirage.md").read_text(encoding="utf-8") == "cached"
+    assert fl.main(["--force", "Mirage"]) == 0
+    assert calls == ["Anubis", "Mirage"]

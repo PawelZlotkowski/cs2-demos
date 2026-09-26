@@ -40,7 +40,7 @@ Everything here is a first draft written from general CS2 knowledge, not checked
 Liquipedia text is CC BY-SA 3.0. `fetch_liquipedia.py` downloads the map pages into `liquipedia/` with attribution frontmatter, split by heading. The cloud sessions could not reach liquipedia.net, so run it locally:
 
 ```bash
-python data/knowledge/fetch_liquipedia.py Mirage Anubis
+python data/knowledge/fetch_liquipedia.py Mirage Anubis   # --force to refresh
 ```
 
-It keeps to Liquipedia's API rules (a descriptive User-Agent, one parse request per 30 seconds). Read the output before committing: keep only sections that help coaching and leave the attribution frontmatter in place. Because of share-alike, a derived dataset that includes these sections (for example fine-tuning data, T50) must carry the same licence.
+It follows the Liquipedia API terms: a User-Agent with the repo URL (set `LIQUIPEDIA_CONTACT` to add an email), gzip, one parse request per 30 seconds, and no re-download of pages already in `liquipedia/`. Read the output before committing: keep only sections that help coaching and leave the attribution frontmatter in place. Because of share-alike, a derived dataset that includes these sections (for example fine-tuning data, T50) must carry the same licence.

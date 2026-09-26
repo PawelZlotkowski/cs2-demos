@@ -1,6 +1,10 @@
 """Download Liquipedia CS map pages into data/knowledge/liquipedia/ (T30).
 
-Usage: python data/knowledge/fetch_liquipedia.py Mirage Anubis
+Usage: python data/knowledge/fetch_liquipedia.py [--force] Mirage Anubis
+
+Pages already in liquipedia/ are not downloaded again (the terms ask to reuse
+results); pass --force to refresh them. Set LIQUIPEDIA_CONTACT to an email to
+put it in the User-Agent next to the repo URL.
 
 Liquipedia text is CC BY-SA 3.0; every file gets attribution frontmatter.
 API rules (https://liquipedia.net/api-terms-of-use): a descriptive User-Agent,
@@ -11,6 +15,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import os
 import re
 import sys
 import time
@@ -20,7 +25,9 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 API = "https://liquipedia.net/counterstrike/api.php"
-USER_AGENT = "cs2-round-reviewer-coach/0.1 (school project; https://github.com/PawelZlotkowski/cs2-demos)"
+REPO_URL = "https://github.com/PawelZlotkowski/cs2-demos"
+_CONTACT = os.environ.get("LIQUIPEDIA_CONTACT", "").strip()
+USER_AGENT = f"cs2-round-reviewer-coach/0.1 ({REPO_URL}{'; ' + _CONTACT if _CONTACT else ''})"
 PARSE_INTERVAL_S = 30
 OUT_DIR = Path(__file__).parent / "liquipedia"
 MAP_KEYS = {"mirage": "de_mirage", "anubis": "de_anubis"}
@@ -119,19 +126,25 @@ def to_markdown(page: str, html: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def main(pages: list[str]) -> int:
+def main(args: list[str]) -> int:
+    force = "--force" in args
+    pages = [a for a in args if a != "--force"]
     if not pages:
         print(__doc__)
         return 2
     OUT_DIR.mkdir(exist_ok=True)
-    for i, page in enumerate(pages):
-        if i:
-            time.sleep(PARSE_INTERVAL_S)
+    fetched = 0
+    for page in pages:
         out = OUT_DIR / f"{page.lower()}.md"
+        if out.exists() and not force:
+            print(f"kept {out} (already downloaded; --force to refresh)")
+            continue
+        if fetched:
+            time.sleep(PARSE_INTERVAL_S)
         out.write_text(to_markdown(page, fetch_html(page)), encoding="utf-8")
+        fetched += 1
         print(f"wrote {out}")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
