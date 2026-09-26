@@ -10,7 +10,7 @@ Code: `ask()`, `renderSugg()`, `updateKnows()`, `stream()`, `cites()` and `homeA
 
 The Coach is a contextual query layer on the current moment, not a chatbot:
 
-- It lives in the panel's **Ask** tab, where it takes over the panel body.
+- It lives in the panel's **Ask** tab, next to the **Analysis** tab ([19](./19-DECISIONS.md) #20).
 - On Home there is a history-scoped version ("Ask about recent matches").
 - There is no standalone page, no floating button, no avatar and no chat bubbles.
 
@@ -28,14 +28,14 @@ The Coach is shown as a single line ("Knows round 3 at 1:15, the gameplay view, 
 | History | `M.pattern`, `LAST7` |
 
 - **Planned backend:** the payload must include all of this plus the finding records themselves. Its shape is sketched in [16](./16-DATA-CONTRACTS.md#coach-context).
-- From project history, the planned agent is a tool-calling loop with an MCP server over the demo data:
-  - Claude Sonnet 5 as the main agent
-  - Haiku 4.5 for cheap tasks
-  - Opus 5.5 as the evaluation judge
-  - a local Ollama model as a comparison
-  - a verifier that checks every claim against a finding ID
+- **Planned agent (owner decision, 26 Sep 2026; supersedes the earlier hosted-model idea):** a tool-calling loop over the `cs2-demo` MCP server, running only self-hosted models:
+  - Qwen3-14B Q4_K_M on llama.cpp (RTX 5080), thinking off for Ask answers
+  - a larger open model on an RTX Pro 6000 later, and a QLoRA fine-tuned 14B
+  - RAG over map knowledge (`[K..]` citations) and the player's past findings
+  - a code verifier that checks every claim against a finding ID and every number against its evidence
+  - answers in English, Polish or Dutch
 
-  None of this was inspected here.
+  Details: [AI Coach plan](../coach/AI-COACH-PLAN.md) §5–§7.
 
 ## Suggested questions
 
@@ -61,6 +61,7 @@ The input placeholder is contextual too: "Ask about round 3 at 1:15".
 | `[F12]` | `F12` | Seeks to the finding's time |
 | `[t:4.6]` | The round clock, e.g. `0:48` | Seeks to that clip time |
 | `[m6]` | "moment 6, crossed Mid in the AWP's line" | Opens that moment |
+| `[K7]` | Source name of knowledge passage 7 (planned) | Shows the passage and its source |
 
 - Previous matches are named in plain text (for example "Mirage, Fri 18 Sep"). There is no link, because other matches are not loaded in the prototype. Linking them is planned.
 - Keep answers short: one to three sentences, with no preamble and no closing offer.

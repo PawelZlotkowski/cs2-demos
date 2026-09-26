@@ -2,6 +2,8 @@
 
 CS2 coaching tool: upload a demo, review ~5–6 high-value moments in Analysis Studio.
 
+**Current milestone:** self-hosted AI Coach, see [docs/coach/AI-COACH-PLAN.md](docs/coach/AI-COACH-PLAN.md) and [docs/coach/TASKS.md](docs/coach/TASKS.md).
+
 **Start here:** [docs/handoff/00-README.md](docs/handoff/00-README.md) · Cursor: [docs/handoff/21-CURSOR-HANDOFF.md](docs/handoff/21-CURSOR-HANDOFF.md) · Agents: [AGENTS.md](AGENTS.md) · MVP layout: [docs/handoff/24-MVP-ARCHITECTURE.md](docs/handoff/24-MVP-ARCHITECTURE.md)
 
 ## Monorepo (foundation)

@@ -13,6 +13,8 @@ Skills are vendored for Cursor discovery (not runtime app deps):
 | [emilkowalski/skills](https://github.com/emilkowalski/skills) | `.cursor/vendor/emil-skills/` | `.cursor/skills/emil-design-eng`, `review-animations`, `find-animation-opportunities`, `improve-animations`, `animate`, `animation-vocabulary` |
 | [greensock/gsap-skills](https://github.com/greensock/gsap-skills) | `.cursor/vendor/gsap-skills/` | `.cursor/skills/gsap-core`, `gsap-timeline`, `gsap-plugins`, `gsap-react`, `gsap-performance` (+ utils / scrolltrigger / frameworks) |
 
+**Coach milestone — load:** `rr-detector` (adding a detector / finding), `rr-coach-agent` (tools, MCP, prompts, verifier, llama.cpp), `rr-eval` (evaluation runs and reporting). These are project-authored skills in `.cursor/skills/`, not vendored.
+
 **Frontend work — load:** Emil `emil-design-eng`, `review-animations`, `find-animation-opportunities`; GSAP `gsap-core`, `gsap-timeline`, `gsap-plugins`, `gsap-react`, `gsap-performance`. See also `.cursor/skills/README.md`.
 
 ## Emil Kowalski

@@ -32,16 +32,19 @@ Still in `prototype/analysis-studio.html` (reference): moment rail, Coach panel,
 - **Gameplay video / clip rendering:** not built.
 - **Analysis detectors / findings / LLM:** not started (next milestone).
 
-## Planned next (do not start here without a new milestone)
+## Planned next (AI Coach milestone, kicked off 26 Sep 2026, nothing built yet)
 
-1. Analysis: detectors → findings → moments on the existing replay clock.
-2. Bundle real Mirage radar image; verify pixel alignment.
-3. Optional SSE for processing progress.
-4. Coach agent, clip rendering, history/patterns (later).
+Plan: [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN.md). Tasks and status: [docs/coach/TASKS.md](../coach/TASKS.md).
+
+1. Merge the CS:DM clips branch (`cursor/csdm-gameplay-video`).
+2. Extended parse, map zones, `Finding` contract, detectors, player picker.
+3. Tools + `cs2-demo` MCP server, self-hosted Qwen3-14B agent (llama.cpp), verifier, LLM moment selection, explanations, Ask.
+4. RAG (map knowledge + player memory), per-moment clips, Studio moment rail with Analysis/Ask tabs, en/pl/nl.
+5. Fine-tuning (QLoRA), larger model on RTX Pro 6000, evaluation.
 
 ## Unknown / open product
 
-- Exact `cs2coach` finding schema alignment when analysis lands.
+- ~~Exact `cs2coach` finding schema~~ superseded: the `Finding` contract is defined in the coach plan §4.4.
 - Whether win-probability, skill scorecard and pro comparisons remain in scope.
 - How (or whether) to project world positions onto rendered clip frames.
 

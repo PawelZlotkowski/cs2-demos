@@ -11,7 +11,7 @@ The **Analysis Studio** UI exists as a single-file interactive prototype, [`prot
 - **Scripted:** the gameplay clip is a canvas placeholder, the radar uses a simplified map, and Coach answers and processing are scripted.
 - **Built separately, not in this package:** the analysis engine (`cs2coach`), the Cursor skill pack and the older scope and design docs live in the main project repository. They are known from project history but were not inspected here.
 
-[18-CURRENT-STATE](./18-CURRENT-STATE.md) has the exact status.
+[18-CURRENT-STATE](./18-CURRENT-STATE.md) has the exact status. The current milestone, the self-hosted AI Coach, is planned in [docs/coach/](../coach/AI-COACH-PLAN.md).
 
 ## Where things live
 

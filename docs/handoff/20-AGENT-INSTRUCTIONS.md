@@ -42,6 +42,16 @@ Ask the owner first before you:
 - let the LLM produce numbers or facts that are not in the findings
 - resolve the design-direction contradiction ([18](./18-CURRENT-STATE.md#contradictions)) yourself
 
+## AI Coach milestone rules
+
+- Read [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN.md) and take work only from [docs/coach/TASKS.md](../coach/TASKS.md) as assigned by the owner.
+- Self-hosted models only ([19](./19-DECISIONS.md) #16). Never add a hosted LLM SDK or key.
+- Tools are defined once in `apps/api/app/coach/tools.py`; the MCP server and the in-process adapter only wrap them.
+- Every LLM output goes through the verifier; log failures as JSONL traces for evaluation and fine-tuning.
+- Tests never need a GPU or a running model: use the mock LLM client and stub clip mode.
+- Report every evaluation number with the command, config and commit that produced it.
+- Relevant skills: `.cursor/skills/rr-detector`, `rr-coach-agent`, `rr-eval`.
+
 ## Allowed without asking
 
 - Bug fixes

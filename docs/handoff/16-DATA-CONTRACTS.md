@@ -108,6 +108,8 @@ The `insight` events carry the moment `label`. The linked "live" state matches `
 
 ## Findings (engine, planned contract)
 
+**Superseded (26 Sep 2026):** the planned contract is in the [AI Coach plan §4.4](../coach/AI-COACH-PLAN.md#44-finding-contract) (Pydantic `Finding` with `evidence`, `severity`, `zone`, `summary`, plus `RoundStats`). Implementing it needs a migration note here. The older sketch below is kept for history.
+
 According to project history, `cs2coach` detectors emit evidence-linked findings with IDs such as `F12` in `report.json`. Their exact schema is **unknown** (not inspected). Minimum needs of this UI:
 
 ```ts

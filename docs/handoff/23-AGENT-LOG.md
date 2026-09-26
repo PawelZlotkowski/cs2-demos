@@ -2,6 +2,19 @@
 
 Concise log for the next engineer or agent. British spelling.
 
+## 26 September 2026 — AI Coach milestone planned
+
+### Done
+
+- Owner answered the planning questions; decisions recorded in [19](./19-DECISIONS.md) #16–#20.
+- Added [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN.md), [TASKS.md](../coach/TASKS.md) (unassigned task board) and [PROPOSAL.md](../coach/PROPOSAL.md) (school proposal draft, due 4 Oct).
+- Updated AGENTS.md, CLAUDE.md (new, imports AGENTS.md), 00, 09, 12, 16, 18, 20, 21; project skills `rr-detector`, `rr-coach-agent`, `rr-eval` in `.cursor/skills/`.
+
+### Not done / not verified
+
+- Docs only; no code changed, nothing run. Hardware figures (VRAM, Unsloth fitting 14B QLoRA in 16 GB) are from published numbers and must be checked in T02/T52.
+- Root `18-CURRENT-STATE.md` is an older copy of the handoff file and was left as is.
+
 ## 25 September 2026 — Lead verification (Demo Replay follow-up)
 
 ### Verified
