@@ -2,7 +2,7 @@
 
 Usage (from the repo root, with the API venv active and Pillow installed):
 
-    python tools/qa/zones_overlay.py de_mirage docs/coach/zones/de_mirage.png
+    python tools/zones_overlay.py de_mirage docs/coach/zones/de_mirage.png
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "apps" / "api"))
 
 from PIL import Image, ImageDraw  # noqa: E402

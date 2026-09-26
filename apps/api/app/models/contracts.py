@@ -3,7 +3,7 @@
 Canonical shapes for Round Reviewer. Keep in sync with:
 - docs/handoff/16-DATA-CONTRACTS.md
 - apps/web/src/lib/contracts/
-- packages/shared/fixtures/sample-match.json
+- apps/api/data/fixtures/sample-match.json (source: prototype/fixtures/)
 """
 
 from __future__ import annotations

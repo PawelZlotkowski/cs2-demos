@@ -2,7 +2,7 @@
 
 Status: **planned, owner-approved direction.** Nothing in this document is implemented yet unless [18 Current state](../handoff/18-CURRENT-STATE.md) says so. Tasks live in [TASKS.md](./TASKS.md); the school proposal draft is [PROPOSAL.md](./PROPOSAL.md).
 
-Related: [09 AI Coach](../handoff/09-AI-COACH.md), [16 Data contracts](../handoff/16-DATA-CONTRACTS.md), [19 Decisions](../handoff/19-DECISIONS.md), [replay architecture](../replay-architecture.md), [CS:DM video (branch `cursor/csdm-gameplay-video`)](https://github.com/PawelZlotkowski/cs2-demos/blob/cursor/csdm-gameplay-video/docs/csdm-video.md).
+Related: [09 AI Coach](../handoff/09-AI-COACH.md), [16 Data contracts](../handoff/16-DATA-CONTRACTS.md), [19 Decisions](../handoff/19-DECISIONS.md), [replay architecture](../replay/replay-architecture.md), [CS:DM video (branch `cursor/csdm-gameplay-video`)](https://github.com/PawelZlotkowski/cs2-demos/blob/cursor/csdm-gameplay-video/docs/csdm-video.md).
 
 ## 0. Owner decisions (26 Sep 2026)
 
@@ -77,7 +77,7 @@ Add to `parse_demo.py` (all supported by demoparser2):
 
 Callout polygons per map in `apps/api/app/maps/zones/de_mirage.json` and `de_anubis.json`. Findings and the LLM say "A ramp", never raw coordinates.
 
-*As built (T11):* polygons are stored in radar pixel space (the 1024 px overview) so they can be drawn and checked over the radar image; `zone_at(map, x, y)` takes world coordinates and converts them. Overlays: `docs/coach/zones/`, redrawn with `python tools/qa/zones_overlay.py <map> <png>`. First draft, no height separation.
+*As built (T11):* polygons are stored in radar pixel space (the 1024 px overview) so they can be drawn and checked over the radar image; `zone_at(map, x, y)` takes world coordinates and converts them. Overlays: `docs/coach/zones/`, redrawn with `python tools/zones_overlay.py <map> <png>`. First draft, no height separation.
 
 ### 4.3 Detectors
 

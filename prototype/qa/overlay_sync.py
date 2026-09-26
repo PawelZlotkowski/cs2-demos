@@ -4,7 +4,7 @@ Overlays sit on a paused GSAP timeline. Visibility is a pure function of clip
 time (including the 0.24s fade in/out). This script checks that.
 
 Usage:
-  python tools/qa/overlay_sync.py prototype/analysis-studio.html
+  python prototype/qa/overlay_sync.py prototype/analysis-studio.html
 """
 import argparse
 import asyncio

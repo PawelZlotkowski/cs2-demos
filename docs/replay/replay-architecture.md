@@ -51,7 +51,7 @@ Dead players keep last position with `alive=false` until round end (no trail ext
 - Supported maps (shared config in `apps/api/app/maps/metadata.py` ↔ `apps/web/src/lib/replay/maps.ts`):
   - **de_mirage** — Valve overview (`pos_x=-3230`, `pos_y=1713`, `scale=5.0`) from game `resource/overviews/de_mirage.txt` (via [MurkyYT/cs2-map-icons `radar_info`](https://github.com/MurkyYT/cs2-map-icons)).
   - **de_anubis** — Valve overview (`pos_x=-2796`, `pos_y=3328`, `scale=5.22`) from [SteamDatabase GameTracking-CS2 `de_anubis.txt`](https://github.com/SteamDatabase/GameTracking-CS2/blob/master/game/csgo/pak01_dir/resource/overviews/de_anubis.txt); verified against `match-d03751f42266` spawn clusters (CT/T `ry` aligns with Valve `CTSpawn_y` / `TSpawn_y`).
-- **Radar images:** real 1024×1024 Valve overview textures under [`apps/web/public/maps/`](../apps/web/public/maps/) (`de_mirage_radar.png`, `de_anubis_radar.png`), sourced from [MurkyYT/cs2-map-icons](https://github.com/MurkyYT/cs2-map-icons) depot scrapes. Licence note: Valve IP — see [`apps/web/public/maps/README.md`](../apps/web/public/maps/README.md). Studio renders the PNG in SVG `viewBox` space so markers use the same transform as the texture.
+- **Radar images:** real 1024×1024 Valve overview textures under [`apps/web/public/maps/`](../../apps/web/public/maps/) (`de_mirage_radar.png`, `de_anubis_radar.png`), sourced from [MurkyYT/cs2-map-icons](https://github.com/MurkyYT/cs2-map-icons) depot scrapes. Licence note: Valve IP — see [`apps/web/public/maps/README.md`](../../apps/web/public/maps/README.md). Studio renders the PNG in SVG `viewBox` space so markers use the same transform as the texture.
 - Other maps: show “coords unavailable” until overview metadata (and optionally a radar PNG) is added (do not invent transforms).
 - Screen transform: map radar space → SVG/canvas via viewBox; one shared util `worldToRadar` / `radarToScreen`.
 
@@ -152,4 +152,4 @@ Design: handoff Analysis Studio tokens (light chrome, dark stage), anti-AI rules
 
 ## Performance budget (document per test demo)
 
-Record in `docs/replay-performance.md` (or agent log): upload size, decompress time, parse time, normalised size, typical round replay JSON size.
+Record in `docs/replay/replay-performance.md` (or agent log): upload size, decompress time, parse time, normalised size, typical round replay JSON size.
