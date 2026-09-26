@@ -1,6 +1,0 @@
-{
-  "name": "@round-reviewer/shared",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Shared fixtures for Round Reviewer. Types live next to each stack — see README."
-}

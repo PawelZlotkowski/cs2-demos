@@ -5,21 +5,21 @@ British spelling. Companion to [15-IMPLEMENTATION-ARCHITECTURE](./15-IMPLEMENTAT
 ## Layout
 
 ```
-apps/web/          Next.js App Router (shells + typed client)
-apps/api/          FastAPI + Pydantic contracts + mock pipeline
-packages/shared/   JSON fixtures shared by both stacks
-prototype/         Reference UI (do not delete)
-docs/handoff/      Product / design / contracts
-tools/qa/          Prototype QA scripts
-tests/e2e/         Future cross-app tests
-docker/            Optional compose
+apps/web/          Next.js App Router (Studio, upload, processing)
+apps/api/          FastAPI + Pydantic contracts + pipeline
+apps/mcp/          MCP server wrapping the coach tools
+prototype/         Reference UI, its QA scripts and the sample fixture (do not delete)
+docs/              Handoff, replay and coach docs (index: docs/README.md)
+tools/             Dev scripts (zone overlays)
+eval/, data/labels Coach evaluation and hand labels
+docker/            Dockerfiles (root compose.yaml runs api + web)
 ```
 
 ## Contract sync
 
 1. **Canonical models:** `apps/api/app/models/contracts.py` (OpenAPI at `/openapi.json`).
 2. **Canonical TS:** `apps/web/src/lib/contracts/index.ts` — hand-maintained mirror, camelCase.
-3. **Fixtures:** `packages/shared/fixtures/sample-match.json` (copied into `apps/api/data/fixtures/`).
+3. **Fixtures:** `prototype/fixtures/sample-match.json`, extracted from the prototype and copied into `apps/api/data/fixtures/` by `prototype/fixtures/extract_fixtures.py`.
 
 Field provenance stays as in [16-DATA-CONTRACTS](./16-DATA-CONTRACTS.md): ENGINE / DERIVED / LLM / EDITORIAL.
 

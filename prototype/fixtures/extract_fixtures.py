@@ -43,7 +43,7 @@ fixture = {
 }
 
 targets = [
-    ROOT / "packages" / "shared" / "fixtures" / "sample-match.json",
+    ROOT / "prototype" / "fixtures" / "sample-match.json",
     ROOT / "apps" / "api" / "data" / "fixtures" / "sample-match.json",
 ]
 for path in targets:

@@ -1,22 +1,9 @@
 # Round Reviewer
 
-CS2 coaching tool: upload a demo, review ~5–6 high-value moments in Analysis Studio.
+A self-hosted coach for Counter-Strike 2. Upload a match demo, pick a player, and review the handful of moments that matter most on a radar replay, with an AI coach that explains what went wrong and what went right.
 
-**Current milestone:** self-hosted AI Coach, see [docs/coach/AI-COACH-PLAN.md](docs/coach/AI-COACH-PLAN.md) and [docs/coach/TASKS.md](docs/coach/TASKS.md).
-
-**Start here:** [docs/handoff/00-README.md](docs/handoff/00-README.md) · Cursor: [docs/handoff/21-CURSOR-HANDOFF.md](docs/handoff/21-CURSOR-HANDOFF.md) · Agents: [AGENTS.md](AGENTS.md) · MVP layout: [docs/handoff/24-MVP-ARCHITECTURE.md](docs/handoff/24-MVP-ARCHITECTURE.md)
-
-## Monorepo (foundation)
-
-| Path | Role |
-|---|---|
-| `apps/web/` | Next.js App Router shells |
-| `apps/api/` | FastAPI + shared contracts + mock pipeline |
-| `packages/shared/fixtures/` | Sample match JSON from the prototype |
-| `prototype/` | Analysis Studio HTML reference |
-| `docs/handoff/` | Product, design, contracts |
-| `docker/` | Dockerfiles; root `compose.yaml` runs api + web |
-| `tools/qa/` | Prototype QA scripts |
+- **Working now:** `.dem` / `.dem.zst` upload → demoparser2 parse → radar replay in the Analysis Studio, plus detectors and the coach agent (phase 1 and 2).
+- **Current milestone:** the self-hosted AI coach (Qwen3-14B on llama.cpp, tools over MCP, RAG, later QLoRA). Plan: [docs/coach/AI-COACH-PLAN.md](docs/coach/AI-COACH-PLAN.md) · tasks: [docs/coach/TASKS.md](docs/coach/TASKS.md).
 
 ## Quick start (Docker)
 
@@ -29,13 +16,9 @@ docker compose up --build
 | Service | URL |
 |---|---|
 | Web (Analysis Studio) | http://localhost:3000 |
-| API | http://localhost:8000 |
-| API health | http://localhost:8000/health |
-| API docs | http://localhost:8000/docs |
+| API | http://localhost:8000 (`/health`, `/docs`) |
 
-Compose file: [`compose.yaml`](compose.yaml) (API + Web). Alternative: `docker compose -f docker/compose.yml up --build`.
-
-## Quick start (local, without Docker)
+## Quick start (local)
 
 ```bash
 # API
@@ -49,4 +32,38 @@ npm install
 npm run dev
 ```
 
-Sample match id: `match-sample-mirage`.
+Tests: `cd apps/api && pytest`. Web checks: `cd apps/web && npm run typecheck && npm run build`.
+
+## Repository layout
+
+```
+apps/
+  api/          FastAPI backend: upload, parse pipeline, replay APIs, detectors, coach agent
+    app/
+      analysis/   detectors → findings, round stats, code ranker
+      coach/      LLM client, agent loop, tools, verifier, prompts
+      maps/       radar transforms and callout zones
+      models/     Pydantic contracts (source of truth for the web types)
+      processing/ zstd + demoparser2 pipeline
+    tests/
+  web/          Next.js app: upload, processing, Analysis Studio (radar, timeline, coach)
+  mcp/          MCP server exposing the coach tools (python -m cs2_demo_mcp)
+docs/           all documentation, indexed in docs/README.md
+  handoff/      product, design system, contracts, decisions (numbered, read-first)
+  replay/       demo parser research, replay architecture, performance
+  coach/        AI coach plan, task board, school proposal
+eval/           evaluation and labelling tools (python -m eval.label_tool)
+data/labels/    hand labels for the detectors (no raw demos)
+docker/         Dockerfiles; compose.yaml at the root runs api + web
+prototype/      the original single-file Studio prototype, for reference only
+  qa/           its Playwright checks
+  fixtures/     the sample match extracted from it
+tools/          dev scripts (zones_overlay.py redraws docs/coach/zones/)
+.cursor/skills/ agent skills shared by Cursor and Claude Code
+```
+
+## For contributors and agents
+
+- [AGENTS.md](AGENTS.md) is the single source of agent instructions (Claude Code reads it through [CLAUDE.md](CLAUDE.md)).
+- Before changing product or design, read [docs/handoff/19-DECISIONS.md](docs/handoff/19-DECISIONS.md) and [docs/handoff/18-CURRENT-STATE.md](docs/handoff/18-CURRENT-STATE.md).
+- British spelling in docs and UI copy.
