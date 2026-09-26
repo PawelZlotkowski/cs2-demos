@@ -1,4 +1,4 @@
-"""Real demo processing: decompress → parse → normalise."""
+"""Real demo processing: decompress → parse → normalise → (player) → detect."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from pathlib import Path
 
+from app.analysis.match_data import build_match_data
+from app.analysis.run import analyse_player
 from app.core.config import settings
 from app.models.contracts import MatchStatus, ProcessingStage, StatusResponse
 from app.processing.decompress import DecompressError, decompress_demo
@@ -23,8 +25,28 @@ REPLAY_PIPELINE: list[MatchStatus] = [
     MatchStatus.decompressed,
     MatchStatus.parsing,
     MatchStatus.normalizing,
+    MatchStatus.awaiting_player,
+    MatchStatus.detecting,
     MatchStatus.complete,
 ]
+
+# Stages shown on the processing page, in order
+VISIBLE_STAGES = [
+    MatchStatus.decompressing,
+    MatchStatus.decompressed,
+    MatchStatus.parsing,
+    MatchStatus.normalizing,
+    MatchStatus.awaiting_player,
+    MatchStatus.detecting,
+]
+
+
+class PlayerSelectionError(Exception):
+    """User-facing reason a player cannot be analysed (status code attached)."""
+
+    def __init__(self, message: str, status_code: int = 400) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="demo-parse")
 
@@ -56,7 +78,13 @@ class ProcessingPipeline:
         record = self.repo.get(match_id)
         if not record or record.get("is_sample"):
             return
-        if record["status"] in (MatchStatus.complete, MatchStatus.failed):
+        if record["status"] not in (
+            MatchStatus.uploaded,
+            MatchStatus.decompressing,
+            MatchStatus.decompressed,
+            MatchStatus.parsing,
+            MatchStatus.normalizing,
+        ):
             return
 
         upload_path = Path(record["path"])
@@ -102,7 +130,8 @@ class ProcessingPipeline:
             normalised["perf"] = {**normalised.get("perf", {}), **perf}
 
             self.repo.persist_replay(match_id, normalised)
-            self.repo.set_status(match_id, MatchStatus.complete)
+            # Radar is ready; the coach waits for the user to choose a player
+            self.repo.set_status(match_id, MatchStatus.awaiting_player)
         except (DecompressError, ParseError) as exc:
             logger.warning("Processing failed for %s: %s", match_id, exc)
             self.repo.set_status(match_id, MatchStatus.failed, error=str(exc))
@@ -114,6 +143,56 @@ class ProcessingPipeline:
                 error="Could not process that demo. Check the server log for details.",
             )
             raise exc
+
+    # --- coach analysis (AI Coach plan §3 steps 3–4) ---
+
+    def select_player(self, match_id: str, player_id: str, *, run_async: bool = True) -> None:
+        """Store the chosen player and run the detectors for them."""
+        record = self.repo.get(match_id)
+        if not record:
+            raise PlayerSelectionError("Match not found.", 404)
+        if record.get("is_sample") or not self.repo.has_analysis_input(match_id):
+            raise PlayerSelectionError(
+                "This match was processed before the coach existed. Upload the demo again to analyse it.",
+                409,
+            )
+        if record["status"] not in (MatchStatus.awaiting_player, MatchStatus.complete):
+            raise PlayerSelectionError("Match is not ready for player selection yet.", 409)
+        roster = {p["id"] for p in record["match"].get("players") or []}
+        if player_id not in roster:
+            raise PlayerSelectionError("That player is not in this match.", 400)
+
+        self.repo.set_selected_player(match_id, player_id)
+        self.repo.set_status(match_id, MatchStatus.detecting)
+        if run_async:
+            _executor.submit(self._analyse_safe, match_id, player_id)
+        else:
+            self._analyse_safe(match_id, player_id)
+
+    def _analyse_safe(self, match_id: str, player_id: str) -> None:
+        try:
+            t0 = time.perf_counter()
+            analysis_json, replays = self.repo.load_analysis_input(match_id)
+            match = build_match_data(analysis_json, replays)
+            result = analyse_player(match, player_id)
+            self.repo.analysis.save(result)
+            logger.info(
+                "Analysed %s for %s: %d findings, %d moments in %.2f s",
+                match_id,
+                player_id,
+                len(result.findings),
+                len(result.moments),
+                time.perf_counter() - t0,
+            )
+            self.repo.set_status(match_id, MatchStatus.complete)
+        except Exception:
+            logger.exception("Analysis failed for %s / %s", match_id, player_id)
+            # Radar stays usable: go back to player selection with an honest error
+            self.repo.set_status(
+                match_id,
+                MatchStatus.awaiting_player,
+                error="Could not analyse that player. Check the server log for details.",
+            )
 
     def status_response(self, match_id: str) -> StatusResponse:
         record = self.repo.get(match_id)
@@ -144,12 +223,12 @@ class ProcessingPipeline:
                 )
             ]
 
-        visible = [
-            MatchStatus.decompressing,
-            MatchStatus.decompressed,
-            MatchStatus.parsing,
-            MatchStatus.normalizing,
-        ]
+        visible = list(VISIBLE_STAGES)
+        if current == MatchStatus.complete and (
+            record.get("is_sample") or not self.repo.has_analysis_input(record["id"])
+        ):
+            # Sample match, or parsed before the coach milestone: replay stages only
+            visible = visible[:4]
         try:
             cur_idx = REPLAY_PIPELINE.index(current)
         except ValueError:
@@ -170,8 +249,12 @@ class ProcessingPipeline:
                     detail = f"{record['match']['rounds']} rounds"
                 elif st == MatchStatus.normalizing and record.get("rounds"):
                     detail = f"{len(record['rounds'])} rounds normalised"
+                elif st == MatchStatus.awaiting_player and record["match"].get("selectedPlayerId"):
+                    detail = _player_name(record, record["match"]["selectedPlayerId"])
                 else:
                     detail = "Done"
+            if state == "active" and st == MatchStatus.awaiting_player:
+                detail = record.get("error") or "Radar is ready. Choose a player to analyse."
             stages.append(
                 ProcessingStage(
                     id=st,
@@ -181,6 +264,13 @@ class ProcessingPipeline:
                 )
             )
         return stages
+
+
+def _player_name(record: dict, player_id: str) -> str:
+    for p in record["match"].get("players") or []:
+        if p["id"] == player_id:
+            return p["name"]
+    return player_id
 
 
 pipeline = ProcessingPipeline()

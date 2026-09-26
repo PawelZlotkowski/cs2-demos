@@ -8,13 +8,23 @@ export type MatchStatus =
   | "decompressed"
   | "parsing"
   | "normalizing"
-  | "reconstructing"
+  | "awaiting_player"
   | "detecting"
-  | "ranking"
-  | "rendering"
-  | "analyzing"
+  | "selecting"
+  | "recording"
+  | "explaining"
   | "complete"
   | "failed";
+
+/** Statuses in which round replays exist and the Radar can load. */
+export const REPLAY_READY_STATUSES: ReadonlySet<MatchStatus> = new Set<MatchStatus>([
+  "awaiting_player",
+  "detecting",
+  "selecting",
+  "recording",
+  "explaining",
+  "complete",
+]);
 
 export type MomentKind = "mistake" | "strength" | "opportunity";
 export type Side = "T" | "CT";
@@ -48,6 +58,7 @@ export interface Match {
   mapName?: string | null;
   tickRate?: number | null;
   players?: ReplayPlayer[] | null;
+  selectedPlayerId?: string | null;
 }
 
 export interface ReplayPlayer {
@@ -152,14 +163,74 @@ export interface RadarState {
   players: Record<string, unknown>[];
 }
 
+// --- Coach analysis (AI Coach plan §4.4) ---
+
+export type FindingKind = "mistake" | "good" | "context" | "pattern";
+
+/** What happened, stated by a detector (ENGINE). */
 export interface Finding {
-  id: string;
-  type: string;
+  id: string; // "F12", unique within a match + player
+  detector: string;
+  kind: FindingKind;
   round: number;
+  t: number; // round clock seconds, same clock as the replay
   tick: number;
-  clipTime?: number;
-  players: string[];
-  metrics: Record<string, number | string>;
+  playerId: string;
+  otherIds: string[];
+  zone?: string | null;
+  severity: number; // 0..1
+  evidence: Record<string, number | string>;
+  summary: string; // templated English fallback
+  template: string;
+}
+
+export interface RoundStats {
+  round: number;
+  playerId: string;
+  side?: Side | null;
+  won?: boolean | null;
+  kills: number;
+  deaths: number;
+  assists: number;
+  flashAssists: number;
+  headshotKills: number;
+  damage: number;
+  utilityDamage: number;
+  utilityThrown: number;
+  enemiesFlashed: number;
+  teammatesFlashed: number;
+  moneyStart?: number | null;
+  equipValue?: number | null;
+  survived: boolean;
+  openingKill: boolean;
+  openingDeath: boolean;
+  tradeKills: number;
+  deathTraded?: boolean | null;
+  timeAliveS?: number | null;
+}
+
+export interface SelectedMoment {
+  id: string; // "m1"
+  round: number;
+  t0: number;
+  t1: number;
+  findingIds: string[];
+  kind: "mistake" | "good";
+  pickedBecause: string;
+  score?: number | null;
+  source: "ranker" | "agent";
+}
+
+export interface PlayerSelectRequest {
+  playerId: string;
+}
+
+export interface PlayerAnalysis {
+  matchId: string;
+  playerId: string;
+  findings: Finding[];
+  roundStats: RoundStats[];
+  moments: SelectedMoment[];
 }
 
 export interface CoachRequest {

@@ -1,0 +1,23 @@
+{
+ "_unknown_zone": "nienazwanym miejscu",
+ "untraded_death": "Śmierć od {killerName} na {zone} bez wymiany w ciągu {tradeWindowS} s; najbliższy z {teammatesAlive} żywych członków drużyny był {nearestTeammateM} m dalej.",
+ "untraded_death.no_positions": "Śmierć od {killerName} na {zone} bez wymiany w ciągu {tradeWindowS} s, przy {teammatesAlive} żywych członkach drużyny.",
+ "shot_while_moving": "{movingShots} z {shots} strzałów z {weapon} oddanych w ruchu, do {speedUps} u/s, na {zone}; celna prędkość to {accurateSpeedUps} u/s.",
+ "unused_utility": "Śmierć na {zone} po {timeAliveS} s z niewykorzystanymi granatami: {grenadesUnused} ({grenadeList}).",
+ "dry_peek": "Śmierć od {killerName} na {zone} {timeToDeathS} s po pierwszym kontakcie, bez flasha ani smoke'a drużyny przed walką.",
+ "team_flash": "Własny flash oślepił członków drużyny: {teammatesBlinded} na {zone} (najdłużej {longestBlindS} s) oraz przeciwników: {enemiesBlinded}.",
+ "team_flash.self": "Własny flash oślepił gracza na {longestBlindS} s na {zone} oraz przeciwników: {enemiesBlinded}.",
+ "opening_duel.won": "Wygrany pierwszy pojedynek z {opponentName} na {zone}, broń: {weapon}.",
+ "opening_duel.lost": "Przegrany pierwszy pojedynek z {opponentName} na {zone}.",
+ "economy_mismatch.saved_on_buy": "Runda {round}: wyposażenie za {equipValue} i {balance} niewydane, przy medianie drużyny {teamMedianEquip}.",
+ "economy_mismatch.forced_on_save": "Runda {round}: zakup wyposażenia za {equipValue} przy medianie drużyny {teamMedianEquip}.",
+ "late_rotation": "Dotarcie na {site} {arrivalS} s po podłożeniu bomby, {delayS} s później niż mediana drużyny ({teamMedianArrivalS} s).",
+ "late_rotation.never": "Brak dotarcia na {site} po podłożeniu bomby; drużyna dotarła po medianie {teamMedianArrivalS} s.",
+ "repeated_death_zone": "Śmierci na {zone} w tym meczu: {deathsInZone} (rundy {rounds}).",
+ "good_plays.trade_kill": "Wymiana za {tradedName}: zabójstwo {victimName} {tradeTimeS} s później na {zone}.",
+ "good_plays.entry_kill": "Otwarcie rundy zabójstwem {victimName} na {zone}, broń: {weapon}.",
+ "good_plays.multi_kill": "Zabójstwa: {kills} w {spanS} s, ostatnie na {zone}.",
+ "good_plays.clutch": "Wygrana runda jako ostatni żywy gracz drużyny przeciw {enemiesAlive} przeciwnikom, zabójstwa: {killsInClutch}.",
+ "good_plays.flash_assist": "Flash na {victimName} przed zabójstwem {killerName} na {zone}.",
+ "good_plays.utility_damage": "Obrażenia od granatów i ognia: {utilityDamage}, trafieni przeciwnicy: {enemiesHit}."
+}

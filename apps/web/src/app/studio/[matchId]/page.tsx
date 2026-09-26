@@ -13,7 +13,13 @@ import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api/client";
-import type { Match, ReplayPlayer, RoundReplay, RoundSummary } from "@/lib/contracts";
+import {
+  REPLAY_READY_STATUSES,
+  type Match,
+  type ReplayPlayer,
+  type RoundReplay,
+  type RoundSummary,
+} from "@/lib/contracts";
 import { usePlaybackClock, type PlaybackRate } from "@/lib/replay/usePlaybackClock";
 import { interpolateAt, samplesHaveRadarCoords } from "@/lib/replay/interpolate";
 import { getMapMeta } from "@/lib/replay/maps";
@@ -111,7 +117,7 @@ export default function StudioPage() {
         setMatch(m);
         setRounds(rs);
         if (rs.length) setRoundId(rs[0].id);
-        else if (m.status !== "complete") setLoadError("Match is still processing.");
+        else if (!REPLAY_READY_STATUSES.has(m.status)) setLoadError("Match is still processing.");
         else setLoadError("No round replays for this match.");
       } catch (e) {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : "Failed to load.");

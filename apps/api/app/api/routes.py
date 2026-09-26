@@ -3,25 +3,34 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from app.core.config import settings
 from app.core.validation import UPLOAD_REJECT_MESSAGE, is_allowed_demo_filename
 from app.models.contracts import (
+    REPLAY_READY_STATUSES,
     CoachRequest,
     CoachResponse,
     EventsPage,
+    Finding,
     Match,
     MatchStatus,
     Moment,
     PatternsResponse,
+    PlayerSelectRequest,
     ReplayEvent,
     RoundReplay,
+    RoundStats,
     RoundSummary,
+    SelectedMoment,
     StatusResponse,
     UploadResponse,
 )
-from app.processing.pipeline import pipeline
+from app.processing.pipeline import PlayerSelectionError, pipeline
 from app.repositories.matches import repo
 from app.services.coach import coach_service
 from app.services.patterns import patterns_from_record
 
 router = APIRouter()
+
+
+def _replay_ready(record: dict) -> bool:
+    return bool(record.get("is_sample")) or record["status"] in REPLAY_READY_STATUSES
 
 
 @router.get("/health")
@@ -75,7 +84,7 @@ def list_rounds(match_id: str) -> list[RoundSummary]:
     record = repo.get(match_id)
     if not record:
         raise HTTPException(status_code=404, detail="Match not found.")
-    if record["status"] != MatchStatus.complete and not record.get("is_sample"):
+    if not _replay_ready(record):
         return []
     return [RoundSummary.model_validate(r) for r in record.get("rounds") or []]
 
@@ -96,7 +105,7 @@ def get_round_replay(match_id: str, round_id: str) -> RoundReplay:
     record = repo.get(match_id)
     if not record:
         raise HTTPException(status_code=404, detail="Match not found.")
-    if record["status"] != MatchStatus.complete and not record.get("is_sample"):
+    if not _replay_ready(record):
         raise HTTPException(status_code=409, detail="Match is still processing.")
     replay = repo.get_round_replay(match_id, round_id)
     if not replay:
@@ -129,6 +138,50 @@ def list_events(
     )
 
 
+# --- Coach analysis (AI Coach plan §3, tasks T12–T13) ---
+
+
+@router.post("/matches/{match_id}/player", response_model=StatusResponse)
+def select_player(match_id: str, body: PlayerSelectRequest) -> StatusResponse:
+    """Choose the player to coach; runs the detectors for them."""
+    try:
+        pipeline.select_player(match_id, body.player_id)
+    except PlayerSelectionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    return pipeline.status_response(match_id)
+
+
+def _require_analysis(match_id: str, player_id: str) -> None:
+    if not repo.get(match_id):
+        raise HTTPException(status_code=404, detail="Match not found.")
+    if not repo.analysis.has_analysis(match_id, player_id):
+        raise HTTPException(status_code=404, detail="No analysis for that player yet.")
+
+
+@router.get("/matches/{match_id}/players/{player_id}/findings", response_model=list[Finding])
+def list_findings(
+    match_id: str,
+    player_id: str,
+    round_no: int | None = Query(None, alias="round"),
+    kind: str | None = None,
+    detector: str | None = None,
+) -> list[Finding]:
+    _require_analysis(match_id, player_id)
+    return repo.analysis.findings(match_id, player_id, round_no=round_no, kind=kind, detector=detector)
+
+
+@router.get("/matches/{match_id}/players/{player_id}/round-stats", response_model=list[RoundStats])
+def list_round_stats(match_id: str, player_id: str) -> list[RoundStats]:
+    _require_analysis(match_id, player_id)
+    return repo.analysis.round_stats(match_id, player_id)
+
+
+@router.get("/matches/{match_id}/players/{player_id}/moments", response_model=list[SelectedMoment])
+def list_player_moments(match_id: str, player_id: str) -> list[SelectedMoment]:
+    _require_analysis(match_id, player_id)
+    return repo.analysis.moments(match_id, player_id)
+
+
 # --- Legacy coaching stubs (unused by replay MVP) ---
 
 
@@ -137,7 +190,7 @@ def list_moments(match_id: str) -> list[Moment]:
     record = repo.get(match_id)
     if not record:
         raise HTTPException(status_code=404, detail="Match not found.")
-    if record["status"] != MatchStatus.complete and not record.get("is_sample"):
+    if not _replay_ready(record):
         return []
     return [Moment.model_validate(m) for m in record.get("moments") or []]
 

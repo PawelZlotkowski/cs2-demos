@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api/client";
-import type { StatusResponse } from "@/lib/contracts";
+import { REPLAY_READY_STATUSES, type StatusResponse } from "@/lib/contracts";
 
 const TERMINAL = new Set(["complete", "failed"]);
 
@@ -24,7 +24,9 @@ export default function ProcessingPage() {
         const s = await api.getStatus(id);
         if (cancelled) return;
         setStatus(s);
-        if (s.status === "complete") {
+        // Radar is ready from awaiting_player on. The player picker (task T41)
+        // will stop here instead; until then open the Studio as before.
+        if (REPLAY_READY_STATUSES.has(s.status)) {
           router.replace(`/studio/${id}`);
           return;
         }
