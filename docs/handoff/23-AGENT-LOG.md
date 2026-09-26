@@ -23,7 +23,27 @@ Owner asked for phase two (tools, MCP, agent). Built on the phase 1 branch, one 
 - Nothing ran against llama.cpp: tool-call formatting of Qwen3-14B, grammar-constrained JSON together with thinking mode, latency and VRAM. Run `RR_LLM_LIVE=1 pytest tests/coach/test_llm_client.py -k live` on the 5080 first (T02), then one real match with `RR_LLM_ENABLED=true`.
 - T25's "5–6 valid moments on 5 matches" and T26's "< 20 s per round on the 5080" need real demos and the GPU.
 - Prompts are v1 and untuned; Polish and Dutch output needs a native speaker's check.
-- The TypeScript mirror of the new contracts and the UI (explanations in the Analysis tab, Ask tab, language setting) are T42, T43 and T45.
+- The TypeScript mirror of the new contracts and the UI that calls the new routes (explanation text in the Analysis tab, the Ask tab, the language setting) are the rest of T43 and T45.
+
+## 26 September 2026 — Player picker and Studio coach UI (T41, T42, T44, part of T43), same branch
+
+### Done
+
+- Processing page stops at `awaiting_player` and shows a player picker: two teams, name and K/D from the kill events, arrow keys and Enter, the last picked player focused first. Picking calls `POST /matches/{id}/player`, shows the detecting stage and opens the Studio when the analysis completes. "Watch the replay without analysis" skips it.
+- Studio loads the selected player's moments, findings and round stats. The rail lists the moments first (glyph, label, round clock, pick reason on the current one) and all rounds below; picking a moment loads its round and seeks to its start.
+- Timeline: a Coach lane on top with labelled markers (orange ▲ mistake, blue ● good play); findings at one spot share a marker led by the moment's lead finding. The match strip marks rounds that hold a moment.
+- Analysis tab: lead finding, kind and rank with finding citations that seek, the moment's findings, the player's round stats, and all findings in the round. The Ask tab is unchanged until the coach model exists.
+- Home page text no longer says analysis is out of scope.
+
+### Tested
+
+- `npm run typecheck`, `npm run lint`, `npm run build`, API `pytest` (92 passed, 3 skipped).
+- Playwright on the synthetic two-round demo at 1440, 1920, 1024, 834, 390 and 430 px: keyboard pick through to the Studio, and a moment jump across rounds landing on the moment's start. Screenshots in `docs/coach/screenshots/`.
+
+### Not done / not verified
+
+- Not checked on a real demo in the cloud session; needs a run on the owner's PC.
+- Labels on the Coach lane drop to glyphs when markers are closer than 120 px; the tooltip carries them.
 
 ## 26 September 2026 — AI Coach phase 1 (T10–T17), branch `claude/coach-phase-1-hrt6pm`
 

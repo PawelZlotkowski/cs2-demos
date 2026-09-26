@@ -23,6 +23,7 @@ Tasks T10–T17 in [TASKS](../coach/TASKS.md). No LLM yet.
 - **Contracts + storage (T12):** `Finding`, `RoundStats`, `SelectedMoment`, `PlayerSelectRequest` (Pydantic + TS); SQLite tables `match_players`, `findings`, `round_stats`, `moments`; routes `GET /matches/{id}/players/{pid}/findings|round-stats|moments`.
 - **Player selection (T13):** `POST /matches/{id}/player` runs the detectors; failure returns to `awaiting_player` with an error and keeps the Radar.
 - **Detectors D1–D10 (T14, T15)** in `apps/api/app/analysis/detectors/`, round stats and the code ranker (T16), finding summary templates in en/pl/nl (`apps/api/app/coach/templates/`).
+- **Player picker and Studio coach UI (T41, T42, T44, most of T43):** at `awaiting_player` the processing page lists the ten players with K/D (arrow keys and Enter work), starts the analysis and opens the Studio when it completes. The Studio rail lists the code ranker's moments first and all rounds below; the timeline has a Coach lane (orange ▲ mistake, blue ● good play; findings at one spot share a marker); the Analysis tab shows the lead finding, the pick reason with finding citations that seek, the moment's findings, the player's round stats and all findings in the round. Screenshots from the synthetic demo: `docs/coach/screenshots/`.
 - **Labelling (T17):** `python -m eval.label_tool label|agreement|score`, format in `data/labels/README.md`. No labels yet.
 
 ## Implemented (AI Coach phase 2 — tools, MCP, agent, in review)
@@ -45,7 +46,7 @@ Still in `prototype/analysis-studio.html` (reference): moment rail, Coach panel,
 - **Radar visuals:** Real Valve overview PNGs for Mirage and Anubis (`apps/web/public/maps/`); SVG silhouettes removed.
 - **Map coverage:** `de_mirage` + `de_anubis` overview metadata + radar images; other Active Duty maps still lack verified transforms.
 - **Fullscreen / dark theme / a11y polish:** prototype notes still apply where not re-done in Next.js.
-- **Upload/processing UI shells:** work against real status API. The processing page opens the Studio at `awaiting_player`; there is no player picker yet (T41), so findings are reachable through the API only.
+- **Upload/processing UI shells:** work against real status API.
 
 ## Mocked / stubbed
 
@@ -59,9 +60,9 @@ Still in `prototype/analysis-studio.html` (reference): moment rail, Coach panel,
 Plan: [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN.md). Tasks and status: [docs/coach/TASKS.md](../coach/TASKS.md).
 
 1. Merge the CS:DM clips branch (`cursor/csdm-gameplay-video`).
-2. Phase 1 follow-ups: run the real-demo tests, correct zone names on the overlays, label rounds and tune thresholds; player picker UI (T41).
-3. Run phase 2 on llama.cpp with Qwen3-14B (T02, T03) and a real match; measure latency; wire explanations and Ask into the Studio (T42, T43, T45).
-4. RAG (map knowledge + player memory), per-moment clips, Studio moment rail with Analysis/Ask tabs, en/pl/nl.
+2. Phase 1 follow-ups: run the real-demo tests, correct zone names on the overlays, label rounds and tune thresholds.
+3. Run phase 2 on llama.cpp with Qwen3-14B (T02, T03) and a real match; measure latency; show the explanations and the Ask tab in the Studio (rest of T43, T45).
+4. RAG (map knowledge + player memory), per-moment clips, en/pl/nl.
 5. Fine-tuning (QLoRA), larger model on RTX Pro 6000, evaluation.
 
 ## Unknown / open product
