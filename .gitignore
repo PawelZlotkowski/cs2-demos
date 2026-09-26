@@ -35,6 +35,8 @@ apps/api/data/matches/
 !apps/api/data/matches/.gitkeep
 apps/api/data/matches.db
 apps/api/data/matches.db-*
+apps/api/data/knowledge.db
+apps/api/data/knowledge.db-*
 apps/api/data/traces/
 apps/api/data/knowledge.db
 

@@ -239,3 +239,27 @@ Highest-value items from [21-CURSOR-HANDOFF](./21-CURSOR-HANDOFF.md): broken emp
 2. Wire one real match / `Finding` contract from the engine.
 3. Continue a11y (streaming announce-once, stage text alternative, arrow-key tabs).
 4. React port only after data contract is stable.
+
+## 2026-09-26 — AI Coach phase 3: knowledge base (T30)
+
+**Branch:** `claude/coach-phase-3-6tsf72` (on `claude/coach-phase-2-r2gzvt`)
+
+### Done
+
+- `data/knowledge/`: Mirage (callouts, T side, CT side, utility, rotations; 58 sections), Anubis (same topics; 49 sections), `general/fundamentals.md` (25 sections, every detector covered), `README.md`, `SOURCES.md`.
+- `data/knowledge/fetch_liquipedia.py`: downloads Liquipedia map pages with CC BY-SA attribution frontmatter, split by heading, respecting the API rate limit.
+- `apps/api/tests/knowledge/test_knowledge_base.py`: frontmatter, section size, zone and detector names, ≥ 40 sections per map, parser attribution.
+
+### Why
+
+T31 and T32 (index and `search_knowledge`) were already being built in the phase 2 thread, so phase 3 here is the content they index.
+
+### Tested
+
+- `pytest tests/knowledge` — 16 passed; full `pytest` — 183 passed, 4 skipped.
+
+### Uncertain / limitations
+
+- Notes are a first draft from general CS2 knowledge; Anubis sub-callouts and the Mirage Stairs zone polygon need an in-game check.
+- Liquipedia was not fetched (liquipedia.net is blocked from the cloud session); the parser is only tested on sample HTML.
+- Notes are English only; Polish and Dutch questions rely on the multilingual embedding model.

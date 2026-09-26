@@ -53,7 +53,7 @@ Built 26 Sep 2026 in one draft PR (branch `claude/coach-phase-2-r2gzvt`, on top 
 
 | ID | Task | Depends | Paths | Done when | Size | Owner | Status |
 |---|---|---|---|---|---|---|---|
-| T30 | Knowledge base content: Mirage + Anubis notes, fundamentals, licensed excerpts with attribution | – | `data/knowledge/` | ≥ 40 sections per map; sources listed | M | | doing (starter set in PR #4: 10 fundamentals, 5 Mirage, 4 Anubis sections of own notes; Liquipedia excerpts and the rest still to write) |
+| T30 | Knowledge base content: Mirage + Anubis notes, fundamentals, licensed excerpts with attribution | – | `data/knowledge/` | ≥ 40 sections per map; sources listed | M | | review (58 Mirage, 49 Anubis, 25 fundamentals; draft notes need an in-game check; Liquipedia via `fetch_liquipedia.py`, run locally) |
 | T31 | Ingest + index (FTS5 + sqlite-vec, bge-m3) | T30 | `apps/api/app/rag/` | re-index command; test retrieval | M | | review (FTS5 BM25 plus optional dense vectors from `RR_EMBED_URL`, fused by RRF; vectors stored in SQLite rows, not sqlite-vec yet; `python -m app.rag.index`) |
 | T32 | `search_knowledge` + player-memory retrieval wired into tools | T31 T20 | `rag/`, `coach/tools.py` | `[K..]` citations resolve in verifier | S | | review (player memory is `get_player_history`) |
 
