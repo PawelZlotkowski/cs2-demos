@@ -20,6 +20,7 @@ from app.models.contracts import (
     Match,
     MatchStatus,
     Moment,
+    MomentClip,
     MomentExplanation,
     PatternsResponse,
     PlayerSelectRequest,
@@ -34,6 +35,7 @@ from app.models.contracts import (
 )
 from app.processing import pipeline as pipeline_module
 from app.processing.pipeline import PlayerSelectionError, pipeline
+from app.processing.moment_clips import list_moment_clips, moment_clip_file, moment_recorder
 from app.processing.video_clips import clip_file, find_clip, get_or_init_manifest
 from app.repositories.matches import repo
 from app.services.coach import coach_service
@@ -297,15 +299,44 @@ def explain_round(
     if in_round:
         lead = max(in_round, key=lambda f: f.severity)
         repo.analysis.queue_clip(match_id, player_id, round_no, round(max(0.0, lead.t - 5), 1), round(lead.t + 3, 1))
+        moment_recorder.enqueue(match_id, player_id)
     stored = None if refresh else repo.analysis.explanation(match_id, player_id, target, lang)
     return stored or run_sync(pipeline_module.coach_jobs(repo).explain(match_id, player_id, target, lang))
 
 
-@router.get("/matches/{match_id}/players/{player_id}/clips")
-def list_clip_jobs(match_id: str, player_id: str) -> list[dict]:
-    """Queued clip jobs (the CS Demo Manager recorder is not connected yet)."""
+@router.get("/matches/{match_id}/players/{player_id}/clips", response_model=list[MomentClip])
+def list_player_clips(match_id: str, player_id: str) -> list[MomentClip]:
+    """First-person clips of the player: the coach's moments, on-demand rounds and agent requests."""
     _require_analysis(match_id, player_id)
-    return repo.analysis.clip_jobs(match_id, player_id)
+    clips = list_moment_clips(match_id, player_id)
+    if any(c.status in ("queued", "recording") for c in clips):
+        # Picks up jobs left behind by a restart; a no-op while one is running
+        moment_recorder.enqueue(match_id, player_id)
+    return clips
+
+
+@router.get("/matches/{match_id}/players/{player_id}/clips/{clip_id}.mp4")
+def stream_player_clip(match_id: str, player_id: str, clip_id: str) -> FileResponse:
+    _require_analysis(match_id, player_id)
+    clip = next((c for c in list_moment_clips(match_id, player_id) if c.id == clip_id), None)
+    if not clip or clip.status != "ready":
+        raise HTTPException(status_code=404, detail="Clip not found.")
+    return FileResponse(
+        moment_clip_file(match_id, clip_id),
+        media_type="video/mp4",
+        filename=f"{match_id}-{clip_id}.mp4",
+    )
+
+
+@router.post("/matches/{match_id}/players/{player_id}/clips/{clip_id}/retry", response_model=MomentClip)
+def retry_player_clip(match_id: str, player_id: str, clip_id: str) -> MomentClip:
+    """Record a failed clip again (for example after starting Steam)."""
+    _require_analysis(match_id, player_id)
+    if not any(c.id == clip_id for c in list_moment_clips(match_id, player_id)):
+        raise HTTPException(status_code=404, detail="Clip not found.")
+    repo.analysis.set_clip_status(clip_id, "queued")
+    moment_recorder.enqueue(match_id, player_id)
+    return next(c for c in list_moment_clips(match_id, player_id) if c.id == clip_id)
 
 
 @router.get("/knowledge/{passage_id}")

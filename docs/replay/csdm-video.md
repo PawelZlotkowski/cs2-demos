@@ -39,10 +39,24 @@ csdm video "C:\path\to\match.dem" START_TICK END_TICK ^
 
 Expect recording to take longer than wall-clock (CS2 exclusive, HLAE). Measure and note timings here after the first real run.
 
+## Coach moment clips (T40)
+
+After the player is picked and the coach has chosen its moments, the API queues one clip per moment, recorded from **that player's** first-person view:
+
+1. Window: the moment's `t0`..`t1` (round clock seconds) plus `RR_CSDM_MOMENT_PAD_BEFORE` / `_AFTER`, clamped to the round and 60 s.
+2. Ticks: `round.startTick + t × tickRate`, so the clip lines up with the Radar clock.
+3. `csdm analyze` once, then `csdm video … --focus-player {playerSteamId}` per clip, into its own temp folder, moved to `data/matches/{matchId}/clips/moments/c{N}.mp4`.
+4. Jobs live in the `clip_jobs` table (`queued → recording → ready | failed`). An on-demand round explanation and the agent's `request_clip` tool add jobs to the same queue. The recorder shares the one-at-a-time worker with whole-round clips.
+5. Studio: `GET /matches/{id}/players/{playerId}/clips` lists them; the clip is docked on the Radar stage and follows the shared clock at `t - t0` (plays natively, re-seeks only past 0.25 s of drift, holds its edge frame outside the window). A failed clip shows why and has **Retry** (`POST …/clips/{clipId}/retry`).
+
+While `RR_CSDM_ENABLED` is off, jobs stay queued and read as skipped with a reason; turning it on and reopening the Studio records them.
+
+Tests mock the CLI (`tests/coach/test_moment_clips.py`); CS:DM and CS2 only run on the Windows host.
+
 ## Architecture
 
 1. Upload / parse / normalise completes → **Radar ready** (`status=complete`).
-2. If video is enabled, the API enqueues a **Windows CS:DM worker** (concurrency 1).
+2. If video and whole-round clips are enabled (`RR_CSDM_ROUND_CLIPS`), the API enqueues a **Windows CS:DM worker** (concurrency 1).
 3. Worker: `csdm analyze` once per match → `csdm video` per round → `data/matches/{id}/clips/rN.mp4` + `clips.json`.
 4. Studio polls clip metadata; Gameplay enables when `status=ready`.
 5. Shared playback clock: Gameplay mode uses the `<video>` element as time master; Radar mode uses RAF and keeps video scrubbed if mounted.
@@ -81,7 +95,9 @@ If you also installed PostgreSQL via the Windows installer, stop its service so 
 | `RR_CSDM_WIDTH` / `HEIGHT` / `FPS` | 1280 / 720 / 30 | Encode settings |
 | `RR_CSDM_RECORDING_SYSTEM` | `HLAE` | `HLAE` or `CS` |
 | `RR_CSDM_MAX_ROUNDS` | `0` | If >0, only first N rounds (faster iteration) |
-| `RR_CSDM_TIMEOUT_SECONDS` | `600` | Per-round subprocess timeout |
+| `RR_CSDM_TIMEOUT_SECONDS` | `600` | Per-clip subprocess timeout |
+| `RR_CSDM_ROUND_CLIPS` | `false` | Also record every whole round after parsing (slow; the coach's moment clips do not need it) |
+| `RR_CSDM_MOMENT_PAD_BEFORE` / `_AFTER` | `3` / `2` | Seconds added around each coach moment |
 
 ## Storage layout
 
@@ -105,6 +121,5 @@ data/matches/{matchId}/
 ## Out of scope (this milestone)
 
 - Projecting world positions onto video frames
-- Moment-ranked clips
 - Full-match single file
 - Azure GPU worker

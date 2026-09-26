@@ -21,6 +21,7 @@ from app.models.contracts import (
 from app.processing.decompress import DecompressError, decompress_demo
 from app.processing.normalize import normalize_parsed
 from app.processing.parse_demo import ParseError, parse_demo_file
+from app.processing.moment_clips import moment_recorder, queue_moment_clips
 from app.processing.video_clips import get_or_init_manifest, load_manifest, video_worker
 from app.repositories.matches import STAGE_LABELS, MatchRepository, repo
 
@@ -210,7 +211,17 @@ class ProcessingPipeline:
             return
         if settings.llm_enabled:
             self._coach_safe(match_id, player_id, language)
+        # Ranker moments when the model is off or failed (a no-op when already queued)
+        self._record_moments(match_id, player_id)
         self.repo.set_status(match_id, MatchStatus.complete)
+
+    def _record_moments(self, match_id: str, player_id: str) -> None:
+        """Queue and start the POV clips of the player's moments (plan §3 step 6)."""
+        try:
+            queue_moment_clips(match_id, player_id, self.repo)
+            moment_recorder.enqueue(match_id, player_id)
+        except Exception:
+            logger.exception("Could not queue moment clips for %s / %s", match_id, player_id)
 
     def _coach_safe(self, match_id: str, player_id: str, language: str) -> None:
         """Moment selection and explanations (plan §3 steps 5 and 7).
@@ -228,6 +239,8 @@ class ProcessingPipeline:
             logger.info(
                 "Moments for %s by %s in %.1f s", match_id, outcome.source, time.perf_counter() - t0
             )
+            # Recording runs next to the explanations; it can finish after them
+            self._record_moments(match_id, player_id)
             self.repo.set_status(match_id, MatchStatus.explaining)
             t1 = time.perf_counter()
             run_sync(jobs.explain_all_moments(match_id, player_id, language))
@@ -256,6 +269,7 @@ class ProcessingPipeline:
             clips = get_or_init_manifest(match_id, self.repo)
             if (
                 settings.csdm_enabled
+                and settings.csdm_round_clips
                 and not record.get("is_sample")
                 and clips
                 and any(c.status == ClipStatus.queued for c in clips.clips)

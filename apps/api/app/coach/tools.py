@@ -11,8 +11,8 @@ people. The 14B model has a 32k context, so every result stays small (sizes
 are logged per call). A tool that cannot answer returns ``{"error": ...}``
 rather than raising, so the model can correct its arguments.
 
-``search_knowledge`` reads the RAG index (``app/rag``). ``request_clip`` only
-queues a job: the CS Demo Manager recorder (T00, T40) is not connected yet.
+``search_knowledge`` reads the RAG index (``app/rag``). ``request_clip`` queues a
+job for the CS Demo Manager recorder (``app/processing/moment_clips.py``).
 """
 
 from __future__ import annotations
@@ -411,8 +411,14 @@ def request_clip(
         raise ToolError("Use 0 <= t0 < t1 with a window of at most 60 s.")
     match = data.match(match_id)
     _round(match, round)
+    from app.core.config import settings
+    from app.processing.moment_clips import moment_recorder
+
     job = data.repo.analysis.queue_clip(match_id, player_id, round, round_t(t0), round_t(t1))
-    return {**job, "note": "Queued. The CS Demo Manager recorder is not connected yet, so the clip will not render."}
+    if not settings.csdm_enabled:
+        return {**job, "note": "Queued, but gameplay recording is off on this server; the radar replay shows the round."}
+    moment_recorder.enqueue(match_id, player_id)
+    return {**job, "note": "Queued for recording from the player's view. The radar replay is available meanwhile."}
 
 
 def round_t(t: float) -> float:

@@ -190,6 +190,25 @@ class ClipManifest(CamelModel):
     total: int = 0
 
 
+class MomentClip(CamelModel):
+    """First-person clip of the coached player for one window of a round.
+
+    ``t0``/``t1`` are round clock seconds, so the Studio plays it at
+    ``t - t0`` on the shared clock. ``momentId`` is set for the coach's
+    moments; on-demand rounds and ``request_clip`` leave it empty.
+    """
+
+    id: str  # "c3"
+    player_id: str = Field(alias="playerId")
+    round: int
+    t0: float
+    t1: float
+    moment_id: str | None = Field(None, alias="momentId")
+    status: ClipStatus
+    url: str | None = None
+    error: str | None = None
+
+
 class StatusResponse(CamelModel):
     id: str
     status: MatchStatus

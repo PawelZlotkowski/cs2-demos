@@ -61,7 +61,7 @@ Built 26 Sep 2026 in one draft PR (branch `claude/coach-phase-2-r2gzvt`, on top 
 
 | ID | Task | Depends | Paths | Done when | Size | Owner | Status |
 |---|---|---|---|---|---|---|---|
-| T40 | CS:DM per-moment recording with focus player; queue priority; `request_clip` tool | T00 T25 | `processing/video_clips.py`, tools | real clip recorded on Windows host; timings noted | M | | doing (`request_clip` tool and clip queue done; the CS:DM recorder is not connected) |
+| T40 | CS:DM per-moment recording with focus player; queue priority; `request_clip` tool | T00 T25 | `processing/video_clips.py`, tools | real clip recorded on Windows host; timings noted | M | | review (each coach moment, on-demand round and `request_clip` job is recorded from the player's view and shown on the Radar stage; real recording on the Windows host still to time) |
 | T41 | Player picker UI on processing page | T13 | `apps/web/src/app/processing/` | screenshots at six sizes; keyboard path | S | | review |
 | T42 | Studio moment rail (selected moments primary, all rounds secondary) | T25 | `apps/web/src/app/studio/` | screenshots; seek sync checks pass | M | | review (code ranker moments until T25) |
 | T43 | Panel tabs Analysis + Ask; citation tokens seek the clock | T26 T27 | Studio components | [09](../handoff/09-AI-COACH.md) rules met; overlay sync checks | M | | review (coach explanation per moment or round, Ask over SSE with tool steps, `[F]` `[t:]` `[m]` `[K]` tokens seek or open the passage; template answers are labelled) |

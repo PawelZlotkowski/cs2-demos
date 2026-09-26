@@ -83,9 +83,13 @@ def test_select_player_takes_a_language(analysed):
 
 def test_round_explain_queues_a_clip_and_lists_it(analysed):
     mid, pid = analysed
+    before = client.get(f"{base(mid, pid)}/clips").json()
     client.post(f"{base(mid, pid)}/rounds/1/explain", json={})
     jobs = client.get(f"{base(mid, pid)}/clips").json()
-    assert len(jobs) == 1 and jobs[0]["round"] == 1 and jobs[0]["status"] == "queued"
+    assert len(jobs) == len(before) + 1
+    extra = jobs[-1]
+    # Recording is off in tests, so the queued job reads as skipped with a reason
+    assert extra["round"] == 1 and extra["momentId"] is None and extra["status"] == "skipped" and extra["error"]
 
 
 def test_knowledge_passage_route(analysed):

@@ -18,6 +18,7 @@ import {
   type ClipManifest,
   type Finding,
   type Match,
+  type MomentClip,
   type ReplayPlayer,
   type RoundClip,
   type RoundReplay,
@@ -47,6 +48,7 @@ import {
   type LaneMark,
 } from "@/lib/replay/roster";
 import { GameplayView } from "@/components/replay/GameplayView";
+import { PovClip } from "@/components/replay/PovClip";
 import {
   findingLabel,
   kindGlyph,
@@ -126,6 +128,8 @@ export default function StudioPage() {
   const [barSlot, setBarSlot] = useState<HTMLElement | null>(null);
   const [stageMode, setStageMode] = useState<StageView>("radar");
   const [clipManifest, setClipManifest] = useState<ClipManifest | null>(null);
+  const [povClips, setPovClips] = useState<MomentClip[]>([]);
+  const [povPoll, setPovPoll] = useState(0);
   const clock = usePlaybackClock(0);
   const wasPlaying = useRef(false);
 
@@ -250,6 +254,33 @@ export default function StudioPage() {
     };
   }, [matchId]);
 
+  // Poll the coached player's POV clips while any are queued or recording.
+  // Re-runs on round change: explaining a round on demand queues a clip for it.
+  const analysedPlayer = analysis?.playerId ?? null;
+  useEffect(() => {
+    if (!analysedPlayer) {
+      setPovClips([]);
+      return;
+    }
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    async function poll() {
+      try {
+        const list = await api.getPlayerClips(matchId, analysedPlayer!);
+        if (cancelled) return;
+        setPovClips(list);
+        if (list.some((c) => c.status === "queued" || c.status === "recording")) timer = setTimeout(poll, 3000);
+      } catch {
+        if (!cancelled) timer = setTimeout(poll, 6000);
+      }
+    }
+    poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [matchId, analysedPlayer, roundId, povPoll]);
+
   // ---- Derived replay state ----
 
   const roster = useMemo<ReplayPlayer[]>(
@@ -316,6 +347,28 @@ export default function StudioPage() {
   const moments = analysis?.moments ?? [];
   const activeMoment = moments.find((m) => m.id === momentId && m.round === roundNumber);
   const analysedName = analysis ? (lookup(analysis.playerId)?.name ?? "the selected player") : "";
+  const povClip = useMemo(() => {
+    const here = povClips.filter((c) => c.round === roundNumber);
+    const newest = (list: MomentClip[]) => list[list.length - 1];
+    return (
+      (activeMoment && newest(here.filter((c) => c.momentId === activeMoment.id))) ||
+      newest(here.filter((c) => clock.t >= c.t0 && clock.t <= c.t1 && c.status === "ready")) ||
+      here.find((c) => c.status === "ready") ||
+      newest(here) ||
+      null
+    );
+  }, [povClips, roundNumber, activeMoment, clock.t]);
+  const povReady = new Set(povClips.filter((c) => c.status === "ready" && c.momentId).map((c) => c.momentId));
+  const retryPov = useCallback(
+    (clipId: string) => {
+      if (!analysedPlayer) return;
+      void api
+        .retryPlayerClip(matchId, analysedPlayer, clipId)
+        .catch(() => undefined)
+        .finally(() => setPovPoll((n) => n + 1));
+    },
+    [matchId, analysedPlayer],
+  );
   const roundStats = analysis?.stats.find((r) => r.round === roundNumber);
 
   useEffect(() => {
@@ -833,6 +886,11 @@ export default function StudioPage() {
                         <span className="mom-meta">
                           <span className="when">
                             R{m.round} {formatClock(lead?.t ?? m.t0)}
+                            {povReady.has(m.id) ? (
+                              <span className="pov-tag" title="First-person clip ready">
+                                POV
+                              </span>
+                            ) : null}
                           </span>
                           <span className="reason">{reason.charAt(0).toUpperCase() + reason.slice(1)}</span>
                           <span className="seen" title={seenMoments.has(m.id) && !current ? "Seen" : undefined}>
@@ -959,6 +1017,18 @@ export default function StudioPage() {
                       >
                         {whole ? "This round" : "Whole map"}
                       </button>
+                      {povClip ? (
+                        <PovClip
+                          clip={povClip}
+                          src={povClip.status === "ready" && povClip.url ? api.mediaUrl(povClip.url) : null}
+                          playerName={analysedName}
+                          t={clock.t}
+                          playing={clock.playing}
+                          rate={clock.rate}
+                          onSeek={(t) => seekTo(t)}
+                          onRetry={retryPov}
+                        />
+                      ) : null}
                     </>
                   ) : (
                     <div className="stage-msg">

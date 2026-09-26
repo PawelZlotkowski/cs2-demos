@@ -151,6 +151,6 @@ def test_request_clip_queues_once(analysed):
     first = call("request_clip", match_id=mid, player_id=pid, round=1, t0=10.0, t1=18.0)
     again = call("request_clip", match_id=mid, player_id=pid, round=1, t0=10.0, t1=18.0)
     assert first["status"] == "queued" and first["clipJobId"] == again["clipJobId"]
-    assert "not connected" in first["note"]
+    assert "recording is off" in first["note"]
     assert "at most 60" in call("request_clip", match_id=mid, player_id=pid, round=1, t0=0, t1=90)["error"]
     assert "No round 9" in call("request_clip", match_id=mid, player_id=pid, round=9, t0=0, t1=5)["error"]

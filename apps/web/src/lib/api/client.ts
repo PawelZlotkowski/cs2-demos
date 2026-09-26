@@ -1,9 +1,9 @@
 import type {
   AskEvent,
   AskRequest,
-  ClipJob,
   CoachLanguage,
   ClipManifest,
+  MomentClip,
   CoachRequest,
   CoachResponse,
   EventsPage,
@@ -125,8 +125,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ language }),
     }),
-  getClipJobs: (matchId: string, playerId: string) =>
-    request<ClipJob[]>(`/matches/${matchId}/players/${playerId}/clips`),
+  getPlayerClips: (matchId: string, playerId: string) =>
+    request<MomentClip[]>(`/matches/${matchId}/players/${playerId}/clips`),
+  retryPlayerClip: (matchId: string, playerId: string, clipId: string) =>
+    request<MomentClip>(`/matches/${matchId}/players/${playerId}/clips/${clipId}/retry`, { method: "POST" }),
+  /** Clip URLs from the API are paths; the browser needs the API origin. */
+  mediaUrl: (path: string) => `${API_URL}${path}`,
   getKnowledge: (id: string) => request<KnowledgePassage>(`/knowledge/${id}`),
   /** Ask over server-sent events: `step` per tool call, then one verified `answer`. */
   ask: async (
