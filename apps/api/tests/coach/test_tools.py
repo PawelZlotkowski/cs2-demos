@@ -97,7 +97,7 @@ def test_player_history(analysed):
     out = call("get_player_history", player_id=pid)
     assert out["matches"] == 1 and out["rounds"] == 2
     assert out["detectors"]["good_plays"]["perMatch"] == [1]
-    assert call("get_player_history", player_id=pid, exclude_match_id=mid)["matches"] == 0
+    assert call("get_player_history", player_id=pid, match_id=mid)["matches"] == 0
     only = call("get_player_history", player_id=pid, detector="dry_peek")
     assert list(only["detectors"]) == ["dry_peek"]
 

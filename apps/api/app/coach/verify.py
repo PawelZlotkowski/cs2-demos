@@ -48,6 +48,8 @@ class VerifyContext:
     round_durations: dict[int, float] = field(default_factory=dict)
     # Numbers the user or the Studio context supplied (question text, round, t)
     extra_numbers: set[float] = field(default_factory=set)
+    # Numbers get_player_history returned in this run: earlier matches, no finding to cite
+    history_numbers: set[float] = field(default_factory=set)
     zones: set[str] = field(default_factory=set)
 
     @classmethod
@@ -133,8 +135,14 @@ def verify_text(
         errors.append(f"Use at most {max_sentences} sentences (found {len(sentences)}).")
     for s in sentences:
         body = CITATION_RE.sub(" ", s)
-        states_fact = bool(NUMBER_RE.search(CLOCK_RE.sub(" ", body))) or any(z in body for z in ctx.zones)
-        if states_fact and not CITATION_RE.search(s):
+        numbers = NUMBER_RE.findall(CLOCK_RE.sub(" ", body))
+        names_zone = any(z in body for z in ctx.zones)
+        states_fact = bool(numbers) or names_zone
+        # A habit sentence quoting only the player's history has no finding to cite
+        from_history = bool(numbers) and not names_zone and all(
+            any(abs(_parse_number(n)[0] - v) <= 1e-6 for v in ctx.history_numbers) for n in numbers
+        )
+        if states_fact and not from_history and not CITATION_RE.search(s):
             errors.append(f"This sentence states a fact without a citation: {s.strip()[:80]!r}. Cite the finding it comes from, or leave the number and callout out.")
 
     detected = detect_language(plain)
@@ -166,7 +174,7 @@ def _numbers_in(value: Any) -> list[float]:
 
 
 def _allowed_numbers(ctx: VerifyContext, finding_ids: list[str], cites: list[str]) -> list[float]:
-    allowed: set[float] = set(ctx.extra_numbers)
+    allowed: set[float] = set(ctx.extra_numbers) | ctx.history_numbers
     rounds: set[int] = set()
     for fid in finding_ids:
         f = ctx.findings[fid]
