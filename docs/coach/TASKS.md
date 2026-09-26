@@ -36,16 +36,18 @@ Sizes: S ≈ half a day, M ≈ 1–2 days, L ≈ 3–5 days. Status: `todo`, `do
 
 ## Phase 2 — tools, MCP, agent
 
+Built 26 Sep 2026 in one draft PR (branch `claude/coach-phase-2-r2gzvt`, on top of phase 1). Tested with a scripted model only: the checks that need llama.cpp on the 5080 or real demos (T22 live test, T23 one real match, T25 five matches, T26 < 20 s) are still open; see [23 Agent log](../handoff/23-AGENT-LOG.md).
+
 | ID | Task | Depends | Paths | Done when | Size | Owner | Status |
 |---|---|---|---|---|---|---|---|
-| T20 | Tool functions (plan §5) with typed args and compact JSON | T12 T16 | `apps/api/app/coach/tools.py` | unit tests per tool; result sizes logged | M | | todo |
-| T21 | `cs2-demo` MCP server wrapping T20 (stdio + streamable HTTP) | T20 | `apps/mcp/` | MCP inspector lists tools; integration test calls each | M | | todo |
-| T22 | `LLMClient` (OpenAI-compatible, tools, JSON schema, streaming) | T02 | `apps/api/app/coach/llm_client.py` | test against llama.cpp; mock for CI | S | | todo |
-| T23 | Agent loop (MCP client, max steps, thinking on/off, trace logging) | T21 T22 | `apps/api/app/coach/agent.py` | traces saved as JSONL; runs one match end-to-end | M | | todo |
-| T24 | Verifier (citations, numbers, language) + repair + template fallback in en/pl/nl | T12 | `apps/api/app/coach/verify.py`, `templates/` | unit tests with good and bad answers | M | | todo |
-| T25 | Moment-selection job (`selecting` state) | T23 T24 T16 | agent prompts, pipeline | 5–6 valid moments on 5 matches; fallback path tested | M | | todo |
-| T26 | Explanation job (`explaining` state) + on-demand round endpoint | T25 | pipeline, routes | Analysis text stored per moment; on-demand round < 20 s on 5080 | M | | todo |
-| T27 | Ask endpoint over SSE, replacing mocked `services/coach.py` on the real path | T23 T24 | routes, `coach/` | streaming works; mock kept for tests | M | | todo |
+| T20 | Tool functions (plan §5) with typed args and compact JSON | T12 T16 | `apps/api/app/coach/tools.py` | unit tests per tool; result sizes logged | M | | review |
+| T21 | `cs2-demo` MCP server wrapping T20 (stdio + streamable HTTP) | T20 | `apps/mcp/` | MCP inspector lists tools; integration test calls each | M | | review |
+| T22 | `LLMClient` (OpenAI-compatible, tools, JSON schema, streaming) | T02 | `apps/api/app/coach/llm_client.py` | test against llama.cpp; mock for CI | S | | review |
+| T23 | Agent loop (MCP client, max steps, thinking on/off, trace logging) | T21 T22 | `apps/api/app/coach/agent.py` | traces saved as JSONL; runs one match end-to-end | M | | review |
+| T24 | Verifier (citations, numbers, language) + repair + template fallback in en/pl/nl | T12 | `apps/api/app/coach/verify.py`, `templates/` | unit tests with good and bad answers | M | | review |
+| T25 | Moment-selection job (`selecting` state) | T23 T24 T16 | agent prompts, pipeline | 5–6 valid moments on 5 matches; fallback path tested | M | | review |
+| T26 | Explanation job (`explaining` state) + on-demand round endpoint | T25 | pipeline, routes | Analysis text stored per moment; on-demand round < 20 s on 5080 | M | | review |
+| T27 | Ask endpoint over SSE, replacing mocked `services/coach.py` on the real path | T23 T24 | routes, `coach/` | streaming works; mock kept for tests | M | | review |
 
 ## Phase 3 — RAG
 

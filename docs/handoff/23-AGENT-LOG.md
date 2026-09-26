@@ -2,6 +2,29 @@
 
 Concise log for the next engineer or agent. British spelling.
 
+## 26 September 2026 — AI Coach phase 2 (T20–T27), branch `claude/coach-phase-2-r2gzvt`
+
+Owner asked for phase two (tools, MCP, agent). Built on the phase 1 branch, one draft PR for the phase. `apps/web` was not changed: the phase 1 thread owns the UI work.
+
+### Done
+
+- T20 tools in `app/coach/tools.py`; T21 `cs2-demo` MCP server (`app/coach/mcp_server.py`, entry point and README in `apps/mcp/`). The server factory lives in the API package so the agent can run it in-process over MCP without a second install; `apps/mcp` holds no logic.
+- T22 `LLMClient` + `MockLLMClient`; T23 agent loop + JSONL traces; T24 verifier + template fallback; T25–T27 jobs, pipeline states `selecting` and `explaining`, routes for moment/round explanations and Ask over SSE.
+- Defaults taken: the model is off by default (`RR_LLM_ENABLED=false`) so the app still runs without a GPU; Ask sends one verified answer after `step` events instead of streaming tokens, so the user never sees a claim the verifier later removes; moment selection is one JSON-schema call (no tool loop) that stores its picks through the `select_moments` tool; the language check is a stopword score, not lingua/fastText (no extra dependency yet).
+- The `mcp` SDK is 2.x (`MCPServer`, `mcp.Client`); `FastMCP` examples from older docs do not apply.
+
+### Tested
+
+- `cd apps/api && pytest` — 167 passed, 4 skipped (3 real-demo tests, 1 live llama.cpp test). The new tests use a synthetic match and a scripted model: every tool, MCP in-process and over stdio (`python -m cs2_demo_mcp` subprocess), same results as in-process, agent loop, repair and fallback paths, pipeline states, routes, SSE.
+- `ruff check --select F,E9` on the new Python — clean.
+
+### Not done / not verified
+
+- Nothing ran against llama.cpp: tool-call formatting of Qwen3-14B, grammar-constrained JSON together with thinking mode, latency and VRAM. Run `RR_LLM_LIVE=1 pytest tests/coach/test_llm_client.py -k live` on the 5080 first (T02), then one real match with `RR_LLM_ENABLED=true`.
+- T25's "5–6 valid moments on 5 matches" and T26's "< 20 s per round on the 5080" need real demos and the GPU.
+- Prompts are v1 and untuned; Polish and Dutch output needs a native speaker's check.
+- The TypeScript mirror of the new contracts and the UI (explanations in the Analysis tab, Ask tab, language setting) are T42, T43 and T45.
+
 ## 26 September 2026 — AI Coach phase 1 (T10–T17), branch `claude/coach-phase-1-hrt6pm`
 
 Owner asked for phase one of the plan. One branch and one draft PR for all of phase 1 instead of one per task (owner's request covered the whole phase); commits are split by task.

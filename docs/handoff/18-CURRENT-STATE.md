@@ -2,12 +2,12 @@
 
 Related: [15 Implementation](./15-IMPLEMENTATION-ARCHITECTURE.md), [17 Testing](./17-TESTING-QA.md), [19 Decisions](./19-DECISIONS.md), [24 MVP Architecture](./24-MVP-ARCHITECTURE.md), [replay architecture](../replay-architecture.md), [demo parser](../demo-parser.md)
 
-As of 26 September 2026 (AI Coach phase 1 on branch `claude/coach-phase-1-hrt6pm`, in review; Demo Replay milestone verified 25 Sep). Runnable monorepo: `apps/web`, `apps/api`, `packages/shared`. UI reference remains [`prototype/analysis-studio.html`](../../prototype/analysis-studio.html) — do not treat it as the live app.
+As of 26 September 2026 (AI Coach phase 1 on branch `claude/coach-phase-1-hrt6pm` and phase 2 on `claude/coach-phase-2-r2gzvt`, both in review; Demo Replay milestone verified 25 Sep). Runnable monorepo: `apps/web`, `apps/api`, `packages/shared`. UI reference remains [`prototype/analysis-studio.html`](../../prototype/analysis-studio.html) — do not treat it as the live app.
 
 ## Implemented (Demo Replay — monorepo)
 
 - **Upload → process → Radar:** `.dem` / `.dem.zst` upload, zstd decompress, **demoparser2** parse, normalise to round replay JSON on disk.
-- **Processing states:** `uploaded` → `decompressing` → `decompressed` → `parsing` → `normalizing` → `awaiting_player` → `detecting` → `complete` | `failed`. Radar loads from `awaiting_player`. `selecting`, `recording`, `explaining` exist in the enum but are not used yet.
+- **Processing states:** `uploaded` → `decompressing` → `decompressed` → `parsing` → `normalizing` → `awaiting_player` → `detecting` → (`selecting` → `explaining`, only with `RR_LLM_ENABLED=true`) → `complete` | `failed`. Radar loads from `awaiting_player`. `recording` exists in the enum but is not used yet.
 - **Replay APIs:** match metadata, `/rounds`, `/rounds/{id}/replay`, `/events`; Pydantic contracts mirrored in TypeScript.
 - **Web studio:** stage-first Radar, shared playback clock, position + yaw interpolation, timeline seek, speeds 0.5/1/2/4×; Mirage + Anubis world→radar transforms.
 - **Persistence:** SQLite match rows + filesystem uploads/work/replay blobs (`data/…`).
@@ -25,6 +25,17 @@ Tasks T10–T17 in [TASKS](../coach/TASKS.md). No LLM yet.
 - **Detectors D1–D10 (T14, T15)** in `apps/api/app/analysis/detectors/`, round stats and the code ranker (T16), finding summary templates in en/pl/nl (`apps/api/app/coach/templates/`).
 - **Labelling (T17):** `python -m eval.label_tool label|agreement|score`, format in `data/labels/README.md`. No labels yet.
 
+## Implemented (AI Coach phase 2 — tools, MCP, agent, in review)
+
+Tasks T20–T27 in [TASKS](../coach/TASKS.md). Tested with a scripted model only; nothing has run on llama.cpp yet.
+
+- **Tools (T20):** `apps/api/app/coach/tools.py`, eight tools from plan §5 (`search_knowledge` waits for RAG, `request_clip` for clips). Compact JSON, names and callouts instead of SteamIDs and coordinates, result sizes logged.
+- **MCP server (T21):** `cs2-demo` (`app/coach/mcp_server.py`, official `mcp` SDK 2.x) run by `python -m cs2_demo_mcp` from `apps/mcp/` over stdio or streamable HTTP; resource `match://{id}/overview`, prompts `select_moments`, `explain_moment`, `answer_question`.
+- **LLM client (T22):** `app/coach/llm_client.py`, OpenAI-compatible (tools, JSON schema, Qwen3 thinking switch, streaming), `MockLLMClient` for tests. Config `RR_LLM_ENABLED` (default off), `RR_LLM_BASE_URL`, `RR_LLM_MODEL`.
+- **Agent (T23):** `app/coach/agent.py`, MCP client by default (`RR_COACH_TOOLS=mcp|inprocess`, `RR_MCP_URL`, `RR_MCP_COMMAND`), max 6 tool steps, match and player bound by code, JSONL traces in `data/traces/`.
+- **Verifier (T24):** `app/coach/verify.py`: citations, numbers against evidence and round stats, cited facts, language (stopword score), moment picks; one repair, then en/pl/nl templates.
+- **Jobs (T25–T27):** `app/coach/jobs.py`, prompts in `app/coach/prompts/*.v1.md`. Selection and explanations run in the pipeline when the model is on; on-demand round explanation and the Ask endpoint (SSE) work with or without it (templates when off).
+
 ## Implemented (prototype only — sample data)
 
 Still in `prototype/analysis-studio.html` (reference): moment rail, Coach panel, gameplay PiP, annotation overlays, Home patterns UI. Not the primary product path for this milestone.
@@ -39,9 +50,9 @@ Still in `prototype/analysis-studio.html` (reference): moment rail, Coach panel,
 ## Mocked / stubbed
 
 - **Sample fixture match:** moments/coach/home patterns from `packages/shared` — **no** real round replay blobs (`is_sample`; pipeline skips it).
-- **Coach answers & moment ranking:** stub routes only; unused by Radar replay MVP.
+- **Coach answers (legacy):** `POST /matches/{id}/coach` is still the scripted mock; the real path is `…/players/{pid}/ask`.
 - **Gameplay video / clip rendering:** not built.
-- **LLM moment selection / explanations / Ask:** not started (phase 2). The code ranker's moments stand in.
+- **LLM moment selection / explanations / Ask:** built (phase 2) but only exercised with a scripted model. With `RR_LLM_ENABLED` off, the code ranker's moments and the finding templates stand in. The web app does not call the new explanation and Ask routes yet (T42, T43).
 
 ## Planned next (AI Coach milestone, kicked off 26 Sep 2026)
 
@@ -49,7 +60,7 @@ Plan: [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN.md). Tasks and status
 
 1. Merge the CS:DM clips branch (`cursor/csdm-gameplay-video`).
 2. Phase 1 follow-ups: run the real-demo tests, correct zone names on the overlays, label rounds and tune thresholds; player picker UI (T41).
-3. Tools + `cs2-demo` MCP server, self-hosted Qwen3-14B agent (llama.cpp), verifier, LLM moment selection, explanations, Ask.
+3. Run phase 2 on llama.cpp with Qwen3-14B (T02, T03) and a real match; measure latency; wire explanations and Ask into the Studio (T42, T43, T45).
 4. RAG (map knowledge + player memory), per-moment clips, Studio moment rail with Analysis/Ask tabs, en/pl/nl.
 5. Fine-tuning (QLoRA), larger model on RTX Pro 6000, evaluation.
 

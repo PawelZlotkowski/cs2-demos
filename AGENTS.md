@@ -16,9 +16,9 @@ British spelling. Handoff docs in `docs/handoff/` are the source of truth for pr
 | `docs/replay-architecture.md` | Demo Replay | Time model, sampling, API, persistence |
 | `docs/coach/` | AI Coach (read-first for this milestone) | Plan, task board, school proposal |
 | `apps/api/app/analysis/` | AI Coach | Analysis extract, detectors D1–D10, round stats, code ranker |
-| `apps/api/app/coach/` | AI Coach (planned) | LLM client, agent loop, tools, verifier, prompts |
+| `apps/api/app/coach/` | AI Coach | LLM client, agent loop, tools, MCP server factory, verifier, prompts, jobs |
 | `apps/api/app/rag/` | AI Coach (planned) | Knowledge ingest, hybrid index, retrieval |
-| `apps/mcp/` | AI Coach (planned) | `cs2-demo` MCP server wrapping `coach/tools.py` |
+| `apps/mcp/` | AI Coach | `python -m cs2_demo_mcp` entry point for the `cs2-demo` MCP server (stdio / HTTP) |
 | `ml/` | AI Coach (planned) | llama.cpp serving notes, fine-tuning (QLoRA) |
 | `eval/` | AI Coach (planned) | Evaluation datasets, runner, reports |
 | `apps/api/app/maps/zones/` | AI Coach | Callout polygons per map + `zone_at` |

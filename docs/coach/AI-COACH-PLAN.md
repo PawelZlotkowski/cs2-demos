@@ -145,6 +145,8 @@ Because only local models are allowed, MCP's value here is: a standard, inspecta
 
 Resources: `match://{id}/overview`. Prompts: `select_moments`, `explain_moment`, `answer_question`.
 
+*As built (T20–T21):* the tools take `match_id` and `player_id` explicitly (finding ids are only unique per match and player); the agent binds both and hides them from the model. `get_player_history` takes an optional `exclude_match_id`. `search_knowledge` and `request_clip` are not built yet (T32, T40). The server factory is `apps/api/app/coach/mcp_server.py` (so the agent can run it in-process over MCP); `apps/mcp/` is the runnable entry point. The official SDK is now 2.x (`MCPServer`).
+
 ## 6. Coach agent
 
 ### 6.1 Serving
@@ -160,6 +162,8 @@ Resources: `match://{id}/overview`. Prompts: `select_moments`, `explain_moment`,
 2. **Moment explanation** (`explaining`). Per moment: 2–4 sentences for the Analysis tab, in the user's language, citing `[F..]`, `[t:..]` and `[K..]`, using `get_player_state`, `get_round_timeline`, `search_knowledge`, `get_player_history` as needed. Max 6 tool steps.
 3. **Ask** (interactive). Same tools, context line from the Studio (match, round, time, moment, view, findings in view), 1–3 sentence answers. Streams over SSE.
 4. **On-demand round.** Same as 2 for a round the user opens; also calls `request_clip`.
+
+*As built (T22–T27):* selection is one JSON-schema call with thinking on, no tool loop; the picks are stored through the `select_moments` tool. Explanations and Ask run the tool loop with thinking off. Ask streams `step` events while tools run and sends the answer only after the verifier passes it. The model is off unless `RR_LLM_ENABLED=true`; then the ranker's moments and the templates stand in.
 
 ### 6.3 Verifier (code)
 

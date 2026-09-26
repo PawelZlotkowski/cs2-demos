@@ -121,6 +121,16 @@ Implemented in `apps/api/app/models/contracts.py`, mirrored in `apps/web/src/lib
 - **Storage:** SQLite `findings`, `round_stats`, `moments`, `match_players` in `matches.db`; parse output for the detectors in `data/matches/<id>/analysis.json` (not served to the browser).
 - **Routes:** `POST /matches/{id}/player`, `GET /matches/{id}/players/{pid}/findings?round=&kind=&detector=`, `…/round-stats`, `…/moments`.
 
+### Migration note (tasks T24–T27, 26 Sep 2026)
+
+Pydantic only in `contracts.py`; the TypeScript mirror is left for the UI tasks (T42, T43, T45), because phase 2 did not touch `apps/web`.
+
+- **New:** `CoachLanguage` (`en` | `pl` | `nl`), `MomentExplanation` (`target` = `m3` or `r12`, `lang`, `text` with citation tokens, `citations`, `findingIds`, `source` = `agent` | `template`, `verifierErrors`, `model`, `promptVersion`), `ExplainRequest` (`language`), `AskRequest` (`question`, `language`, `round?`, `t?`, `momentId?`, `view?`).
+- **Changed:** `PlayerSelectRequest.language` (optional, default `en`): the language the stored explanations are written in.
+- **Provenance:** `MomentExplanation` with `source: agent` is LLM text that passed the verifier; `template` is the finding templates (ENGINE numbers, fixed wording).
+- **Storage:** SQLite `explanations` (match, player, target, lang). The agent's picks replace the ranker's rows in `moments` (`source: agent`) and clear the moment explanations.
+- **Routes:** `GET /matches/{id}/players/{pid}/moments/{mid}/explanation?lang=`, `POST …/rounds/{n}/explain` (`?refresh=true` to rewrite), `POST …/ask` (server-sent events: `step` per tool call, then one `answer` `{answer, citations, source, verified}`; `error` on failure). The legacy mocked `POST /matches/{id}/coach` is unchanged.
+
 According to project history, `cs2coach` detectors emit evidence-linked findings with IDs such as `F12` in `report.json`. Their exact schema is **unknown** (not inspected). Minimum needs of this UI:
 
 ```ts
