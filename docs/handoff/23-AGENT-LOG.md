@@ -2,6 +2,28 @@
 
 Concise log for the next engineer or agent. British spelling.
 
+## 26 September 2026 — CS Demo Manager gameplay video
+
+### Shipped
+
+- Contracts: `ClipStatus`, `RoundClip`, `ClipManifest`; attached on rounds/replay/status.
+- Storage: `data/matches/{id}/clips/rN.mp4` + `clips.json`; stream with Range (`GET …/clips/{roundId}.mp4`).
+- Worker: `app/processing/video_clips.py` — analyze once, video per round, concurrency 1; `RR_CSDM_MODE=stub|csdm`.
+- Pipeline enqueues clips after Radar `complete`; Docker keeps `RR_CSDM_ENABLED=0`.
+- Studio: Gameplay|Radar seg control, `usePlaybackClock` video master, disabled Gameplay with reason, clip progress poll.
+- Docs: [csdm-video.md](../csdm-video.md), replay-architecture, 18, AGENTS.
+
+### Verified
+
+- `pytest` — **24 passed** (incl. stub clips + Range).
+- `npm run typecheck` / `npm run build` — pass.
+- Real `csdm` not on PATH here — spike documented; stub covers API/UI path.
+
+### Next
+
+1. On a Windows host with CS2 + CS:DM: `RR_CSDM_ENABLED=1` `RR_CSDM_MODE=csdm` `RR_CSDM_MAX_ROUNDS=1` and record one round.
+2. Analysis milestone when kicked off.
+
 ## 25 September 2026 — Lead verification (Demo Replay follow-up)
 
 ### Verified

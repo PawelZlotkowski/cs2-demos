@@ -14,6 +14,9 @@ services:
       RR_DATA_DIR: /app/data
       RR_FIXTURE_PATH: /app/fixtures/sample-match.json
       RR_MOCK_STAGE_SECONDS: "0.5"
+      # CS:DM cannot run in Linux containers. Keep disabled here; run a Windows
+      # host API/worker with RR_CSDM_ENABLED=1 and a shared data/matches volume.
+      RR_CSDM_ENABLED: "0"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
       interval: 10s

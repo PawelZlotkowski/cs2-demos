@@ -1,10 +1,12 @@
 import type {
+  ClipManifest,
   CoachRequest,
   CoachResponse,
   EventsPage,
   Match,
   Moment,
   PatternsResponse,
+  RoundClip,
   RoundReplay,
   RoundSummary,
   StatusResponse,
@@ -55,6 +57,11 @@ export const api = {
     request<RoundSummary>(`/matches/${matchId}/rounds/${roundId}`),
   getRoundReplay: (matchId: string, roundId: string) =>
     request<RoundReplay>(`/matches/${matchId}/rounds/${roundId}/replay`),
+  getClips: (matchId: string) => request<ClipManifest>(`/matches/${matchId}/clips`),
+  getRoundClip: (matchId: string, roundId: string) =>
+    request<RoundClip>(`/matches/${matchId}/clips/${roundId}`),
+  clipUrl: (matchId: string, roundId: string) =>
+    `${API_URL}/matches/${matchId}/clips/${roundId}.mp4`,
   getEvents: (
     matchId: string,
     opts?: { fromTick?: number; toTick?: number; offset?: number; limit?: number },

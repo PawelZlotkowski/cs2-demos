@@ -25,6 +25,7 @@ export default function ProcessingPage() {
         if (cancelled) return;
         setStatus(s);
         if (s.status === "complete") {
+          // Radar is ready — open Studio; clips may still be recording.
           router.replace(`/studio/${id}`);
           return;
         }
@@ -49,11 +50,21 @@ export default function ProcessingPage() {
   }, [id, router]);
 
   const done = status ? TERMINAL.has(status.status) : Boolean(error);
+  const clips = status?.clips;
+  const clipDetail =
+    clips && clips.total > 0
+      ? clips.done < clips.total
+        ? `Gameplay clips recording — ${clips.done} of ${clips.total} ready. Radar opens first.`
+        : `${clips.done} of ${clips.total} gameplay clips ready.`
+      : null;
 
   return (
     <main className="main">
       <h1>Processing</h1>
-      <p className="lede">Real stages only. Counts appear when they exist.</p>
+      <p className="lede">
+        Radar becomes available as soon as parse finishes. Gameplay clips record afterwards when
+        enabled.
+      </p>
       {error ? (
         <p className="err" role="alert">
           {error} <Link href="/upload">Choose another demo</Link>
@@ -75,7 +86,28 @@ export default function ProcessingPage() {
             ) : null}
           </li>
         ))}
+        {clips && clips.total > 0 ? (
+          <li
+            data-state={
+              clips.done >= clips.total
+                ? "done"
+                : clips.clips.some((c) => c.status === "recording")
+                  ? "active"
+                  : "pending"
+            }
+          >
+            <span className="s-ic" aria-hidden />
+            <strong>Gameplay clips</strong>
+            <span className="meta" style={{ gridColumn: "3", textAlign: "right" }}>
+              {clips.done >= clips.total ? "done" : "recording"}
+            </span>
+            <div className="meta">
+              {clips.done} / {clips.total}
+            </div>
+          </li>
+        ) : null}
       </ol>
+      {clipDetail ? <p className="meta">{clipDetail}</p> : null}
       {!status && !error ? <p className="meta">Waiting for status…</p> : null}
       {status && !done ? (
         <p className="meta" style={{ marginTop: 12 }}>

@@ -145,11 +145,39 @@ class MatchSummary(CamelModel):
     stages: list[ProcessingStage] | None = None
 
 
+class ClipStatus(str, Enum):
+    queued = "queued"
+    recording = "recording"
+    ready = "ready"
+    failed = "failed"
+    skipped = "skipped"
+
+
+class RoundClip(CamelModel):
+    round_id: str = Field(alias="roundId")
+    status: ClipStatus
+    url: str | None = None
+    start_tick: int = Field(alias="startTick")
+    end_tick: int = Field(alias="endTick")
+    duration_sec: float = Field(alias="durationSec")
+    focus_steamid: str | None = Field(None, alias="focusSteamid")
+    error: str | None = None
+
+
+class ClipManifest(CamelModel):
+    match_id: str = Field(alias="matchId")
+    focus_steamid: str | None = Field(None, alias="focusSteamid")
+    clips: list[RoundClip]
+    done: int = 0
+    total: int = 0
+
+
 class StatusResponse(CamelModel):
     id: str
     status: MatchStatus
     stages: list[ProcessingStage]
     error: str | None = None
+    clips: ClipManifest | None = None
 
 
 # --- Tracks / overlays ---
@@ -461,6 +489,7 @@ class RoundSummary(CamelModel):
     start_tick: int = Field(alias="startTick")
     end_tick: int = Field(alias="endTick")
     duration_sec: float = Field(alias="durationSec")
+    clip: RoundClip | None = None
 
 
 class ReplayEventPos(CamelModel):
@@ -511,6 +540,7 @@ class RoundReplay(CamelModel):
     players: list[ReplayPlayer]
     samples: list[ReplaySample]
     events: list[ReplayEvent]
+    clip: RoundClip | None = None
 
 
 class EventsPage(CamelModel):

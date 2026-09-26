@@ -1,4 +1,4 @@
-"""Real demo processing: decompress → parse → normalise."""
+"""Real demo processing: decompress → parse → normalise → optional video clips."""
 
 from __future__ import annotations
 
@@ -9,10 +9,11 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 from pathlib import Path
 
 from app.core.config import settings
-from app.models.contracts import MatchStatus, ProcessingStage, StatusResponse
+from app.models.contracts import ClipStatus, MatchStatus, ProcessingStage, StatusResponse
 from app.processing.decompress import DecompressError, decompress_demo
 from app.processing.normalize import normalize_parsed
 from app.processing.parse_demo import ParseError, parse_demo_file
+from app.processing.video_clips import get_or_init_manifest, load_manifest, video_worker
 from app.repositories.matches import STAGE_LABELS, MatchRepository, repo
 
 logger = logging.getLogger(__name__)
@@ -103,6 +104,8 @@ class ProcessingPipeline:
 
             self.repo.persist_replay(match_id, normalised)
             self.repo.set_status(match_id, MatchStatus.complete)
+            # Radar is ready; gameplay clips fill in asynchronously.
+            video_worker.enqueue(match_id)
         except (DecompressError, ParseError) as exc:
             logger.warning("Processing failed for %s: %s", match_id, exc)
             self.repo.set_status(match_id, MatchStatus.failed, error=str(exc))
@@ -126,11 +129,25 @@ class ProcessingPipeline:
         ):
             self.enqueue(match_id)
         status: MatchStatus = record["status"]
+        clips = None
+        if status == MatchStatus.complete:
+            clips = get_or_init_manifest(match_id, self.repo)
+            if (
+                settings.csdm_enabled
+                and not record.get("is_sample")
+                and clips
+                and any(c.status == ClipStatus.queued for c in clips.clips)
+            ):
+                video_worker.enqueue(match_id)
+                clips = load_manifest(match_id, self.repo) or clips
+        else:
+            clips = load_manifest(match_id, self.repo)
         return StatusResponse(
             id=match_id,
             status=status,
             stages=self._build_stages(record, status),
             error=record.get("error"),
+            clips=clips,
         )
 
     def _build_stages(self, record: dict, current: MatchStatus) -> list[ProcessingStage]:

@@ -64,11 +64,33 @@ export interface ProcessingStage {
   progress?: { done: number; total: number } | null;
 }
 
+export type ClipStatus = "queued" | "recording" | "ready" | "failed" | "skipped";
+
+export interface RoundClip {
+  roundId: string;
+  status: ClipStatus;
+  url?: string | null;
+  startTick: number;
+  endTick: number;
+  durationSec: number;
+  focusSteamid?: string | null;
+  error?: string | null;
+}
+
+export interface ClipManifest {
+  matchId: string;
+  focusSteamid?: string | null;
+  clips: RoundClip[];
+  done: number;
+  total: number;
+}
+
 export interface StatusResponse {
   id: string;
   status: MatchStatus;
   stages: ProcessingStage[];
   error?: string | null;
+  clips?: ClipManifest | null;
 }
 
 export interface Track {
@@ -207,6 +229,7 @@ export interface RoundSummary {
   startTick: number;
   endTick: number;
   durationSec: number;
+  clip?: RoundClip | null;
 }
 
 export interface ReplayEventPos {
@@ -257,6 +280,7 @@ export interface RoundReplay {
   players: ReplayPlayer[];
   samples: ReplaySample[];
   events: ReplayEvent[];
+  clip?: RoundClip | null;
 }
 
 export interface EventsPage {

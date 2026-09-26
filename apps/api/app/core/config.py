@@ -22,6 +22,18 @@ class Settings(BaseSettings):
     max_decompress_bytes: int = 2 * 1024 * 1024 * 1024
     parse_timeout_seconds: float = 120.0
 
+    # Gameplay video via CS Demo Manager (Windows host worker)
+    csdm_enabled: bool = False
+    csdm_mode: str = "stub"  # stub | csdm
+    csdm_bin: str = "csdm"
+    csdm_focus_steamid: str | None = None
+    csdm_width: int = 1280
+    csdm_height: int = 720
+    csdm_fps: int = 30
+    csdm_recording_system: str = "HLAE"
+    csdm_max_rounds: int = 0  # 0 = all rounds
+    csdm_timeout_seconds: float = 600.0
+
     def resolved_upload_dir(self) -> Path:
         path = self.upload_dir or (self.data_dir / "uploads")
         path.mkdir(parents=True, exist_ok=True)

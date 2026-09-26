@@ -2,14 +2,16 @@
 
 British spelling. Handoff docs in `docs/handoff/` are the source of truth for product/design.
 **Demo Replay MVP:** landed — real `.dem.zst` → demoparser2 → Radar playback. See [docs/replay-architecture.md](docs/replay-architecture.md), [docs/demo-parser.md](docs/demo-parser.md), and [docs/handoff/18-CURRENT-STATE.md](docs/handoff/18-CURRENT-STATE.md).
+**Gameplay clips:** optional CS Demo Manager / stub worker after parse — [docs/csdm-video.md](docs/csdm-video.md). Radar ready first; clips fill asynchronously.
 **Next milestone (not started):** analysis detectors → findings → moments on the replay clock. Do not implement coaching/LLM until that milestone is kicked off.
 
 ## Monorepo layout
 
 | Path | Owner | Purpose |
 |---|---|---|
-| `apps/web/` | Demo Replay + Frontend | Next.js App Router — upload, processing, **Radar replay studio** |
-| `apps/api/` | Demo Replay + FastAPI | Real zstd/demoparser2 pipeline + replay APIs |
+| `apps/web/` | Demo Replay + Frontend | Next.js App Router — upload, processing, **Radar / Gameplay studio** |
+| `apps/api/` | Demo Replay + FastAPI | Real zstd/demoparser2 pipeline + replay + clip APIs |
+| `docs/csdm-video.md` | Demo Replay | CS:DM worker, env, storage |
 | `packages/shared/` | Foundation | Shared JSON fixtures (moments stub) |
 | `docs/handoff/` | All agents (read-first) | Product, design, contracts, decisions |
 | `docs/demo-parser.md` | Demo Replay | Parser research |
