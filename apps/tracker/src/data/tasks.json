@@ -1,0 +1,516 @@
+{
+  "source": "docs/coach/TASKS.md",
+  "phases": [
+    {
+      "id": 0,
+      "name": "setup",
+      "tasks": [
+        {
+          "id": "T00",
+          "title": "Merge or rebase cursor/csdm-gameplay-video into main (clips worker, clock sync)",
+          "depends": [],
+          "paths": "branch",
+          "doneWhen": "PR merged; pytest + npm run typecheck green; stub clips play in Studio",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T01",
+          "title": "Demo collection: ~100 Mirage/Anubis matches, data/manifest.csv with split by match (70/15/15)",
+          "depends": [],
+          "paths": "data/README.md, data/manifest.csv",
+          "doneWhen": "manifest committed; demos stored outside git",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T02",
+          "title": "llama.cpp on the 5080 with Qwen3-14B Q4_K_M; smoke script checks chat + tool call + JSON schema output",
+          "depends": [],
+          "paths": "ml/serving/README.md, ml/serving/smoke.py",
+          "doneWhen": "smoke passes; tokens/s and VRAM recorded",
+          "size": "S",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T03",
+          "title": "Add llm compose profile (llama.cpp server, GPU) and RR_LLM_* config",
+          "depends": [
+            "T02"
+          ],
+          "paths": "compose.yaml, apps/api/app/core/config.py",
+          "doneWhen": "docker compose --profile llm up serves /v1/models",
+          "size": "S",
+          "owner": "",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "analysis (deterministic)",
+      "tasks": [
+        {
+          "id": "T10",
+          "title": "Extended parse: events + props from plan §4.1, dense window around kills/shots",
+          "depends": [],
+          "paths": "apps/api/app/processing/parse_demo.py, normalize.py",
+          "doneWhen": "tests on the real sample demo; blob size increase measured and noted",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T11",
+          "title": "Map zones for Mirage + Anubis (callout polygons) + zone_at(x, y)",
+          "depends": [],
+          "paths": "apps/api/app/maps/zones/",
+          "doneWhen": "unit test: known spots map to right callouts; overlay check on radar",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T12",
+          "title": "Finding + RoundStats contracts (Pydantic + TS), storage in SQLite, /matches/{id}/players/{pid}/findings",
+          "depends": [],
+          "paths": "contracts.py, lib/contracts/, repositories, routes",
+          "doneWhen": "contract tests; 16 updated with migration note",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T13",
+          "title": "Player selection step: awaiting_player state, POST /matches/{id}/player",
+          "depends": [
+            "T12"
+          ],
+          "paths": "pipeline, routes, contracts",
+          "doneWhen": "state machine test; Radar still loads before selection",
+          "size": "S",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T14",
+          "title": "Detectors D1–D5",
+          "depends": [
+            "T10",
+            "T11",
+            "T12"
+          ],
+          "paths": "apps/api/app/analysis/detectors/",
+          "doneWhen": "unit tests per detector on labelled rounds",
+          "size": "L",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T15",
+          "title": "Detectors D6–D10",
+          "depends": [
+            "T14"
+          ],
+          "paths": "same",
+          "doneWhen": "unit tests; D10 yields ≥ 1 good play in most matches",
+          "size": "L",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T16",
+          "title": "Round stats + code ranker (severity × diversity fallback)",
+          "depends": [
+            "T12"
+          ],
+          "paths": "apps/api/app/analysis/",
+          "doneWhen": "tests; ranker returns 5–6 moments with mix",
+          "size": "S",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T17",
+          "title": "Labelling tool/format + first 150 labelled rounds; κ on shared 30",
+          "depends": [
+            "T14"
+          ],
+          "paths": "data/labels/, eval/label_tool.py",
+          "doneWhen": "labels committed; agreement reported",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "tools, MCP, agent",
+      "tasks": [
+        {
+          "id": "T20",
+          "title": "Tool functions (plan §5) with typed args and compact JSON",
+          "depends": [
+            "T12",
+            "T16"
+          ],
+          "paths": "apps/api/app/coach/tools.py",
+          "doneWhen": "unit tests per tool; result sizes logged",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T21",
+          "title": "cs2-demo MCP server wrapping T20 (stdio + streamable HTTP)",
+          "depends": [
+            "T20"
+          ],
+          "paths": "apps/mcp/",
+          "doneWhen": "MCP inspector lists tools; integration test calls each",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T22",
+          "title": "LLMClient (OpenAI-compatible, tools, JSON schema, streaming)",
+          "depends": [
+            "T02"
+          ],
+          "paths": "apps/api/app/coach/llm_client.py",
+          "doneWhen": "test against llama.cpp; mock for CI",
+          "size": "S",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T23",
+          "title": "Agent loop (MCP client, max steps, thinking on/off, trace logging)",
+          "depends": [
+            "T21",
+            "T22"
+          ],
+          "paths": "apps/api/app/coach/agent.py",
+          "doneWhen": "traces saved as JSONL; runs one match end-to-end",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T24",
+          "title": "Verifier (citations, numbers, language) + repair + template fallback in en/pl/nl",
+          "depends": [
+            "T12"
+          ],
+          "paths": "apps/api/app/coach/verify.py, templates/",
+          "doneWhen": "unit tests with good and bad answers",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T25",
+          "title": "Moment-selection job (selecting state)",
+          "depends": [
+            "T23",
+            "T24",
+            "T16"
+          ],
+          "paths": "agent prompts, pipeline",
+          "doneWhen": "5–6 valid moments on 5 matches; fallback path tested",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T26",
+          "title": "Explanation job (explaining state) + on-demand round endpoint",
+          "depends": [
+            "T25"
+          ],
+          "paths": "pipeline, routes",
+          "doneWhen": "Analysis text stored per moment; on-demand round < 20 s on 5080",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T27",
+          "title": "Ask endpoint over SSE, replacing mocked services/coach.py on the real path",
+          "depends": [
+            "T23",
+            "T24"
+          ],
+          "paths": "routes, coach/",
+          "doneWhen": "streaming works; mock kept for tests",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "RAG",
+      "tasks": [
+        {
+          "id": "T30",
+          "title": "Knowledge base content: Mirage + Anubis notes, fundamentals, licensed excerpts with attribution",
+          "depends": [],
+          "paths": "data/knowledge/",
+          "doneWhen": "≥ 40 sections per map; sources listed",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T31",
+          "title": "Ingest + index (FTS5 + sqlite-vec, bge-m3)",
+          "depends": [
+            "T30"
+          ],
+          "paths": "apps/api/app/rag/",
+          "doneWhen": "re-index command; test retrieval",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T32",
+          "title": "search_knowledge + player-memory retrieval wired into tools",
+          "depends": [
+            "T31",
+            "T20"
+          ],
+          "paths": "rag/, coach/tools.py",
+          "doneWhen": "[K..] citations resolve in verifier",
+          "size": "S",
+          "owner": "",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "clips and UI",
+      "tasks": [
+        {
+          "id": "T40",
+          "title": "CS:DM per-moment recording with focus player; queue priority; request_clip tool",
+          "depends": [
+            "T00",
+            "T25"
+          ],
+          "paths": "processing/video_clips.py, tools",
+          "doneWhen": "real clip recorded on Windows host; timings noted",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T41",
+          "title": "Player picker UI on processing page",
+          "depends": [
+            "T13"
+          ],
+          "paths": "apps/web/src/app/processing/",
+          "doneWhen": "screenshots at six sizes; keyboard path",
+          "size": "S",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T42",
+          "title": "Studio moment rail (selected moments primary, all rounds secondary)",
+          "depends": [
+            "T25"
+          ],
+          "paths": "apps/web/src/app/studio/",
+          "doneWhen": "screenshots; seek sync checks pass",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T43",
+          "title": "Panel tabs Analysis + Ask; citation tokens seek the clock",
+          "depends": [
+            "T26",
+            "T27"
+          ],
+          "paths": "Studio components",
+          "doneWhen": "09 rules met; overlay sync checks",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T44",
+          "title": "Coach lane on timeline with finding markers",
+          "depends": [
+            "T42"
+          ],
+          "paths": "timeline components",
+          "doneWhen": "colours/shapes per decision 4",
+          "size": "S",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T45",
+          "title": "Language setting (en/pl/nl) end to end",
+          "depends": [
+            "T26",
+            "T27"
+          ],
+          "paths": "web settings, API param",
+          "doneWhen": "answers in chosen language; UI copy stays English",
+          "size": "S",
+          "owner": "",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "fine-tuning and bigger model",
+      "tasks": [
+        {
+          "id": "T50",
+          "title": "Dataset builder: rejection sampling from agent runs, verifier filter, split by match",
+          "depends": [
+            "T25",
+            "T26",
+            "T27"
+          ],
+          "paths": "ml/finetune/build_dataset.py",
+          "doneWhen": "dataset card with counts per job/language",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T51",
+          "title": "Human review of ≥ 300 examples (both students)",
+          "depends": [
+            "T50"
+          ],
+          "paths": "ml/finetune/review/",
+          "doneWhen": "reviewed set committed (no raw demos)",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T52",
+          "title": "QLoRA pilot on RTX 5080 (Unsloth), export to GGUF Q4_K_M",
+          "depends": [
+            "T51"
+          ],
+          "paths": "ml/finetune/",
+          "doneWhen": "pilot model runs in llama.cpp; loss curves saved",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T53",
+          "title": "RTX Pro 6000: bigger model serving + full fine-tune run",
+          "depends": [
+            "T52"
+          ],
+          "dependsNote": "go/no-go",
+          "paths": "ml/",
+          "doneWhen": "models registered in eval configs",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "evaluation and hand-in",
+      "tasks": [
+        {
+          "id": "T60",
+          "title": "Question set: 150 questions (50 per language) with expected tools and answer notes",
+          "depends": [
+            "T25"
+          ],
+          "paths": "eval/datasets/",
+          "doneWhen": "committed",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T61",
+          "title": "Eval runner + metrics from plan §12, one config per model",
+          "depends": [
+            "T24",
+            "T60"
+          ],
+          "paths": "eval/",
+          "doneWhen": "python -m eval.run --config … writes tables",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T62",
+          "title": "Moment-selection human picks for 20 matches + metrics",
+          "depends": [
+            "T25"
+          ],
+          "paths": "eval/, data/labels/",
+          "doneWhen": "overlap@6 / NDCG reported",
+          "size": "S",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T63",
+          "title": "User study (5–10 players)",
+          "depends": [
+            "T43"
+          ],
+          "paths": "eval/user-study/",
+          "doneWhen": "results table",
+          "size": "S",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T64",
+          "title": "Intermediary defence deck + demo (17 Nov)",
+          "depends": [
+            "T26"
+          ],
+          "paths": "docs/defence/",
+          "doneWhen": "dry run done by both",
+          "size": "S",
+          "owner": "",
+          "status": "todo"
+        },
+        {
+          "id": "T65",
+          "title": "Final report (~3 pages) + reproducibility check from a clean clone",
+          "depends": [
+            "T61"
+          ],
+          "paths": "docs/report/",
+          "doneWhen": "second student reproduces results from README",
+          "size": "M",
+          "owner": "",
+          "status": "todo"
+        }
+      ]
+    }
+  ]
+}

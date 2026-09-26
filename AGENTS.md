@@ -11,6 +11,7 @@ British spelling. Handoff docs in `docs/handoff/` are the source of truth for pr
 | `apps/web/` | Demo Replay + Frontend | Next.js App Router — upload, processing, **Radar replay studio** |
 | `apps/api/` | Demo Replay + FastAPI | Real zstd/demoparser2 pipeline + replay APIs |
 | `docs/` | All agents | Index of every doc: [docs/README.md](docs/README.md) |
+| `apps/tracker/` | Owner | Coach task board (Vercel) seeded from `docs/coach/TASKS.md` |
 | `docs/handoff/` | All agents (read-first) | Product, design, contracts, decisions |
 | `docs/replay/` | Demo Replay | Parser research, time model, sampling, API, persistence, performance |
 | `docs/coach/` | AI Coach (read-first for this milestone) | Plan, task board, school proposal |
