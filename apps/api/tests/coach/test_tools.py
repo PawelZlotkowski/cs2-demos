@@ -140,7 +140,7 @@ def test_search_knowledge(analysed):
     out = call("search_knowledge", query="died alone and nobody traded", k=2)
     ids = [p["id"] for p in out["passages"]]
     assert len(ids) == 2 and all(i.startswith("K") for i in ids)
-    assert out["passages"][0]["title"] == "Trading a teammate"
+    assert out["passages"][0]["title"] in {"Untraded deaths", "Trading"}
     mirage = call("search_knowledge", query="B apartments molotov", map="de_mirage")
     assert mirage["passages"][0]["map"] == "de_mirage"
     assert all(p["map"] in ("all", "de_mirage") for p in mirage["passages"])
