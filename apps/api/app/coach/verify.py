@@ -107,7 +107,7 @@ def verify_text(
         elif c.startswith("m") and c not in ctx.moment_ids:
             errors.append(f"[{c}] is not one of the selected moments.")
         elif c.startswith("K") and c not in ctx.knowledge:
-            errors.append(f"[{c}] is not a knowledge passage returned by a tool.")
+            errors.append(f"[{c}] is not a knowledge passage returned by a tool. Remove it, or call search_knowledge and cite an id it returns.")
         elif c.startswith("t:"):
             t = float(c[2:])
             longest = max(ctx.round_durations.values(), default=None)
@@ -126,7 +126,7 @@ def verify_text(
     for raw in NUMBER_RE.findall(plain_no_clock):
         value, tol = _parse_number(raw)
         if not any(abs(value - v) <= max(tol, 0.02 * abs(v)) for v in allowed):
-            errors.append(f"The number {raw} is not in the cited findings or round stats.")
+            errors.append(f"The number {raw} is not in the cited findings or round stats. Remove it or cite the finding that has it.")
 
     sentences = [s for s in SENTENCE_RE.split(text) if s.strip()]
     if max_sentences is not None and len(sentences) > max_sentences:
@@ -135,7 +135,7 @@ def verify_text(
         body = CITATION_RE.sub(" ", s)
         states_fact = bool(NUMBER_RE.search(CLOCK_RE.sub(" ", body))) or any(z in body for z in ctx.zones)
         if states_fact and not CITATION_RE.search(s):
-            errors.append(f"This sentence states a fact without a citation: {s.strip()[:80]!r}.")
+            errors.append(f"This sentence states a fact without a citation: {s.strip()[:80]!r}. Cite the finding it comes from, or leave the number and callout out.")
 
     detected = detect_language(plain)
     if detected is not None and detected != lang:

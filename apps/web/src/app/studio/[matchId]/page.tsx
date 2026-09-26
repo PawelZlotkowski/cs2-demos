@@ -1081,9 +1081,11 @@ export default function StudioPage() {
           <p className="picked">
             {headFinding && activeMoment && activeMoment.findingIds[0] === headFinding.id
               ? cited(
-                  `${kindLabel(activeMoment.kind)}. Ranked ${ordinal(momentRank)} of ${moments.length} by the code ranker, from ${activeMoment.findingIds
-                    .map((id) => `[${id}]`)
-                    .join(" ")}.`,
+                  activeMoment.source === "agent"
+                    ? `${kindLabel(activeMoment.kind)}. Picked by the coach: ${activeMoment.pickedBecause}`
+                    : `${kindLabel(activeMoment.kind)}. Ranked ${ordinal(momentRank)} of ${moments.length} by the code ranker, from ${activeMoment.findingIds
+                        .map((id) => `[${id}]`)
+                        .join(" ")}.`,
                 )
               : headFinding
                 ? cited(`${kindLabel(headFinding.kind)} for ${analysedName}, finding [${headFinding.id}].`)
