@@ -7,6 +7,7 @@ from typing import Any
 
 import pandas as pd
 
+from app.analysis.extract import extract_analysis, steam_id
 from app.maps.metadata import display_map_name, get_map_meta, world_to_radar
 from app.processing.parse_demo import ParsedDemo
 from app.processing.time_utils import tick_to_seconds
@@ -117,6 +118,7 @@ def normalize_parsed(match_id: str, parsed: ParsedDemo) -> dict[str, Any]:
     return {
         "match": match,
         "rounds": rounds_meta,
+        "analysis": extract_analysis(match_id, parsed, rounds_meta, roster),
         "round_replays": round_replays,
         "events": _flatten_events(round_replays),
         "perf": {
@@ -325,13 +327,8 @@ def _flatten_events(round_replays: dict[str, dict[str, Any]]) -> list[dict[str, 
 
 
 def _sid(val: Any) -> str | None:
-    if val is None or (isinstance(val, float) and math.isnan(val)):
-        return None
-    try:
-        return str(int(float(val)))
-    except (TypeError, ValueError):
-        s = str(val).strip()
-        return s or None
+    # Keep SteamID64 exact; float conversion loses digits above 2**53
+    return steam_id(val)
 
 
 def _f(val: Any) -> float | None:
