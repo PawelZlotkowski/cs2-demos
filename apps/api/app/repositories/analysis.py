@@ -12,7 +12,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.models.contracts import Finding, PlayerAnalysis, RoundStats, SelectedMoment
+from app.models.contracts import Finding, MomentExplanation, PlayerAnalysis, RoundStats, SelectedMoment
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS match_players (
@@ -47,6 +47,14 @@ CREATE TABLE IF NOT EXISTS moments (
     source TEXT NOT NULL,
     json TEXT NOT NULL,
     PRIMARY KEY (match_id, player_id, moment_id)
+);
+CREATE TABLE IF NOT EXISTS explanations (
+    match_id TEXT NOT NULL,
+    player_id TEXT NOT NULL,
+    target TEXT NOT NULL,
+    lang TEXT NOT NULL,
+    json TEXT NOT NULL,
+    PRIMARY KEY (match_id, player_id, target, lang)
 );
 """
 
@@ -137,6 +145,62 @@ class AnalysisRepository:
             ).fetchall()
         moments = [SelectedMoment.model_validate(json.loads(r[0])) for r in rows]
         return sorted(moments, key=lambda m: int(m.id.lstrip("m") or 0))
+
+    def replace_moments(self, match_id: str, player_id: str, moments: list[SelectedMoment]) -> None:
+        """Swap the stored moments (the agent's picks replace the ranker's)."""
+        with self._lock, self._connect() as conn:
+            conn.execute("DELETE FROM moments WHERE match_id = ? AND player_id = ?", (match_id, player_id))
+            conn.executemany(
+                "INSERT INTO moments VALUES (?, ?, ?, ?, ?)",
+                [(match_id, player_id, m.id, m.source, m.model_dump_json(by_alias=True)) for m in moments],
+            )
+            # Explanations belong to the old picks
+            conn.execute(
+                "DELETE FROM explanations WHERE match_id = ? AND player_id = ? AND target LIKE 'm%'",
+                (match_id, player_id),
+            )
+
+    # --- explanations (moment "m3" or round "r12") ---
+
+    def save_explanation(self, match_id: str, player_id: str, explanation: MomentExplanation) -> None:
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO explanations VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(match_id, player_id, target, lang) DO UPDATE SET json=excluded.json
+                """,
+                (match_id, player_id, explanation.target, explanation.lang, explanation.model_dump_json(by_alias=True)),
+            )
+
+    def explanation(self, match_id: str, player_id: str, target: str, lang: str) -> MomentExplanation | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT json FROM explanations WHERE match_id = ? AND player_id = ? AND target = ? AND lang = ?",
+                (match_id, player_id, target, lang),
+            ).fetchone()
+        return MomentExplanation.model_validate(json.loads(row[0])) if row else None
+
+    # --- player history across matches ---
+
+    def player_history(self, player_id: str, *, exclude_match_id: str | None = None) -> list[dict]:
+        """Per match: rounds played and finding counts per detector, oldest first."""
+        with self._connect() as conn:
+            rounds = conn.execute(
+                "SELECT match_id, COUNT(*), MIN(rowid) FROM round_stats WHERE player_id = ? GROUP BY match_id",
+                (player_id,),
+            ).fetchall()
+            counts = conn.execute(
+                "SELECT match_id, detector, COUNT(*) FROM findings WHERE player_id = ? GROUP BY match_id, detector",
+                (player_id,),
+            ).fetchall()
+        per_match: dict[str, dict[str, int]] = {}
+        for mid, detector, n in counts:
+            per_match.setdefault(mid, {})[detector] = n
+        return [
+            {"matchId": mid, "rounds": n_rounds, "counts": per_match.get(mid, {})}
+            for mid, n_rounds, _order in sorted(rounds, key=lambda r: r[2])
+            if mid != exclude_match_id
+        ]
 
     def has_analysis(self, match_id: str, player_id: str) -> bool:
         with self._connect() as conn:
