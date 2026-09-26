@@ -1,8 +1,9 @@
 import asyncio
 import json
+from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.core.config import settings
 from app.core.validation import UPLOAD_REJECT_MESSAGE, is_allowed_demo_filename
@@ -10,6 +11,7 @@ from app.models.contracts import (
     REPLAY_READY_STATUSES,
     AskRequest,
     CoachLanguage,
+    ClipManifest,
     CoachRequest,
     CoachResponse,
     EventsPage,
@@ -22,6 +24,7 @@ from app.models.contracts import (
     PatternsResponse,
     PlayerSelectRequest,
     ReplayEvent,
+    RoundClip,
     RoundReplay,
     RoundStats,
     RoundSummary,
@@ -31,6 +34,7 @@ from app.models.contracts import (
 )
 from app.processing import pipeline as pipeline_module
 from app.processing.pipeline import PlayerSelectionError, pipeline
+from app.processing.video_clips import clip_file, find_clip, get_or_init_manifest
 from app.repositories.matches import repo
 from app.services.coach import coach_service
 from app.services.patterns import patterns_from_record
@@ -40,6 +44,20 @@ router = APIRouter()
 
 def _replay_ready(record: dict) -> bool:
     return bool(record.get("is_sample")) or record["status"] in REPLAY_READY_STATUSES
+
+
+def _attach_clip(match_id: str, summary: RoundSummary) -> RoundSummary:
+    clip = find_clip(match_id, summary.id)
+    if clip is None:
+        return summary
+    return summary.model_copy(update={"clip": clip})
+
+
+def _attach_replay_clip(match_id: str, replay: RoundReplay) -> RoundReplay:
+    clip = find_clip(match_id, replay.round_id)
+    if clip is None:
+        return replay
+    return replay.model_copy(update={"clip": clip})
 
 
 @router.get("/health")
@@ -88,6 +106,47 @@ def get_status(match_id: str) -> StatusResponse:
     return pipeline.status_response(match_id)
 
 
+@router.get("/matches/{match_id}/clips", response_model=ClipManifest)
+def get_clips(match_id: str) -> ClipManifest:
+    record = repo.get(match_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Match not found.")
+    if not _replay_ready(record):
+        raise HTTPException(status_code=409, detail="Match is still processing.")
+    manifest = get_or_init_manifest(match_id)
+    if not manifest:
+        raise HTTPException(status_code=404, detail="No clip manifest for this match.")
+    return manifest
+
+
+@router.get("/matches/{match_id}/clips/{round_id}.mp4")
+def stream_round_clip(match_id: str, round_id: str) -> FileResponse:
+    """Serve the MP4 before the metadata route so `r1.mp4` is not captured as round_id."""
+    record = repo.get(match_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Match not found.")
+    path: Path = clip_file(match_id, round_id)
+    if not path.exists() or path.stat().st_size == 0:
+        raise HTTPException(status_code=404, detail="Clip file not found.")
+    return FileResponse(
+        path,
+        media_type="video/mp4",
+        filename=f"{round_id}.mp4",
+        headers={"Accept-Ranges": "bytes", "Cache-Control": "public, max-age=3600"},
+    )
+
+
+@router.get("/matches/{match_id}/clips/{round_id}", response_model=RoundClip)
+def get_round_clip(match_id: str, round_id: str) -> RoundClip:
+    record = repo.get(match_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Match not found.")
+    clip = find_clip(match_id, round_id)
+    if not clip:
+        raise HTTPException(status_code=404, detail="Clip not found.")
+    return clip
+
+
 @router.get("/matches/{match_id}/rounds", response_model=list[RoundSummary])
 def list_rounds(match_id: str) -> list[RoundSummary]:
     record = repo.get(match_id)
@@ -95,7 +154,12 @@ def list_rounds(match_id: str) -> list[RoundSummary]:
         raise HTTPException(status_code=404, detail="Match not found.")
     if not _replay_ready(record):
         return []
-    return [RoundSummary.model_validate(r) for r in record.get("rounds") or []]
+    # Ensure clip metadata exists for Studio polling
+    get_or_init_manifest(match_id)
+    return [
+        _attach_clip(match_id, RoundSummary.model_validate(r))
+        for r in (record.get("rounds") or [])
+    ]
 
 
 @router.get("/matches/{match_id}/rounds/{round_id}", response_model=RoundSummary)
@@ -106,7 +170,7 @@ def get_round(match_id: str, round_id: str) -> RoundSummary:
     round_row = next((r for r in (record.get("rounds") or []) if r["id"] == round_id), None)
     if not round_row:
         raise HTTPException(status_code=404, detail="Round not found.")
-    return RoundSummary.model_validate(round_row)
+    return _attach_clip(match_id, RoundSummary.model_validate(round_row))
 
 
 @router.get("/matches/{match_id}/rounds/{round_id}/replay", response_model=RoundReplay)
@@ -119,7 +183,7 @@ def get_round_replay(match_id: str, round_id: str) -> RoundReplay:
     replay = repo.get_round_replay(match_id, round_id)
     if not replay:
         raise HTTPException(status_code=404, detail="Round replay not found.")
-    return RoundReplay.model_validate(replay)
+    return _attach_replay_clip(match_id, RoundReplay.model_validate(replay))
 
 
 @router.get("/matches/{match_id}/events", response_model=EventsPage)

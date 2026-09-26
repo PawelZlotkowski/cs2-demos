@@ -1,4 +1,4 @@
-"""Real demo processing: decompress → parse → normalise → (player) → detect."""
+"""Real demo processing: decompress → parse → normalise → (player) → detect, plus optional video clips."""
 
 from __future__ import annotations
 
@@ -11,10 +11,17 @@ from pathlib import Path
 from app.analysis.match_data import build_match_data
 from app.analysis.run import analyse_player
 from app.core.config import settings
-from app.models.contracts import MatchStatus, ProcessingStage, StatusResponse
+from app.models.contracts import (
+    REPLAY_READY_STATUSES,
+    ClipStatus,
+    MatchStatus,
+    ProcessingStage,
+    StatusResponse,
+)
 from app.processing.decompress import DecompressError, decompress_demo
 from app.processing.normalize import normalize_parsed
 from app.processing.parse_demo import ParseError, parse_demo_file
+from app.processing.video_clips import get_or_init_manifest, load_manifest, video_worker
 from app.repositories.matches import STAGE_LABELS, MatchRepository, repo
 
 logger = logging.getLogger(__name__)
@@ -134,8 +141,10 @@ class ProcessingPipeline:
             normalised["perf"] = {**normalised.get("perf", {}), **perf}
 
             self.repo.persist_replay(match_id, normalised)
-            # Radar is ready; the coach waits for the user to choose a player
+            # Radar is ready; the coach waits for the user to choose a player.
+            # Gameplay clips fill in asynchronously (no-op unless CS:DM is enabled).
             self.repo.set_status(match_id, MatchStatus.awaiting_player)
+            video_worker.enqueue(match_id)
         except (DecompressError, ParseError) as exc:
             logger.warning("Processing failed for %s: %s", match_id, exc)
             self.repo.set_status(match_id, MatchStatus.failed, error=str(exc))
@@ -242,11 +251,25 @@ class ProcessingPipeline:
         ):
             self.enqueue(match_id)
         status: MatchStatus = record["status"]
+        clips = None
+        if status in REPLAY_READY_STATUSES:
+            clips = get_or_init_manifest(match_id, self.repo)
+            if (
+                settings.csdm_enabled
+                and not record.get("is_sample")
+                and clips
+                and any(c.status == ClipStatus.queued for c in clips.clips)
+            ):
+                video_worker.enqueue(match_id)
+                clips = load_manifest(match_id, self.repo) or clips
+        else:
+            clips = load_manifest(match_id, self.repo)
         return StatusResponse(
             id=match_id,
             status=status,
             stages=self._build_stages(record, status),
             error=record.get("error"),
+            clips=clips,
         )
 
     def _build_stages(self, record: dict, current: MatchStatus) -> list[ProcessingStage]:

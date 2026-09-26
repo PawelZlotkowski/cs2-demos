@@ -26,6 +26,7 @@ The numbered package the project started from. [00-README](handoff/00-README.md)
 - [demo-parser](replay/demo-parser.md): demoparser2 research, fields and events
 - [replay-architecture](replay/replay-architecture.md): time model, sampling, API and persistence
 - [replay-performance](replay/replay-performance.md): timings and sizes on the test demo
+- [csdm-video](replay/csdm-video.md): CS Demo Manager gameplay clip worker, env and storage
 
 ## `coach/` — AI coach milestone
 

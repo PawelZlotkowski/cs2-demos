@@ -336,6 +336,87 @@
   transform: scale(0.94);
 }
 
+.seg {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--border-soft);
+  border-radius: var(--r-ctl);
+  padding: 2px;
+  margin-left: auto;
+}
+
+.seg button {
+  position: relative;
+  z-index: 1;
+  padding: 4px 12px;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-2);
+  transition: color 160ms ease;
+}
+
+.seg button[aria-pressed="true"] {
+  color: var(--text);
+}
+
+.seg button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.seg-pill {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  background: var(--surface-raised);
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  transition: transform 200ms var(--ease-out);
+  pointer-events: none;
+}
+
+.seg.is-radar .seg-pill {
+  transform: translateX(100%);
+}
+
+.clip-progress {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.stage .surface {
+  position: absolute;
+  inset: 0;
+}
+
+.stage .surface.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.gameplay-surface {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #000;
+}
+
+.gameplay-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.gameplay-msg {
+  padding: 24px;
+}
+
 .clock {
   display: flex;
   align-items: baseline;

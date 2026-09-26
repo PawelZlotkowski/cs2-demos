@@ -2,7 +2,7 @@
 
 Status: **planned, owner-approved direction.** Nothing in this document is implemented yet unless [18 Current state](../handoff/18-CURRENT-STATE.md) says so. Tasks live in [TASKS.md](./TASKS.md); the school proposal draft is [PROPOSAL.md](./PROPOSAL.md).
 
-Related: [09 AI Coach](../handoff/09-AI-COACH.md), [16 Data contracts](../handoff/16-DATA-CONTRACTS.md), [19 Decisions](../handoff/19-DECISIONS.md), [replay architecture](../replay/replay-architecture.md), [CS:DM video (branch `cursor/csdm-gameplay-video`)](https://github.com/PawelZlotkowski/cs2-demos/blob/cursor/csdm-gameplay-video/docs/csdm-video.md).
+Related: [09 AI Coach](../handoff/09-AI-COACH.md), [16 Data contracts](../handoff/16-DATA-CONTRACTS.md), [19 Decisions](../handoff/19-DECISIONS.md), [replay architecture](../replay/replay-architecture.md), [CS:DM video](../replay/csdm-video.md).
 
 ## 0. Owner decisions (26 Sep 2026)
 

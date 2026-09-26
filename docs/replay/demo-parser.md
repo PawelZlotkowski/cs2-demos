@@ -75,7 +75,7 @@ After zstd:
 - CS:GO `HL2DEMO`
 - Analysis detectors, rankings, LLM text
 - Perfect visibility / spotted-state reconstruction
-- Gameplay video rendering
+- Gameplay video rendering (CS Demo Manager worker — see [csdm-video.md](./csdm-video.md); Docker Linux cannot record)
 - All CS2 maps aligned (MVP targets **de_mirage** first)
 
 ## Smoke result (research machine)

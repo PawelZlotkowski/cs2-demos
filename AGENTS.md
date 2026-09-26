@@ -2,15 +2,17 @@
 
 British spelling. Handoff docs in `docs/handoff/` are the source of truth for product/design.
 **Demo Replay MVP:** landed — real `.dem.zst` → demoparser2 → Radar playback. See [docs/replay/replay-architecture.md](docs/replay/replay-architecture.md), [docs/replay/demo-parser.md](docs/replay/demo-parser.md), and [docs/handoff/18-CURRENT-STATE.md](docs/handoff/18-CURRENT-STATE.md).
+**Gameplay clips:** optional CS Demo Manager / stub worker after parse — [docs/replay/csdm-video.md](docs/replay/csdm-video.md). Radar ready first; clips fill asynchronously.
 **Current milestone (kicked off 26 Sep 2026): AI Coach.** Detectors → findings → LLM moment selection → CS:DM clips → Analysis/Ask with a self-hosted Qwen3-14B agent (tools via MCP, RAG, verifier, later QLoRA fine-tuning). Plan: [docs/coach/AI-COACH-PLAN.md](docs/coach/AI-COACH-PLAN.md) · tasks: [docs/coach/TASKS.md](docs/coach/TASKS.md) · proposal: [docs/coach/PROPOSAL.md](docs/coach/PROPOSAL.md). Work only on tasks the owner assigned.
 
 ## Monorepo layout
 
 | Path | Owner | Purpose |
 |---|---|---|
-| `apps/web/` | Demo Replay + Frontend | Next.js App Router — upload, processing, **Radar replay studio** |
-| `apps/api/` | Demo Replay + FastAPI | Real zstd/demoparser2 pipeline + replay APIs |
+| `apps/web/` | Demo Replay + Frontend | Next.js App Router — upload, processing, **Radar / Gameplay studio** |
+| `apps/api/` | Demo Replay + FastAPI | Real zstd/demoparser2 pipeline + replay + clip APIs |
 | `docs/` | All agents | Index of every doc: [docs/README.md](docs/README.md) |
+| `docs/replay/csdm-video.md` | Demo Replay | CS:DM worker, env, storage |
 | `apps/tracker/` | Owner | Coach task board (Vercel) seeded from `docs/coach/TASKS.md` |
 | `docs/handoff/` | All agents (read-first) | Product, design, contracts, decisions |
 | `docs/replay/` | Demo Replay | Parser research, time model, sampling, API, persistence, performance |

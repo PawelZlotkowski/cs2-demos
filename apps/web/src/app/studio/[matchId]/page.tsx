@@ -15,13 +15,16 @@ import Link from "next/link";
 import { api } from "@/lib/api/client";
 import {
   REPLAY_READY_STATUSES,
+  type ClipManifest,
   type Finding,
   type Match,
   type ReplayPlayer,
+  type RoundClip,
   type RoundReplay,
   type RoundStats,
   type RoundSummary,
   type SelectedMoment,
+  type StageView,
 } from "@/lib/contracts";
 import { usePlaybackClock, type PlaybackRate } from "@/lib/replay/usePlaybackClock";
 import { interpolateAt, samplesHaveRadarCoords } from "@/lib/replay/interpolate";
@@ -43,6 +46,7 @@ import {
   typeLabel,
   type LaneMark,
 } from "@/lib/replay/roster";
+import { GameplayView } from "@/components/replay/GameplayView";
 import {
   findingLabel,
   kindGlyph,
@@ -120,6 +124,8 @@ export default function StudioPage() {
   const pendingSeek = useRef<number | null>(null);
   const askRef = useRef<HTMLInputElement>(null);
   const [barSlot, setBarSlot] = useState<HTMLElement | null>(null);
+  const [stageMode, setStageMode] = useState<StageView>("radar");
+  const [clipManifest, setClipManifest] = useState<ClipManifest | null>(null);
   const clock = usePlaybackClock(0);
   const wasPlaying = useRef(false);
 
@@ -218,6 +224,32 @@ export default function StudioPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, roundId]);
 
+  // Poll clip manifest so Gameplay enables as rounds finish recording
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    async function poll() {
+      try {
+        const man = await api.getClips(matchId);
+        if (cancelled) return;
+        setClipManifest(man);
+        const pending = man.clips.some(
+          (c) => c.status === "queued" || c.status === "recording",
+        );
+        if (pending) timer = setTimeout(poll, 2000);
+      } catch {
+        if (!cancelled) timer = setTimeout(poll, 4000);
+      }
+    }
+
+    poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [matchId]);
+
   // ---- Derived replay state ----
 
   const roster = useMemo<ReplayPlayer[]>(
@@ -313,6 +345,56 @@ export default function StudioPage() {
   const nextRound = roundIdx >= 0 ? rounds[roundIdx + 1] : undefined;
   const mapMeta = getMapMeta(replay?.map ?? match?.map ?? "");
   const mapLabel = mapMeta?.displayName ?? match?.map?.replace(/^de_/, "") ?? "—";
+
+  const activeClip: RoundClip | null = useMemo(() => {
+    if (!roundId) return null;
+    const fromReplay = replay?.clip ?? null;
+    const fromMan = clipManifest?.clips.find((c) => c.roundId === roundId) ?? null;
+    const fromRound = activeRound?.clip ?? null;
+    return fromMan ?? fromReplay ?? fromRound;
+  }, [roundId, replay, clipManifest, activeRound]);
+
+  const gameplayReady = activeClip?.status === "ready" && Boolean(activeClip.url);
+  const gameplaySrc = gameplayReady && roundId ? api.clipUrl(matchId, roundId) : null;
+  const gameplayDisabledReason = useMemo(() => {
+    if (gameplayReady) return null;
+    if (!activeClip) return "Gameplay clips are not available for this match yet.";
+    if (activeClip.status === "queued" || activeClip.status === "recording") {
+      const done = clipManifest?.done ?? 0;
+      const total = clipManifest?.total ?? 0;
+      return total
+        ? `Recording gameplay… ${done} of ${total} clips ready.`
+        : "Recording gameplay…";
+    }
+    if (activeClip.status === "failed") {
+      return activeClip.error ?? "Gameplay recording failed for this round.";
+    }
+    if (activeClip.status === "skipped") {
+      return activeClip.error ?? "Gameplay recording is disabled on this server.";
+    }
+    return "Gameplay clip is not ready.";
+  }, [activeClip, gameplayReady, clipManifest]);
+
+  // Keep clock master in sync with stage mode
+  useEffect(() => {
+    if (stageMode === "gameplay" && gameplayReady) {
+      clock.setMaster("video");
+    } else {
+      clock.setMaster("raf");
+      if (stageMode === "gameplay" && !gameplayReady) {
+        setStageMode("radar");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stageMode, gameplayReady]);
+
+  const setMode = useCallback(
+    (mode: StageView) => {
+      if (mode === "gameplay" && !gameplayReady) return;
+      setStageMode(mode);
+    },
+    [gameplayReady],
+  );
 
   // ---- Stage fitting (prototype fitStage): 16:9 stage, spare height to the lanes ----
 
@@ -558,6 +640,9 @@ export default function StudioPage() {
         window.setTimeout(() => askRef.current?.focus(), 0);
       } else if (e.key === "Escape" && ctxOpen) {
         setCtxOpen(false);
+      } else if (e.key === "v" || e.key === "V") {
+        e.preventDefault();
+        setMode(stageMode === "radar" ? "gameplay" : "radar");
       }
     }
     window.addEventListener("keydown", onKey);
@@ -817,55 +902,78 @@ export default function StudioPage() {
 
         <div className="stage-wrap" ref={wrapRef} hidden={empty}>
           <div className="stage" ref={stageRef}>
-            {replay && hasRadar ? (
+            {replay ? (
               <>
-                <RadarView
-                  mapName={replay.map}
-                  t={clock.t}
-                  players={players}
-                  lookup={lookup}
-                  focus={focus}
-                  tracks={tracks}
-                  utility={utility}
-                  viewBox={viewBox}
-                  pxPerUnit={pxPerUnit}
-                />
-                <div className="legend" aria-hidden>
-                  <span>
-                    <i style={{ background: "#fff", boxShadow: "0 0 0 1.5px #8FA9FF" }} />
-                    {focus?.name ?? "You"}
-                  </span>
-                  <span>
-                    <i style={{ background: "#9AA4AE" }} />
-                    Team
-                  </span>
-                  <span>
-                    <i style={{ background: "#F28C4C" }} />
-                    Enemy
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="zoom"
-                  aria-pressed={whole}
-                  onClick={() => {
-                    animateCam.current = true;
-                    setWhole((w) => !w);
-                  }}
+                <div
+                  className={`surface${stageMode === "gameplay" ? " is-main" : " is-hidden"}`}
+                  data-mode="gameplay"
+                  hidden={stageMode !== "gameplay"}
                 >
-                  {whole ? "This round" : "Whole map"}
-                </button>
+                  <GameplayView
+                    src={gameplaySrc}
+                    active={stageMode === "gameplay"}
+                    disabledReason={gameplayDisabledReason}
+                    onBind={clock.bindVideo}
+                  />
+                </div>
+                <div
+                  className={`surface${stageMode === "radar" ? " is-main" : " is-hidden"}`}
+                  data-mode="radar"
+                  hidden={stageMode !== "radar"}
+                >
+                  {hasRadar ? (
+                    <>
+                      <RadarView
+                        mapName={replay.map}
+                        t={clock.t}
+                        players={players}
+                        lookup={lookup}
+                        focus={focus}
+                        tracks={tracks}
+                        utility={utility}
+                        viewBox={viewBox}
+                        pxPerUnit={pxPerUnit}
+                      />
+                      <div className="legend" aria-hidden>
+                        <span>
+                          <i style={{ background: "#fff", boxShadow: "0 0 0 1.5px #8FA9FF" }} />
+                          {focus?.name ?? "You"}
+                        </span>
+                        <span>
+                          <i style={{ background: "#9AA4AE" }} />
+                          Team
+                        </span>
+                        <span>
+                          <i style={{ background: "#F28C4C" }} />
+                          Enemy
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="zoom"
+                        aria-pressed={whole}
+                        onClick={() => {
+                          animateCam.current = true;
+                          setWhole((w) => !w);
+                        }}
+                      >
+                        {whole ? "This round" : "Whole map"}
+                      </button>
+                    </>
+                  ) : (
+                    <div className="stage-msg">
+                      <p>
+                        Radar positions are not available for <strong>{mapLabel}</strong> yet.
+                        Timeline playback still works. Overview metadata exists for Mirage and
+                        Anubis.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <div className="stage-msg">
-                {replay && !hasRadar ? (
-                  <p>
-                    Radar positions are not available for <strong>{mapLabel}</strong> yet. Timeline
-                    playback still works. Overview metadata exists for Mirage and Anubis.
-                  </p>
-                ) : (
-                  <p>{loadingReplay || loadingMatch ? "Loading radar…" : "No replay loaded."}</p>
-                )}
+                <p>{loadingReplay || loadingMatch ? "Loading radar…" : "No replay loaded."}</p>
               </div>
             )}
           </div>
@@ -921,6 +1029,37 @@ export default function StudioPage() {
           <div className="now" aria-live="off">
             {nowEvent ? eventTitle(nowEvent, lookup) : ""}
           </div>
+          <div
+            className={`seg${stageMode === "radar" ? " is-radar" : ""}`}
+            role="group"
+            aria-label="View"
+            title="Switch view (V)"
+          >
+            <span className="seg-pill" aria-hidden />
+            <button
+              type="button"
+              data-mode="gameplay"
+              aria-pressed={stageMode === "gameplay"}
+              disabled={!gameplayReady}
+              title={gameplayReady ? "Gameplay" : (gameplayDisabledReason ?? "Gameplay unavailable")}
+              onClick={() => setMode("gameplay")}
+            >
+              Gameplay
+            </button>
+            <button
+              type="button"
+              data-mode="radar"
+              aria-pressed={stageMode === "radar"}
+              onClick={() => setMode("radar")}
+            >
+              Radar
+            </button>
+          </div>
+          {clipManifest && clipManifest.total > 0 && clipManifest.done < clipManifest.total ? (
+            <span className="clip-progress" title="Gameplay clip recording">
+              Clips {clipManifest.done}/{clipManifest.total}
+            </span>
+          ) : null}
           <button
             type="button"
             className="t-opt"

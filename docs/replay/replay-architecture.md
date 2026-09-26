@@ -103,10 +103,25 @@ Match metadata omits sample blobs. Events may also be queried match-wide with ti
 | `GET` | `/matches/{id}` | Match metadata (map, score, rounds, players) |
 | `GET` | `/matches/{id}/rounds` | Round list (numbers, winners, start/end ticks, duration) |
 | `GET` | `/matches/{id}/rounds/{round_id}` | Round detail |
-| `GET` | `/matches/{id}/rounds/{round_id}/replay` | Samples + events for Radar |
+| `GET` | `/matches/{id}/rounds/{round_id}/replay` | Samples + events for Radar (+ optional `clip`) |
+| `GET` | `/matches/{id}/clips` | ClipManifest (per-round gameplay status) |
+| `GET` | `/matches/{id}/clips/{round_id}` | RoundClip metadata |
+| `GET` | `/matches/{id}/clips/{round_id}.mp4` | Stream / Range-seek MP4 |
 | `GET` | `/matches/{id}/events` | Paginated/ranged events (`fromTick`/`toTick` or `fromT`/`toT`) |
 
 Legacy coaching routes (`/moments`, `/coach`) may remain stubbed but must not be the main replay path.
+
+## Gameplay clips (CS Demo Manager)
+
+After `complete`, Radar is usable immediately. A **Windows host worker** (not Linux Docker) may record per-round POV MP4s:
+
+1. `csdm analyze` once per match
+2. `csdm video START_TICK END_TICK` per round (concurrency 1)
+3. Store under `data/matches/{id}/clips/rN.mp4` + `clips.json`
+
+See [csdm-video.md](./csdm-video.md). Env: `RR_CSDM_ENABLED`, `RR_CSDM_MODE=stub|csdm`, …
+
+Studio: **Gameplay | Radar** share one clock. Gameplay mode uses `<video>` as time master (`round_t ≈ video.currentTime` when the clip starts at round start). Missing clips keep Radar primary and disable Gameplay with a reason.
 
 ## Processing states
 
@@ -126,6 +141,7 @@ User-facing labels stay honest (no fake percentages). Detail strings may include
 | Decompressed demo | `data/work/{match_id}.dem` (deletable after normalise; keep for debug flag) |
 | Normalised match JSON | `data/matches/{match_id}/match.json` |
 | Round replay blobs | `data/matches/{match_id}/rounds/{round_id}.json` (efficient enough for MVP; parquet later) |
+| Gameplay clips | `data/matches/{match_id}/clips/rN.mp4` + `clips.json` manifest |
 
 No Kafka/Celery. Background work: `asyncio.create_task` / thread pool for CPU-bound parse.
 
@@ -143,8 +159,9 @@ No Kafka/Celery. Background work: `asyncio.create_task` / thread pool for CPU-bo
 
 - Upload → poll `/status` through real stages → open match
 - Round navigator; play/pause/scrub; speeds **0.5 / 1 / 2 / 4×**
-- One Zustand (or equivalent) playback store: `{ t, playing, rate, roundId }`
+- Shared playback clock (`usePlaybackClock`): RAF master in Radar mode; video master in Gameplay mode
 - Radar interpolates from round replay samples
+- Optional Gameplay HTML5 video when clip `status=ready`
 - Timeline markers from `events`; click seeks `t`
 - Restrained event inspector; optional `?debug=1`
 

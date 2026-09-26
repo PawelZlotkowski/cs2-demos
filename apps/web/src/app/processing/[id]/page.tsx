@@ -59,6 +59,7 @@ export default function ProcessingPage() {
         if (cancelled) return;
         setStatus(s);
         if (s.status === "complete") {
+          // Radar is ready — open Studio; clips may still be recording.
           router.replace(`/studio/${id}`);
           return;
         }
@@ -124,6 +125,14 @@ export default function ProcessingPage() {
   const done = status ? TERMINAL.has(status.status) : Boolean(error);
   const failed = status?.status === "failed";
 
+  const clips = status?.clips;
+  const clipDetail =
+    clips && clips.total > 0
+      ? clips.done < clips.total
+        ? `Gameplay clips recording — ${clips.done} of ${clips.total} ready. Radar opens first.`
+        : `${clips.done} of ${clips.total} gameplay clips ready.`
+      : null;
+
   return (
     <main className="main">
       <h1>{awaiting ? "Choose a player" : "Processing"}</h1>
@@ -186,7 +195,28 @@ export default function ProcessingPage() {
             ) : null}
           </li>
         ))}
+        {clips && clips.total > 0 ? (
+          <li
+            data-state={
+              clips.done >= clips.total
+                ? "done"
+                : clips.clips.some((c) => c.status === "recording")
+                  ? "active"
+                  : "pending"
+            }
+          >
+            <span className="s-ic" aria-hidden />
+            <strong>Gameplay clips</strong>
+            <span className="meta" style={{ gridColumn: "3", textAlign: "right" }}>
+              {clips.done >= clips.total ? "done" : "recording"}
+            </span>
+            <div className="meta">
+              {clips.done} / {clips.total}
+            </div>
+          </li>
+        ) : null}
       </ol>
+      {clipDetail ? <p className="meta">{clipDetail}</p> : null}
       {!status && !error ? <p className="meta">Waiting for status…</p> : null}
       {status && !done && !awaiting ? (
         <p className="meta" style={{ marginTop: 12 }}>

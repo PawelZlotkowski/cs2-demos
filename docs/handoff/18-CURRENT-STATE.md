@@ -1,18 +1,19 @@
 # 18 Current state
 
-Related: [15 Implementation](./15-IMPLEMENTATION-ARCHITECTURE.md), [17 Testing](./17-TESTING-QA.md), [19 Decisions](./19-DECISIONS.md), [24 MVP Architecture](./24-MVP-ARCHITECTURE.md), [replay architecture](../replay/replay-architecture.md), [demo parser](../replay/demo-parser.md)
+Related: [15 Implementation](./15-IMPLEMENTATION-ARCHITECTURE.md), [17 Testing](./17-TESTING-QA.md), [19 Decisions](./19-DECISIONS.md), [24 MVP Architecture](./24-MVP-ARCHITECTURE.md), [replay architecture](../replay/replay-architecture.md), [demo parser](../replay/demo-parser.md), [csdm video](../replay/csdm-video.md)
 
-As of 26 September 2026 (AI Coach phase 1 on branch `claude/coach-phase-1-hrt6pm` and phase 2 on `claude/coach-phase-2-r2gzvt`, both in review; Demo Replay milestone verified 25 Sep). Runnable monorepo: `apps/web`, `apps/api`, `apps/mcp`. UI reference remains [`prototype/analysis-studio.html`](../../prototype/analysis-studio.html) — do not treat it as the live app.
+As of 26 September 2026 (AI Coach phase 1 on branch `claude/coach-phase-1-hrt6pm` and phase 2 on `claude/coach-phase-2-r2gzvt`, both in review; CS:DM gameplay clips merged on `development`; Demo Replay milestone verified 25 Sep). Runnable monorepo: `apps/web`, `apps/api`, `apps/mcp`. UI reference remains [`prototype/analysis-studio.html`](../../prototype/analysis-studio.html) — do not treat it as the live app.
 
 ## Implemented (Demo Replay — monorepo)
 
 - **Upload → process → Radar:** `.dem` / `.dem.zst` upload, zstd decompress, **demoparser2** parse, normalise to round replay JSON on disk.
 - **Processing states:** `uploaded` → `decompressing` → `decompressed` → `parsing` → `normalizing` → `awaiting_player` → `detecting` → (`selecting` → `explaining`, only with `RR_LLM_ENABLED=true`) → `complete` | `failed`. Radar loads from `awaiting_player`. `recording` exists in the enum but is not used yet.
 - **Replay APIs:** match metadata, `/rounds`, `/rounds/{id}/replay`, `/events`; Pydantic contracts mirrored in TypeScript.
-- **Web studio:** stage-first Radar, shared playback clock, position + yaw interpolation, timeline seek, speeds 0.5/1/2/4×; Mirage + Anubis world→radar transforms.
-- **Persistence:** SQLite match rows + filesystem uploads/work/replay blobs (`data/…`).
-- **Tests:** API `pytest` (incl. real `1-5696bfd6-….dem.zst` E2E when present); web typecheck/build green.
-- **Docs:** [demo-parser](../replay/demo-parser.md), [replay-architecture](../replay/replay-architecture.md), [replay-performance](../replay/replay-performance.md).
+- **Gameplay clips (async):** once the Radar is ready, optional Windows CS:DM / stub worker records per-round POV MP4s (`/clips`, Range streaming). See [csdm-video.md](../replay/csdm-video.md).
+- **Web studio:** stage-first Radar **or** Gameplay, shared playback clock (video-as-master in Gameplay mode), Gameplay|Radar segmented control, position + yaw interpolation, timeline seek, speeds 0.5/1/2/4×; Mirage + Anubis world→radar transforms.
+- **Persistence:** SQLite match rows + filesystem uploads/work/replay/clips blobs (`data/…`).
+- **Tests:** API `pytest` (incl. stub clip worker + Range; real `1-5696bfd6-….dem.zst` E2E when present); web typecheck/build green.
+- **Docs:** [demo-parser](../replay/demo-parser.md), [replay-architecture](../replay/replay-architecture.md), [replay-performance](../replay/replay-performance.md), [csdm-video](../replay/csdm-video.md).
 
 ## Implemented (AI Coach phase 1 — deterministic analysis, in review)
 
@@ -41,20 +42,21 @@ Tasks T20–T27 in [TASKS](../coach/TASKS.md). Tested with a scripted model only
 
 ## Implemented (prototype only — sample data)
 
-Still in `prototype/analysis-studio.html` (reference): moment rail, Coach panel, gameplay PiP, annotation overlays, Home patterns UI. Not the primary product path for this milestone.
+Still in `prototype/analysis-studio.html` (reference): moment rail, Coach panel, gameplay PiP Flip, annotation overlays, Home patterns UI. Next.js Studio uses CSS mode swap (no Flip PiP yet).
 
 ## Partially implemented
 
 - **Radar visuals:** Real Valve overview PNGs for Mirage and Anubis (`apps/web/public/maps/`); SVG silhouettes removed.
 - **Map coverage:** `de_mirage` + `de_anubis` overview metadata + radar images; other Active Duty maps still lack verified transforms.
+- **Gameplay recording:** stub mode verified in CI; real `csdm` requires Windows + CS2 + CS:DM on the host (`RR_CSDM_ENABLED=1`, `RR_CSDM_MODE=csdm`). Docker Linux API cannot record.
 - **Fullscreen / dark theme / a11y polish:** prototype notes still apply where not re-done in Next.js.
 - **Upload/processing UI shells:** work against real status API.
 
 ## Mocked / stubbed
 
-- **Sample fixture match:** moments/coach/home patterns from `apps/api/data/fixtures/sample-match.json` — **no** real round replay blobs (`is_sample`; pipeline skips it).
+- **Sample fixture match:** moments/coach/home patterns from `apps/api/data/fixtures/sample-match.json` — **no** real round replay blobs (`is_sample`; pipeline skips it; clips skipped).
 - **Coach answers (legacy):** `POST /matches/{id}/coach` is still the scripted mock; the real path is `…/players/{pid}/ask`.
-- **Gameplay video / clip rendering:** not built.
+- **CS:DM stub clips:** tiny placeholder MP4 bytes when `RR_CSDM_MODE=stub` (API/UI plumbing, not a polished encode). Clips are per round; the coach's per-moment clip queue (T40) is not yet connected to the CS:DM worker.
 - **LLM moment selection / explanations / Ask:** built (phase 2) but only exercised with a scripted model. With `RR_LLM_ENABLED` off, the code ranker's moments and the finding templates stand in. The Studio shows the explanation in the Analysis tab and answers in the Ask tab; answers built from templates say so.
 
 ## Implemented (AI Coach phase 3 — knowledge base, in review)
@@ -65,7 +67,7 @@ Still in `prototype/analysis-studio.html` (reference): moment rail, Coach panel,
 
 Plan: [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN.md). Tasks and status: [docs/coach/TASKS.md](../coach/TASKS.md).
 
-1. Merge the CS:DM clips branch (`cursor/csdm-gameplay-video`).
+1. Connect the coach clip queue (T40) to the merged CS:DM worker; harden it (retries, quotas).
 2. Phase 1 follow-ups: run the real-demo tests, correct zone names on the overlays, label rounds and tune thresholds.
 3. Run phase 2 on llama.cpp with Qwen3-14B (T02, T03) and a real match; measure latency; write the rest of the knowledge base (T30) and connect the CS:DM recorder to the clip queue (T40).
 4. RAG (map knowledge + player memory), per-moment clips, en/pl/nl.
@@ -97,3 +99,4 @@ Plan: [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN.md). Tasks and status
 - Mirage radar is silhouette, not official radar art.
 - Sample match cannot drive Radar replay (empty `round_replays`).
 - QA scripts under `prototype/qa/` target the prototype only; there are no browser tests for the Next.js studio yet.
+- Real CS:DM recording not verified in the cloud session (CLI not installed); use stub mode or a Windows host with CS2.

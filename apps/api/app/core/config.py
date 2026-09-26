@@ -40,6 +40,17 @@ class Settings(BaseSettings):
     knowledge_dir: Path | None = None
     embed_url: str | None = None
     embed_model: str = "bge-m3"
+    # Gameplay video via CS Demo Manager (Windows host worker)
+    csdm_enabled: bool = False
+    csdm_mode: str = "stub"  # stub | csdm
+    csdm_bin: str = "csdm"
+    csdm_focus_steamid: str | None = None
+    csdm_width: int = 1280
+    csdm_height: int = 720
+    csdm_fps: int = 30
+    csdm_recording_system: str = "HLAE"
+    csdm_max_rounds: int = 0  # 0 = all rounds
+    csdm_timeout_seconds: float = 600.0
 
     def resolved_upload_dir(self) -> Path:
         path = self.upload_dir or (self.data_dir / "uploads")
