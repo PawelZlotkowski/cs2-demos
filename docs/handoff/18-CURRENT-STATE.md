@@ -1,8 +1,8 @@
 # 18 Current state
 
-Related: [15 Implementation](./15-IMPLEMENTATION-ARCHITECTURE.md), [17 Testing](./17-TESTING-QA.md), [19 Decisions](./19-DECISIONS.md), [24 MVP Architecture](./24-MVP-ARCHITECTURE.md), [replay architecture](../replay-architecture.md), [demo parser](../demo-parser.md)
+Related: [15 Implementation](./15-IMPLEMENTATION-ARCHITECTURE.md), [17 Testing](./17-TESTING-QA.md), [19 Decisions](./19-DECISIONS.md), [24 MVP Architecture](./24-MVP-ARCHITECTURE.md), [replay architecture](../replay/replay-architecture.md), [demo parser](../replay/demo-parser.md)
 
-As of 26 September 2026 (AI Coach phase 1 on branch `claude/coach-phase-1-hrt6pm` and phase 2 on `claude/coach-phase-2-r2gzvt`, both in review; Demo Replay milestone verified 25 Sep). Runnable monorepo: `apps/web`, `apps/api`, `packages/shared`. UI reference remains [`prototype/analysis-studio.html`](../../prototype/analysis-studio.html) — do not treat it as the live app.
+As of 26 September 2026 (AI Coach phase 1 on branch `claude/coach-phase-1-hrt6pm` and phase 2 on `claude/coach-phase-2-r2gzvt`, both in review; Demo Replay milestone verified 25 Sep). Runnable monorepo: `apps/web`, `apps/api`, `apps/mcp`. UI reference remains [`prototype/analysis-studio.html`](../../prototype/analysis-studio.html) — do not treat it as the live app.
 
 ## Implemented (Demo Replay — monorepo)
 
@@ -12,7 +12,7 @@ As of 26 September 2026 (AI Coach phase 1 on branch `claude/coach-phase-1-hrt6pm
 - **Web studio:** stage-first Radar, shared playback clock, position + yaw interpolation, timeline seek, speeds 0.5/1/2/4×; Mirage + Anubis world→radar transforms.
 - **Persistence:** SQLite match rows + filesystem uploads/work/replay blobs (`data/…`).
 - **Tests:** API `pytest` (incl. real `1-5696bfd6-….dem.zst` E2E when present); web typecheck/build green.
-- **Docs:** [demo-parser](../demo-parser.md), [replay-architecture](../replay-architecture.md), [replay-performance](../replay-performance.md).
+- **Docs:** [demo-parser](../replay/demo-parser.md), [replay-architecture](../replay/replay-architecture.md), [replay-performance](../replay/replay-performance.md).
 
 ## Implemented (AI Coach phase 1 — deterministic analysis, in review)
 
@@ -50,7 +50,7 @@ Still in `prototype/analysis-studio.html` (reference): moment rail, Coach panel,
 
 ## Mocked / stubbed
 
-- **Sample fixture match:** moments/coach/home patterns from `packages/shared` — **no** real round replay blobs (`is_sample`; pipeline skips it).
+- **Sample fixture match:** moments/coach/home patterns from `apps/api/data/fixtures/sample-match.json` — **no** real round replay blobs (`is_sample`; pipeline skips it).
 - **Coach answers (legacy):** `POST /matches/{id}/coach` is still the scripted mock; the real path is `…/players/{pid}/ask`.
 - **Gameplay video / clip rendering:** not built.
 - **LLM moment selection / explanations / Ask:** built (phase 2) but only exercised with a scripted model. With `RR_LLM_ENABLED` off, the code ranker's moments and the finding templates stand in. The web app does not call the new explanation and Ask routes yet (T42, T43).
@@ -74,7 +74,7 @@ Plan: [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN.md). Tasks and status
 ## Contradictions
 
 1. **Design direction.** Older `docs/DESIGN.md` (olive-dark) vs Analysis Studio light chrome — **owner must choose**; Studio tokens are the working direction.
-2. **Architecture note vs code:** [replay-architecture](../replay-architecture.md) mentions Zustand; web uses a React playback hook (`usePlaybackClock`) — same single-clock intent.
+2. **Architecture note vs code:** [replay-architecture](../replay/replay-architecture.md) mentions Zustand; web uses a React playback hook (`usePlaybackClock`) — same single-clock intent.
 3. **Scope.** Earlier scope had win-probability / scorecard; Studio has none.
 
 ## Technical debt (monorepo)
@@ -90,4 +90,4 @@ Plan: [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN.md). Tasks and status
 
 - Mirage radar is silhouette, not official radar art.
 - Sample match cannot drive Radar replay (empty `round_replays`).
-- Detector/QA scripts under `tools/qa/` still target prototype overlays more than Next.js studio.
+- QA scripts under `prototype/qa/` target the prototype only; there are no browser tests for the Next.js studio yet.

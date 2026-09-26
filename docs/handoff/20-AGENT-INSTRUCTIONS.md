@@ -6,7 +6,7 @@ These are the operating instructions for Cursor, Claude or any other coding agen
 
 ## Working principles
 
-- **Inspect before editing.** Read the relevant docs and code, and take screenshots of the current state first ([`tools/qa/screenshots.py`](../../tools/qa/screenshots.py)).
+- **Inspect before editing.** Read the relevant docs and code, and take screenshots of the current state first ([`prototype/qa/screenshots.py`](../../prototype/qa/screenshots.py)).
 - **Preserve working functionality.** The time-driven overlay model, the linked states and the responsive behaviour were hard-won.
 - **Prefer incremental change.** Make one high-value change at a time, and don't rewrite the application.
 - **Never document or claim something as working unless you ran it.** Keep [18](./18-CURRENT-STATE.md) truthful and update it in the same change.

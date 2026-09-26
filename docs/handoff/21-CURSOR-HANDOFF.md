@@ -29,7 +29,7 @@ The Analysis Studio UI is a working single-file prototype with sample data: [`pr
 |---|---|
 | `prototype/analysis-studio.html` | The UI |
 | `docs/handoff/` | These docs |
-| `tools/qa/screenshots.py` | Screenshots at six sizes plus a page-error check |
+| `prototype/qa/screenshots.py` | Screenshots at six sizes plus a page-error check |
 
 ## Design principles
 
@@ -69,7 +69,7 @@ AI Coach (26 Sep 2026): see [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN
 
 ```bash
 pip install playwright && python -m playwright install chromium
-python tools/qa/screenshots.py prototype/analysis-studio.html qa-out/
+python prototype/qa/screenshots.py prototype/analysis-studio.html qa-out/
 ```
 
 ## Don't change

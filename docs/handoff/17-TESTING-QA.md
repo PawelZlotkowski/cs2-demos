@@ -6,9 +6,9 @@ Related: [13 Accessibility](./13-ACCESSIBILITY.md), [14 Responsive](./14-RESPONS
 
 | Tool | What it does | Status |
 |---|---|---|
-| [`tools/qa/screenshots.py`](../../tools/qa/screenshots.py) | Playwright. Opens the prototype at six sizes and captures Home, the Studio in gameplay, the radar, a Coach answer and processing. Reports JS page errors | implemented; ran clean on the 25 Sep continuation |
-| [`tools/qa/overlay_sync.py`](../../tools/qa/overlay_sync.py) | Per-moment primary overlay visibility vs clip time, rapid seek, Gameplay↔Radar clock, empty moments, data-driven counts | implemented; passing |
-| [`tools/qa/smoke.py`](../../tools/qa/smoke.py) | Home copy, `V` swap, invalid upload, tablet Analysis label, mobile sheet peek | implemented; passing |
+| [`prototype/qa/screenshots.py`](../../prototype/qa/screenshots.py) | Playwright. Opens the prototype at six sizes and captures Home, the Studio in gameplay, the radar, a Coach answer and processing. Reports JS page errors | implemented; ran clean on the 25 Sep continuation |
+| [`prototype/qa/overlay_sync.py`](../../prototype/qa/overlay_sync.py) | Per-moment primary overlay visibility vs clip time, rapid seek, Gameplay↔Radar clock, empty moments, data-driven counts | implemented; passing |
+| [`prototype/qa/smoke.py`](../../prototype/qa/smoke.py) | Home copy, `V` swap, invalid upload, tablet Analysis label, mobile sheet peek | implemented; passing |
 | impeccable detector | Anti-pattern and contrast audit of the rendered page ([12](./12-SKILLS-AND-REFERENCES.md#impeccable)) | used manually; no script in the repo |
 | `cs2coach` tests (main repo) | Full pipeline on a fake parser (per project history) | not inspected here |
 
@@ -16,15 +16,17 @@ Related: [13 Accessibility](./13-ACCESSIBILITY.md), [14 Responsive](./14-RESPONS
 
 ```bash
 pip install playwright && python -m playwright install chromium
-python tools/qa/screenshots.py prototype/analysis-studio.html qa-out/
-python tools/qa/overlay_sync.py prototype/analysis-studio.html
-python tools/qa/smoke.py
-# offline: npm i gsap@3.12.5 && python tools/qa/screenshots.py prototype/analysis-studio.html qa-out/ --gsap-dir node_modules/gsap/dist
-# custom browser: CHROME_PATH=/path/to/chrome python tools/qa/screenshots.py ...
+python prototype/qa/screenshots.py prototype/analysis-studio.html qa-out/
+python prototype/qa/overlay_sync.py prototype/analysis-studio.html
+python prototype/qa/smoke.py
+# offline: npm i gsap@3.12.5 && python prototype/qa/screenshots.py prototype/analysis-studio.html qa-out/ --gsap-dir node_modules/gsap/dist
+# custom browser: CHROME_PATH=/path/to/chrome python prototype/qa/screenshots.py ...
 ```
 
 The prototype exposes `window.__RR__` (`seek`, `selectMoment`, `setMode`, `overlaySnapshot`, `setMoments`, …) for Playwright assertions.
 ## Functional tests to write (planned)
+
+None of these run against the Next.js app yet. When browser tests for `apps/web` + `apps/api` are added, put them in a root `tests/e2e/` folder; the first cases are health plus sample moments, rejecting a non-demo upload, processing reaching the Studio, and overlay sync (port `prototype/qa/overlay_sync.py`).
 
 - **Upload:**
   - `.dem.zst` and `.dem` are accepted

@@ -20,7 +20,7 @@ The **Analysis Studio** UI exists as a single-file interactive prototype, [`prot
 | [`prototype/analysis-studio.html`](../../prototype/analysis-studio.html) | The whole UI prototype: HTML, CSS, JS, sample data. GSAP 3.12.5 and Flip load from cdnjs |
 | [`docs/handoff/`](./) | This documentation package |
 | [`docs/handoff/screenshots/`](./screenshots/) | Before/after sheets from the two design audits |
-| [`tools/qa/screenshots.py`](../../tools/qa/screenshots.py) | Playwright script that screenshots the main states at six viewport sizes |
+| [`prototype/qa/screenshots.py`](../../prototype/qa/screenshots.py) | Playwright script that screenshots the main states at six viewport sizes |
 
 ## Do not start coding before reading
 

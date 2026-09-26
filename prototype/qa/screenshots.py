@@ -2,7 +2,7 @@
 
 Usage:
   pip install playwright && python -m playwright install chromium
-  python tools/qa/screenshots.py prototype/analysis-studio.html out/ [--gsap-dir node_modules/gsap/dist]
+  python prototype/qa/screenshots.py prototype/analysis-studio.html out/ [--gsap-dir node_modules/gsap/dist]
 
 With --gsap-dir, GSAP is served from a local copy (use this when the machine has
 no internet access; `npm i gsap@3.12.5` provides the files). Google Fonts are

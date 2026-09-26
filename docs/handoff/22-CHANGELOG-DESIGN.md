@@ -83,6 +83,6 @@ Priority work from [21](./21-CURSOR-HANDOFF.md) and [18](./18-CURRENT-STATE.md),
 - **Mobile sheet** tap threshold 14px (was 6px).
 - **Tablet Analysis button** shortened to "Analysis".
 - **Coach fallback** uses `M.finding` (was broken `M.head`).
-- **Test hooks** `window.__RR__` plus [`tools/qa/overlay_sync.py`](../../tools/qa/overlay_sync.py) and [`tools/qa/smoke.py`](../../tools/qa/smoke.py).
+- **Test hooks** `window.__RR__` plus [`prototype/qa/overlay_sync.py`](../../prototype/qa/overlay_sync.py) and [`prototype/qa/smoke.py`](../../prototype/qa/smoke.py).
 - Screenshots: `qa-out/baseline/` (before) and `qa-out/after/` (after).
 
