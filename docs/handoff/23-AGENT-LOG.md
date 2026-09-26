@@ -2,6 +2,34 @@
 
 Concise log for the next engineer or agent. British spelling.
 
+## 26 September 2026 — AI Coach phase 1 (T10–T17), branch `claude/coach-phase-1-hrt6pm`
+
+Owner asked for phase one of the plan. One branch and one draft PR for all of phase 1 instead of one per task (owner's request covered the whole phase); commits are split by task.
+
+### Done
+
+- T10 extended parse → `analysis.json` (events, buy-time economy, 3 s full-rate windows before kills). SteamIDs kept exact (the old `_sid` went through `float`, which loses digits of a SteamID64).
+- T11 first-draft zones for Mirage and Anubis + overlays in `docs/coach/zones/`.
+- T12 `Finding` / `RoundStats` / `SelectedMoment` contracts (Pydantic + TS), SQLite storage, findings routes; migration note in [16](./16-DATA-CONTRACTS.md).
+- T13 `awaiting_player` → `POST /matches/{id}/player` → `detecting` → `complete`; web processing page and Studio treat `awaiting_player` as replay-ready.
+- T14–T15 detectors D1–D10, T16 round stats + code ranker, finding templates en/pl/nl.
+- T17 label format (`data/labels/README.md`) and `eval/label_tool.py` (label, Cohen's κ, precision/recall).
+
+### Tested
+
+- `cd apps/api && pytest` — 90 passed, 3 skipped (real-demo tests; no demo in the cloud session).
+- `ruff check --select F,E9` on the new Python — clean.
+- `cd apps/web && npm run typecheck && npm run build` — pass.
+- Zone overlays inspected visually; the Mirage CT spawn and Anubis CT/T spawn world positions from real demos land in the right zones.
+
+### Not done / not verified
+
+- Nothing ran on a real demo: demoparser2 field names for the new events and the `analysisBytes` size are unchecked. Run `pytest tests/analysis/test_real_demo.py tests/test_replay.py` with the sample demo in the repo root.
+- Zone names and borders need a pass by someone who knows the callouts.
+- T17's 150 labelled rounds and the κ on 30 shared rounds need both students; only the tool exists.
+- Detector thresholds are guesses documented per module; tune them on labelled rounds (train/val matches only).
+- Polish and Dutch templates need a native speaker's review.
+
 ## 26 September 2026 — AI Coach milestone planned
 
 ### Done

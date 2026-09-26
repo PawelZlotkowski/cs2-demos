@@ -15,13 +15,14 @@ British spelling. Handoff docs in `docs/handoff/` are the source of truth for pr
 | `docs/demo-parser.md` | Demo Replay | Parser research |
 | `docs/replay-architecture.md` | Demo Replay | Time model, sampling, API, persistence |
 | `docs/coach/` | AI Coach (read-first for this milestone) | Plan, task board, school proposal |
-| `apps/api/app/analysis/` | AI Coach (planned) | Extended parse helpers, detectors, zones, round stats |
+| `apps/api/app/analysis/` | AI Coach | Analysis extract, detectors D1–D10, round stats, code ranker |
 | `apps/api/app/coach/` | AI Coach (planned) | LLM client, agent loop, tools, verifier, prompts |
 | `apps/api/app/rag/` | AI Coach (planned) | Knowledge ingest, hybrid index, retrieval |
 | `apps/mcp/` | AI Coach (planned) | `cs2-demo` MCP server wrapping `coach/tools.py` |
 | `ml/` | AI Coach (planned) | llama.cpp serving notes, fine-tuning (QLoRA) |
 | `eval/` | AI Coach (planned) | Evaluation datasets, runner, reports |
-| `data/knowledge/`, `data/labels/` | AI Coach (planned) | RAG sources and hand labels (never raw demos) |
+| `apps/api/app/maps/zones/` | AI Coach | Callout polygons per map + `zone_at` |
+| `data/knowledge/`, `data/labels/` | AI Coach (labels format landed) | RAG sources and hand labels (never raw demos) |
 | `prototype/` | Reference only | Analysis Studio HTML — do not port wholesale |
 | `tools/qa/` | Agent E (QA) | Playwright / overlay sync / smoke |
 | `tests/` | Agent E | Cross-cutting / e2e placeholders |
@@ -37,9 +38,9 @@ British spelling. Handoff docs in `docs/handoff/` are the source of truth for pr
 
 ## Processing states (replay)
 
-Current: `uploaded` → `decompressing` → `decompressed` → `parsing` → `normalizing` → `complete` | `failed`
+Current: `uploaded` → `decompressing` → `decompressed` → `parsing` → `normalizing` → `awaiting_player` → `detecting` → `complete` | `failed`. Radar works from `awaiting_player`.
 
-Planned for the coach (plan §3): `… → normalizing` → `awaiting_player` → `detecting` → `selecting` → `recording` → `explaining` → `complete` | `failed`. Radar works from `awaiting_player`; clips may finish after `explaining`.
+Planned for the coach (plan §3): `detecting` → `selecting` → `recording` → `explaining` → `complete`. Clips may finish after `explaining`.
 
 ## Design direction (preserve)
 

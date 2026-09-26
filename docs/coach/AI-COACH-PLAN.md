@@ -71,9 +71,13 @@ Add to `parse_demo.py` (all supported by demoparser2):
 - Tick props: `velocity_X`, `velocity_Y`, `pitch`, `balance`, `current_equip_value`, `armor_value`, `has_helmet`, `active_weapon_name`, `inventory`, `flash_duration`.
 - Full 64 Hz only in a window of about 3 s before each kill and each shot burst of the chosen player, so detectors like "shot while moving" have resolution without bloating replay blobs.
 
+*As built (T10):* `weapon_fire` carries the shooter's velocity at the shot tick, so shots need no dense window. The 3 s full-rate window is kept before **every kill** (the player is not chosen yet at parse time); tracks are stored for the victim and the killer, plus an inventory/weapon/flash snapshot of everyone on the last tick before the kill. Economy props are read once per round at the end of buy time. All of it goes to `analysis.json`, not the replay blobs.
+
 ### 4.2 Map zones
 
-Callout polygons per map in `apps/api/app/maps/zones/de_mirage.json` and `de_anubis.json` (world coordinates). Findings and the LLM say "A ramp", never raw coordinates.
+Callout polygons per map in `apps/api/app/maps/zones/de_mirage.json` and `de_anubis.json`. Findings and the LLM say "A ramp", never raw coordinates.
+
+*As built (T11):* polygons are stored in radar pixel space (the 1024 px overview) so they can be drawn and checked over the radar image; `zone_at(map, x, y)` takes world coordinates and converts them. Overlays: `docs/coach/zones/`, redrawn with `python tools/qa/zones_overlay.py <map> <png>`. First draft, no height separation.
 
 ### 4.3 Detectors
 
@@ -91,6 +95,8 @@ Each detector is a pure function `(match_data, round, player_id) -> list[Finding
 | D8 | Late rotation | time from plant / first contact to arrival vs team median | mistake |
 | D9 | Repeated death zone | death in the same zone in ≥ 3 rounds of the match | pattern |
 | D10 | Good plays | successful trade, entry kill, clutch, multi-kill, flash assist, utility damage | good |
+
+*As built (T14–T15):* thresholds, severity formulas and known false positives are documented at the top of each module in `apps/api/app/analysis/detectors/`. Differences from the table: D4 has no view angles, so "first contact" is the player's first shot or first damage exchanged with the killer; D5 reports flashes **thrown by the player** that blinded teammates or themselves; D8 covers the CT side after a plant only; D10 counts entry kills on the T side only (D6 records every opening duel as context). D2 checks rifles, snipers and pistols only.
 
 ### 4.4 Finding contract
 
@@ -110,6 +116,7 @@ class Finding(CamelModel):
     severity: float           # 0..1, code-computed
     evidence: dict[str, float | int | str]   # every number the LLM may quote
     summary: str              # templated English sentence, the no-LLM fallback
+    template: str             # summary template key, for the pl/nl fallback (added in T12)
 ```
 
 Plus `RoundStats` per round (kills, deaths, damage, utility thrown, money, survival, trade stats), computed in code.

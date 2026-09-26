@@ -108,7 +108,18 @@ The `insight` events carry the moment `label`. The linked "live" state matches `
 
 ## Findings (engine, planned contract)
 
-**Superseded (26 Sep 2026):** the planned contract is in the [AI Coach plan §4.4](../coach/AI-COACH-PLAN.md#44-finding-contract) (Pydantic `Finding` with `evidence`, `severity`, `zone`, `summary`, plus `RoundStats`). Implementing it needs a migration note here. The older sketch below is kept for history.
+**Superseded (26 Sep 2026):** the planned contract is in the [AI Coach plan §4.4](../coach/AI-COACH-PLAN.md#44-finding-contract) (Pydantic `Finding` with `evidence`, `severity`, `zone`, `summary`, plus `RoundStats`). The older sketch below is kept for history.
+
+### Migration note (task T12, 26 Sep 2026)
+
+Implemented in `apps/api/app/models/contracts.py`, mirrored in `apps/web/src/lib/contracts/index.ts`.
+
+- **`Finding` replaced.** Old fields → new: `type` → `detector` (plus `kind`); `clipTime` → `t` (round clock seconds, the replay clock; clip time is derived per moment); `players` → `playerId` + `otherIds`; `metrics` → `evidence`. New: `zone`, `severity` (0..1), `summary` (English template), `template` (key of the en/pl/nl summary template, used for the fallback text). Nothing read the old model, so no data migration.
+- **New:** `RoundStats` (per round, coached player), `SelectedMoment` (`id`, `round`, `t0`, `t1`, `findingIds`, `kind`, `pickedBecause`, `score`, `source` = `ranker` | `agent`), `PlayerSelectRequest`, `PlayerAnalysis`. `Match.selectedPlayerId`.
+- **`MatchStatus`:** removed the unused legacy stubs `reconstructing`, `ranking`, `rendering`, `analyzing`; added `awaiting_player`, `selecting`, `recording`, `explaining` (plan §3). `REPLAY_READY_STATUSES` (both languages) lists the statuses in which the Radar can load.
+- **Provenance:** `Finding` and `RoundStats` are ENGINE; `SelectedMoment` is DERIVED when `source` is `ranker`, LLM-chosen (verified) when `agent`.
+- **Storage:** SQLite `findings`, `round_stats`, `moments`, `match_players` in `matches.db`; parse output for the detectors in `data/matches/<id>/analysis.json` (not served to the browser).
+- **Routes:** `POST /matches/{id}/player`, `GET /matches/{id}/players/{pid}/findings?round=&kind=&detector=`, `…/round-stats`, `…/moments`.
 
 According to project history, `cs2coach` detectors emit evidence-linked findings with IDs such as `F12` in `report.json`. Their exact schema is **unknown** (not inspected). Minimum needs of this UI:
 

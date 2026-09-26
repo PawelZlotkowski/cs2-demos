@@ -25,14 +25,14 @@ Sizes: S ≈ half a day, M ≈ 1–2 days, L ≈ 3–5 days. Status: `todo`, `do
 
 | ID | Task | Depends | Paths | Done when | Size | Owner | Status |
 |---|---|---|---|---|---|---|---|
-| T10 | Extended parse: events + props from plan §4.1, dense window around kills/shots | – | `apps/api/app/processing/parse_demo.py`, `normalize.py` | tests on the real sample demo; blob size increase measured and noted | M | | todo |
-| T11 | Map zones for Mirage + Anubis (callout polygons) + `zone_at(x, y)` | – | `apps/api/app/maps/zones/` | unit test: known spots map to right callouts; overlay check on radar | M | | todo |
-| T12 | `Finding` + `RoundStats` contracts (Pydantic + TS), storage in SQLite, `/matches/{id}/players/{pid}/findings` | – | `contracts.py`, `lib/contracts/`, repositories, routes | contract tests; [16](../handoff/16-DATA-CONTRACTS.md) updated with migration note | M | | todo |
-| T13 | Player selection step: `awaiting_player` state, `POST /matches/{id}/player` | T12 | pipeline, routes, contracts | state machine test; Radar still loads before selection | S | | todo |
-| T14 | Detectors D1–D5 | T10 T11 T12 | `apps/api/app/analysis/detectors/` | unit tests per detector on labelled rounds | L | | todo |
-| T15 | Detectors D6–D10 | T14 | same | unit tests; D10 yields ≥ 1 good play in most matches | L | | todo |
-| T16 | Round stats + code ranker (severity × diversity fallback) | T12 | `apps/api/app/analysis/` | tests; ranker returns 5–6 moments with mix | S | | todo |
-| T17 | Labelling tool/format + first 150 labelled rounds; κ on shared 30 | T14 | `data/labels/`, `eval/label_tool.py` | labels committed; agreement reported | M | | todo |
+| T10 | Extended parse: events + props from plan §4.1, dense window around kills/shots | – | `apps/api/app/processing/parse_demo.py`, `normalize.py` | tests on the real sample demo; blob size increase measured and noted | M | | review |
+| T11 | Map zones for Mirage + Anubis (callout polygons) + `zone_at(x, y)` | – | `apps/api/app/maps/zones/` | unit test: known spots map to right callouts; overlay check on radar | M | | review |
+| T12 | `Finding` + `RoundStats` contracts (Pydantic + TS), storage in SQLite, `/matches/{id}/players/{pid}/findings` | – | `contracts.py`, `lib/contracts/`, repositories, routes | contract tests; [16](../handoff/16-DATA-CONTRACTS.md) updated with migration note | M | | review |
+| T13 | Player selection step: `awaiting_player` state, `POST /matches/{id}/player` | T12 | pipeline, routes, contracts | state machine test; Radar still loads before selection | S | | review |
+| T14 | Detectors D1–D5 | T10 T11 T12 | `apps/api/app/analysis/detectors/` | unit tests per detector on labelled rounds | L | | review |
+| T15 | Detectors D6–D10 | T14 | same | unit tests; D10 yields ≥ 1 good play in most matches | L | | review |
+| T16 | Round stats + code ranker (severity × diversity fallback) | T12 | `apps/api/app/analysis/` | tests; ranker returns 5–6 moments with mix | S | | review |
+| T17 | Labelling tool/format + first 150 labelled rounds; κ on shared 30 | T14 | `data/labels/`, `eval/label_tool.py` | labels committed; agreement reported | M | | doing |
 
 ## Phase 2 — tools, MCP, agent
 
