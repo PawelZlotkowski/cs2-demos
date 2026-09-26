@@ -9,8 +9,8 @@ Each file starts with a small front matter block::
     map: de_mirage        # de_mirage | de_anubis | all
     side: any             # T | CT | any
     topic: rotations
-    source: own notes     # or "Liquipedia: <page>" (CC BY-SA 4.0)
-    license: CC BY-SA 4.0 # only for copied text
+    source: own notes     # or "Liquipedia: <page>" (CC BY-SA 3.0)
+    license: CC BY-SA 3.0 # only for copied text
     ---
 
 Passage ids ``K1``, ``K2``… follow the sorted (file, heading) order, so they

@@ -38,6 +38,7 @@ apps/api/data/matches.db-*
 apps/api/data/knowledge.db
 apps/api/data/knowledge.db-*
 apps/api/data/traces/
+apps/api/data/knowledge.db
 
 # QA / agent junk
 qa-out/
