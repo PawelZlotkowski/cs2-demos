@@ -32,7 +32,8 @@ def test_real_demo_analysis(tmp_path):
     good_counts = []
     for player in analysis["players"]:
         result = analyse_player(match, player["id"])
-        assert len(result.round_stats) == len(analysis["rounds"])
+        playable = [r for r in analysis["rounds"] if not r["knifeRound"]]
+        assert len(result.round_stats) == len(playable)
         assert 1 <= len(result.moments) <= 6
         good_counts.append(sum(1 for f in result.findings if f.kind == "good"))
     # T15 done-when: D10 finds at least one good play for most players

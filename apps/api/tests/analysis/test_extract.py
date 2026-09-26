@@ -16,6 +16,7 @@ def test_analysis_json_shape():
     r1 = a["rounds"][0]
     t1, ct1 = sd.sid(sd.T_IDS[0]), sd.sid(sd.CT_IDS[0])
     assert r1["sides"][t1] == "T" and r1["sides"][ct1] == "CT"
+    assert r1["knifeRound"] is False
     assert r1["kills"][0]["victim"] == t1 and r1["kills"][0]["t"] == round((2000 - 1000) / 64, 3)
     assert r1["shots"][0]["speed"] == 205.9
     assert r1["blinds"][0]["duration"] == 2.4

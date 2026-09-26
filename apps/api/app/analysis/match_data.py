@@ -128,6 +128,8 @@ class RoundData:
     sides: dict[str, Side]
     duration: float = 0.0
     reason: str | None = None
+    # Knife round for sides (not a real round): skipped by detectors and stats
+    is_knife: bool = False
     economy: dict[str, Economy] = field(default_factory=dict)
     kills: list[Kill] = field(default_factory=list)
     shots: list[Shot] = field(default_factory=list)
@@ -185,6 +187,10 @@ class MatchData:
     players: dict[str, str]  # pid -> name
     rounds: list[RoundData]
 
+    def playable_rounds(self) -> list[RoundData]:
+        """Rounds that count for analysis (knife rounds left out)."""
+        return [r for r in self.rounds if not r.is_knife]
+
     def round(self, number: int) -> RoundData | None:
         return next((r for r in self.rounds if r.number == number), None)
 
@@ -229,6 +235,7 @@ def build_match_data(
             sides=dict(r.get("sides") or {}),
             duration=float(r.get("durationSec") or 0.0),
             reason=r.get("reason"),
+            is_knife=bool(r.get("knifeRound")),
             economy={
                 pid: Economy(
                     balance=int(e.get("balance") or 0),

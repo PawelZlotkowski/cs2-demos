@@ -5,7 +5,8 @@ Signal, read at the end of buy time (freeze end + 20 s):
   equipment is below half of it while they still hold >= ``COULD_BUY_MONEY``;
 - forced on a save: team median <= ``TEAM_SAVE_EQUIP`` but the player bought
   >= ``TEAM_BUY_EQUIP``.
-Pistol rounds (round 1 and the first round after sides swap) are skipped.
+Pistol rounds (round 1, the round after a knife round and the first round
+after sides swap) are skipped.
 
 Severity: 0.5 saved on a buy, 0.45 forced on a save.
 
@@ -31,6 +32,8 @@ def is_pistol_round(match: MatchData, round_no: int) -> bool:
     prev, cur = match.round(round_no - 1), match.round(round_no)
     if prev is None or cur is None:
         return False
+    if prev.is_knife:
+        return True
     shared = set(prev.sides) & set(cur.sides)
     return any(prev.sides[p] != cur.sides[p] for p in shared)
 

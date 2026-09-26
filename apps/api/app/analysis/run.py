@@ -12,7 +12,7 @@ from app.models.contracts import Finding, PlayerAnalysis
 
 def detect_findings(match: MatchData, player_id: str) -> list[Finding]:
     drafts: list[FindingDraft] = []
-    for rd in match.rounds:
+    for rd in match.playable_rounds():
         if player_id not in rd.sides:
             continue
         for detect in DETECTORS.values():

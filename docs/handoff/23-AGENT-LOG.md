@@ -13,6 +13,7 @@ Owner asked for phase one of the plan. One branch and one draft PR for all of ph
 - T12 `Finding` / `RoundStats` / `SelectedMoment` contracts (Pydantic + TS), SQLite storage, findings routes; migration note in [16](./16-DATA-CONTRACTS.md).
 - T13 `awaiting_player` → `POST /matches/{id}/player` → `detecting` → `complete`; web processing page and Studio treat `awaiting_player` as replay-ready.
 - T14–T15 detectors D1–D10, T16 round stats + code ranker, finding templates en/pl/nl.
+- Knife rounds for sides (all kills and shots with knives, first round only) are flagged `knifeRound` in `analysis.json` and skipped by detectors, stats and the ranker. Found by running phase 1 on the sample demo locally (11 real-demo tests passed there).
 - T17 label format (`data/labels/README.md`) and `eval/label_tool.py` (label, Cohen's κ, precision/recall).
 
 ### Tested

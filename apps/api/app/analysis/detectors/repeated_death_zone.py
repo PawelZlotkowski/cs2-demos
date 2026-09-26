@@ -26,7 +26,7 @@ def detect(match: MatchData, round_no: int, player_id: str) -> list[FindingDraft
     if not zone:
         return []
     rounds: list[int] = []
-    for other in match.rounds:
+    for other in match.playable_rounds():
         if other.number > round_no:
             continue
         d = other.death_of(player_id)

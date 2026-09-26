@@ -164,6 +164,7 @@ def extract_analysis(
                         }
                     )
         bomb.sort(key=lambda b: b["tick"])
+        knife = not rounds and is_knife_round(kills, shots)
 
         rounds.append(
             {
@@ -173,6 +174,7 @@ def extract_analysis(
                 "durationSec": meta.get("durationSec"),
                 "winner": meta.get("winner"),
                 "reason": meta.get("reason"),
+                "knifeRound": knife,
                 "sides": sides_by_round.get(int(meta["number"]), {}),
                 "economy": economy_by_round.get(int(meta["number"]), {}),
                 "kills": kills,
@@ -195,6 +197,20 @@ def extract_analysis(
         "players": [{"id": p["id"], "name": p["name"]} for p in roster],
         "rounds": rounds,
     }
+
+
+def is_knife_round(kills: list[dict[str, Any]], shots: list[dict[str, Any]]) -> bool:
+    """FACEIT-style knife round for sides: every kill and every shot is a knife.
+    Only checked for the first round, where these rounds are played."""
+    if not kills:
+        return False
+    weapons = [k["weapon"] for k in kills] + [s["weapon"] for s in shots]
+    return all(_is_knife(w) for w in weapons)
+
+
+def _is_knife(weapon: str) -> bool:
+    w = weapon.lower()
+    return "knife" in w or "bayonet" in w
 
 
 def _sides_by_round(parsed: ParsedDemo, rounds_meta: list[dict[str, Any]]) -> dict[int, dict[str, str]]:

@@ -63,4 +63,4 @@ def round_stats(match: MatchData, rd: RoundData, player_id: str) -> RoundStats:
 
 
 def match_round_stats(match: MatchData, player_id: str) -> list[RoundStats]:
-    return [round_stats(match, rd, player_id) for rd in match.rounds if player_id in rd.sides]
+    return [round_stats(match, rd, player_id) for rd in match.playable_rounds() if player_id in rd.sides]
