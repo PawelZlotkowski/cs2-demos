@@ -18,7 +18,7 @@ import json
 import shlex
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, Self
 
 from pydantic import ValidationError, create_model
 
@@ -60,7 +60,7 @@ class InProcessTools:
             name: _args_model(name, inspect.unwrap(fn)) for name, fn in tool_module.TOOLS.items()
         }
 
-    async def __aenter__(self) -> InProcessTools:
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, *exc: object) -> None:
@@ -119,7 +119,7 @@ class MCPTools:
 
         return cls(build_server())
 
-    async def __aenter__(self) -> MCPTools:
+    async def __aenter__(self) -> Self:
         from mcp import Client
 
         self._stack = AsyncExitStack()

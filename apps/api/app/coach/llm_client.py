@@ -285,8 +285,7 @@ class MockLLMClient:
     def stream_chat(self, messages: list[dict[str, Any]], **kwargs: Any) -> Iterator[str]:
         self.requests.append({"messages": [dict(m) for m in messages], "stream": True, **kwargs})
         text = self._next().content
-        for word in re.findall(r"\S+\s*", text):
-            yield word
+        yield from re.findall(r"\S+\s*", text)
 
 
 def call(name: str, arguments: dict[str, Any], call_id: str | None = None) -> ToolCall:

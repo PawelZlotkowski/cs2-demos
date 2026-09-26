@@ -20,10 +20,10 @@ import asyncio
 import json
 import logging
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, TypeVar
+from typing import Any, TypeVar
 
 from app.analysis.ranker import MIN_EACH, MIN_MOMENTS, TARGET, rank_moments
 from app.coach.agent import AgentRun, CoachAgent, StepCallback, TraceWriter, run_record

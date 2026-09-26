@@ -16,12 +16,12 @@ from app.models.contracts import Finding, RoundStats
 
 
 def finding(fid: str, **kw) -> Finding:
-    base = dict(
-        id=fid, detector="untraded_death", kind="mistake", round=7, t=34.5, tick=1000, player_id="p",
-        zone="Palace", severity=0.7, template="untraded_death",
-        evidence={"tradeWindowS": 5.0, "teammatesAlive": 2, "killerName": "ropz", "nearestTeammateM": 24.6},
-        summary="Died to ropz in Palace and was not traded within 5 s; the nearest of 2 living teammates was 24.6 m away.",
-    )
+    base = {
+        "id": fid, "detector": "untraded_death", "kind": "mistake", "round": 7, "t": 34.5, "tick": 1000, "player_id": "p",
+        "zone": "Palace", "severity": 0.7, "template": "untraded_death",
+        "evidence": {"tradeWindowS": 5.0, "teammatesAlive": 2, "killerName": "ropz", "nearestTeammateM": 24.6},
+        "summary": "Died to ropz in Palace and was not traded within 5 s; the nearest of 2 living teammates was 24.6 m away.",
+    }
     base.update(kw)
     return Finding(**base)
 

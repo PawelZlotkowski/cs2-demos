@@ -23,7 +23,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[4]
 KNOWLEDGE_DIR = REPO_ROOT / "data" / "knowledge"
 
-FRONT_RE = re.compile(r"\A---\n(.*?)\n---\n", re.S)
+FRONT_RE = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 
 
 @dataclass(frozen=True)

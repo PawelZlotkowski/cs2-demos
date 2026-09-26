@@ -194,18 +194,15 @@ def _allowed_numbers(ctx: VerifyContext, finding_ids: list[str], cites: list[str
 LANGUAGE_NAMES = {"en": "English", "pl": "Polish", "nl": "Dutch"}
 
 _STOPWORDS = {
-    "en": set(
-        "the you your and to of a an in was were with for on that it not is at after before "
-        "when this from had have no nobody could would should there their they by".split()
-    ),
-    "pl": set(
-        "i w z na się nie to że do po jest był była było bez od przy ale jak za co twój twoja "
-        "twoje ci cię tylko już gdy kiedy ten ta tym tej przez nikt żaden możesz".split()
-    ),
-    "nl": set(
-        "het een van je niet de dat is op met voor zijn naar bij geen ook maar als er te wat "
-        "jij jouw was waren werd door na nog toen hebt heeft kon zonder".split()
-    ),
+    "en": {
+        "the", "you", "your", "and", "to", "of", "a", "an", "in", "was", "were", "with", "for", "on", "that", "it", "not", "is", "at", "after", "before", "when", "this", "from", "had", "have", "no", "nobody", "could", "would", "should", "there", "their", "they", "by"
+    },
+    "pl": {
+        "i", "w", "z", "na", "się", "nie", "to", "że", "do", "po", "jest", "był", "była", "było", "bez", "od", "przy", "ale", "jak", "za", "co", "twój", "twoja", "twoje", "ci", "cię", "tylko", "już", "gdy", "kiedy", "ten", "ta", "tym", "tej", "przez", "nikt", "żaden", "możesz"
+    },
+    "nl": {
+        "het", "een", "van", "je", "niet", "de", "dat", "is", "op", "met", "voor", "zijn", "naar", "bij", "geen", "ook", "maar", "als", "er", "te", "wat", "jij", "jouw", "was", "waren", "werd", "door", "na", "nog", "toen", "hebt", "heeft", "kon", "zonder"
+    },
 }
 _POLISH_CHARS = set("ąćęłńśźż")
 
@@ -335,7 +332,6 @@ def fallback_text(findings: list[Finding], lang: str, *, limit: int = 3) -> str:
     parts = []
     for f in ranked:
         sentence = render(f.template, lang, {**f.evidence, "zone": f.zone, "round": f.round}).rstrip()
-        if sentence.endswith("."):
-            sentence = sentence[:-1]
+        sentence = sentence.removesuffix(".")
         parts.append(f"{sentence} [{f.id}].")
     return " ".join(parts)

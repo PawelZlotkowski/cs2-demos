@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from string import Template
 
@@ -21,7 +21,7 @@ class Prompt:
         return Template(self.template).safe_substitute({k: str(v) for k, v in values.items()})
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_prompt(name: str) -> Prompt:
     versions = []
     for path in PROMPTS_DIR.glob(f"{name}.v*.md"):
