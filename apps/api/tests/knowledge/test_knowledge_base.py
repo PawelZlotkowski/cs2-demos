@@ -112,6 +112,8 @@ def test_liquipedia_parser_keeps_attribution() -> None:
     finally:
         sys.path.pop(0)
     html = (
+        '<div class="fo-nttax-infobox"><div>Map Information</div><p>Creator: Valve</p></div>'
+        '<div id="toc" class="toc"><h2>Contents</h2><ul><li>1 Overview</li></ul></div>'
         "<p>Intro<sup>[1]</sup>.</p>"
         '<h2>Layout<span class="mw-editsection"><span>[</span>edit<span>]</span></span></h2>'
         "<p>Two sites.<br>Mid.</p><table><tr><td>skip</td></tr></table>"
@@ -122,6 +124,7 @@ def test_liquipedia_parser_keeps_attribution() -> None:
     assert '"' not in md.split("\n---\n", 1)[0], "the ingest front matter takes no quotes"
     assert fl.to_markdown("Anubis/cs2", html).count("map: de_anubis") == 1
     assert "## Layout\n\nTwo sites. Mid." in md
+    assert "Map Information" not in md and "Contents" not in md and "1 Overview" not in md
     assert "skip" not in md and "References" not in md and "[1]" not in md and "edit" not in md
 
 
@@ -190,3 +193,19 @@ def test_liquipedia_follows_redirects_and_skips_stubs(monkeypatch: pytest.Monkey
     assert fl.main(["Mirage"]) == 0
     assert "redirects=1" in queries[0]
     assert not list(tmp_path.iterdir()), "a redirect stub must not be written"
+
+
+def test_liquipedia_splits_side_subheadings() -> None:
+    sys.path.insert(0, str(KNOWLEDGE))
+    try:
+        import fetch_liquipedia as fl
+    finally:
+        sys.path.pop(0)
+    html = (
+        "<h2>Locations</h2><h3>Bombsite A</h3><h4>T-side approach</h4><p>Go through Palace.</p>"
+        "<h4>CT-side approach</h4><p>Hold from Ticket booth.</p><h3>Mid</h3><p>Open.</p>"
+    )
+    md = fl.to_markdown("Mirage", html)
+    assert "## Bombsite A, T-side approach\n\nGo through Palace." in md
+    assert "## Bombsite A, CT-side approach\n\nHold from Ticket booth." in md
+    assert "## Mid\n\nOpen." in md and "## Locations" not in md

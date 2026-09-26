@@ -31,11 +31,12 @@ USER_AGENT = f"cs2-round-reviewer-coach/0.1 ({REPO_URL}{'; ' + _CONTACT if _CONT
 PARSE_INTERVAL_S = 30
 OUT_DIR = Path(__file__).parent / "liquipedia"
 MAP_KEYS = {"mirage": "de_mirage", "anubis": "de_anubis"}
-SKIP_SECTIONS = {"references", "external links", "see also", "gallery", "trivia", "map changes", "patch history"}
+SKIP_CLASSES = ("mw-editsection", "infobox", "toc", "navbox")
+SKIP_SECTIONS = {"contents", "references", "external links", "see also", "gallery", "trivia", "map changes", "patch history"}
 
 
 class _Sections(HTMLParser):
-    """Collects plain text per h2/h3 heading, skipping tables, references and edit links."""
+    """Collects plain text per h2/h3/h4 heading (h4 titles get their parent's name), skipping tables, references and edit links."""
 
     SKIP_TAGS = {"table", "style", "script", "sup"}
     VOID_TAGS = {"br", "img", "hr", "wbr", "input", "meta", "link", "source"}
@@ -44,6 +45,8 @@ class _Sections(HTMLParser):
         super().__init__()
         self.sections: list[tuple[str, list[str]]] = [("Overview", [])]
         self._heading: list[str] | None = None
+        self._level = ""
+        self._parent = ""  # last h2/h3 title, prefixed to h4 titles
         self._skip = 0  # open-tag depth inside a skipped element
         self._para: list[str] = []
 
@@ -54,19 +57,25 @@ class _Sections(HTMLParser):
             return
         if self._skip:
             self._skip += 1
-        elif tag in self.SKIP_TAGS or "mw-editsection" in (dict(attrs).get("class") or ""):
+        elif tag in self.SKIP_TAGS or any(c in (dict(attrs).get("class") or "") for c in SKIP_CLASSES):
             self._skip = 1
-        elif tag in ("h2", "h3"):
+        elif tag in ("h2", "h3", "h4"):
             self._flush()
             self._heading = []
+            self._level = tag
 
     def handle_endtag(self, tag):
         if tag in self.VOID_TAGS:
             return
         if self._skip:
             self._skip -= 1
-        elif tag in ("h2", "h3") and self._heading is not None:
-            self.sections.append((" ".join("".join(self._heading).split()), []))
+        elif tag in ("h2", "h3", "h4") and self._heading is not None:
+            title = " ".join("".join(self._heading).split())
+            if self._level == "h4" and self._parent:
+                title = f"{self._parent}, {title}"
+            else:
+                self._parent = title
+            self.sections.append((title, []))
             self._heading = None
         elif tag in ("p", "li"):
             self._flush()

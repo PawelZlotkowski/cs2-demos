@@ -13,10 +13,6 @@ review: draft
 
 ## Overview
 
-[e]Maps Show Hide [e][h]AnubisMap InformationCreator:Roald jakuza jd40Location: EgyptTheme:DesertCompetition Span:2023 – "current"Size:SmallScenario:Bomb defusalTerrorists:SASCounter Terrorists:Phoenix Connection
-
-## Overview
-
 Anubis is a bomb defusal map set in Egypt and created by Roald, jakuza, and jd40. It was Ported to CS2 with no Skybox.
 
 ## History

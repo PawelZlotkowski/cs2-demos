@@ -51,6 +51,7 @@ Three to six sentences about one idea...
 | Mirage | 58 |
 | Anubis | 49 |
 | General | 25 |
+| Liquipedia | 8 Mirage, 2 Anubis (overview, each site and mid split by T and CT side; the Anubis page has little more than its history) |
 
 ## Review status
 
