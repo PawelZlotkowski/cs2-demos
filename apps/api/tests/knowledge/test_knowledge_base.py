@@ -117,3 +117,26 @@ def test_liquipedia_parser_keeps_attribution() -> None:
     assert "license: CC-BY-SA-3.0" in md and "attribution:" in md and "map: de_anubis" in md
     assert "## Layout\n\nTwo sites. Mid." in md
     assert "skip" not in md and "References" not in md and "[1]" not in md and "edit" not in md
+
+
+def test_liquipedia_fetch_asks_for_gzip(monkeypatch: pytest.MonkeyPatch) -> None:
+    import gzip
+    import io
+
+    sys.path.insert(0, str(KNOWLEDGE))
+    try:
+        import fetch_liquipedia as fl
+    finally:
+        sys.path.pop(0)
+    seen = {}
+
+    class _Resp(io.BytesIO):
+        headers = {"Content-Encoding": "gzip"}
+
+    def fake_urlopen(req, timeout):
+        seen["encoding"] = req.get_header("Accept-encoding")
+        return _Resp(gzip.compress(json.dumps({"parse": {"text": "<p>hi</p>"}}).encode()))
+
+    monkeypatch.setattr(fl.urllib.request, "urlopen", fake_urlopen)
+    assert fl.fetch_html("Mirage") == "<p>hi</p>"
+    assert seen["encoding"] == "gzip"

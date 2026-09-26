@@ -3,12 +3,13 @@
 Usage: python data/knowledge/fetch_liquipedia.py Mirage Anubis
 
 Liquipedia text is CC BY-SA 3.0; every file gets attribution frontmatter.
-API rules (https://liquipedia.net/api-terms-of-use): a descriptive User-Agent
-and at most one ``action=parse`` request per 30 seconds. Standard library only.
+API rules (https://liquipedia.net/api-terms-of-use): a descriptive User-Agent,
+gzip-encoded requests and at most one ``action=parse`` request per 30 seconds. Standard library only.
 """
 
 from __future__ import annotations
 
+import gzip
 import json
 import re
 import sys
@@ -80,9 +81,12 @@ class _Sections(HTMLParser):
 
 def fetch_html(page: str) -> str:
     query = urllib.parse.urlencode({"action": "parse", "page": page, "prop": "text", "format": "json", "formatversion": 2})
-    req = urllib.request.Request(f"{API}?{query}", headers={"User-Agent": USER_AGENT, "Accept-Encoding": "identity"})
+    req = urllib.request.Request(f"{API}?{query}", headers={"User-Agent": USER_AGENT, "Accept-Encoding": "gzip"})
     with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.load(resp)["parse"]["text"]
+        body = resp.read()
+        if resp.headers.get("Content-Encoding") == "gzip":
+            body = gzip.decompress(body)
+    return json.loads(body)["parse"]["text"]
 
 
 def to_markdown(page: str, html: str) -> str:
