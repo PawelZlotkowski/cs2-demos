@@ -53,7 +53,9 @@ import {
 } from "@/lib/coach/findings";
 import { RadarView } from "@/components/replay/RadarView";
 import { ReplayTimeline } from "@/components/replay/ReplayTimeline";
+import { CoachExplanation } from "@/components/coach/CoachExplanation";
 import { CoachPanel } from "@/components/coach/CoachPanel";
+import { useCoachLanguage } from "@/lib/coach/language";
 
 const RATES: PlaybackRate[] = [1, 2, 4, 0.5];
 const LANE_BASE = 22;
@@ -113,6 +115,7 @@ export default function StudioPage() {
   const [analysis, setAnalysis] = useState<PlayerAnalysisView | null>(null);
   const [momentId, setMomentId] = useState<string | null>(null);
   const [seenMoments, setSeenMoments] = useState<Set<string>>(() => new Set());
+  const [coachLang, setCoachLang] = useCoachLanguage();
   /** Clock time to seek to once the next round replay has loaded (moment jumps across rounds). */
   const pendingSeek = useRef<number | null>(null);
   const askRef = useRef<HTMLInputElement>(null);
@@ -634,19 +637,53 @@ export default function StudioPage() {
   const hpById = new Map(players.map((p) => [p.id, p]));
   // What the coach will be given as context; shown so the viewer knows what it can see.
   const knows = activeRound
-    ? `Knows round ${activeRound.number} at ${formatClock(clock.t)}, the radar view${
-        selected ? `, the ${typeLabel(selected.type).toLowerCase()} at ${formatClock(selected.t)}` : ""
-      }${focus ? ` and that you are following ${focus.name}` : ""}.`
+    ? analysis
+      ? `Knows ${analysedName}'s findings and stats, round ${activeRound.number} at ${formatClock(clock.t)}${
+          activeMoment ? `, the picked moment` : ""
+        } and the map notes. Answers cite what they use.`
+      : `Knows round ${activeRound.number} at ${formatClock(clock.t)}, the radar view${
+          selected ? `, the ${typeLabel(selected.type).toLowerCase()} at ${formatClock(selected.t)}` : ""
+        }${focus ? ` and that you are following ${focus.name}` : ""}.`
     : "";
   const suggestions = activeRound
-    ? [
-        `Why did ${activeRound.winner ?? "this side"} win round ${activeRound.number}?`,
-        selected?.type === "kill" && lookup(selected.victimId)
-          ? `Could ${lookup(selected.victimId)!.name} have avoided that death?`
-          : `What should ${focus?.name ?? "I"} have done differently here?`,
-        `Where was ${focus ? `${focus.name}'s` : "my"} team out of position?`,
-      ]
+    ? analysis
+      ? [
+          headFinding
+            ? kindGlyph(headFinding.kind) === "strength"
+              ? `Why did this work for ${analysedName}?`
+              : `Why is ${findingLabel(headFinding).toLowerCase()} a problem here?`
+            : `What was ${analysedName}'s biggest mistake in round ${activeRound.number}?`,
+          headFinding
+            ? `What should ${analysedName} have done instead?`
+            : `What did ${analysedName} do well in round ${activeRound.number}?`,
+          `Does this happen in other rounds too?`,
+        ]
+      : [
+          `Why did ${activeRound.winner ?? "this side"} win round ${activeRound.number}?`,
+          selected?.type === "kill" && lookup(selected.victimId)
+            ? `Could ${lookup(selected.victimId)!.name} have avoided that death?`
+            : `What should ${focus?.name ?? "I"} have done differently here?`,
+          `Where was ${focus ? `${focus.name}'s` : "my"} team out of position?`,
+        ]
     : [];
+  const coachCites = {
+    onFinding: (id: string) => {
+      const f = findingsById.get(id);
+      if (f) seekFinding(f);
+    },
+    onSeek: (t: number) => {
+      clock.pause();
+      seekTo(t);
+    },
+    onMoment: (id: string) => {
+      const m = moments.find((x) => x.id === id);
+      if (m) selectMoment(m);
+    },
+    momentLabel: (id: string) => {
+      const m = moments.find((x) => x.id === id);
+      return m ? `round ${m.round} moment` : undefined;
+    },
+  };
   const teams = (["CT", "T"] as const).map((side) => ({
     side,
     players: roster.filter((p) => p.team === side),
@@ -1057,6 +1094,18 @@ export default function StudioPage() {
                     : "Pick a moment or a round."}
           </p>
 
+          {analysis && activeRound ? (
+            <CoachExplanation
+              matchId={matchId}
+              playerId={analysis.playerId}
+              momentId={activeMoment?.id ?? null}
+              round={activeRound.number}
+              language={coachLang}
+              onLanguage={setCoachLang}
+              {...coachCites}
+            />
+          ) : null}
+
           {momentFindings.length > 1 ? (
             <section className="layer">
               <h3>In this moment</h3>
@@ -1257,17 +1306,18 @@ export default function StudioPage() {
           <CoachPanel
             key={activeRound.id}
             matchId={matchId}
+            playerId={analysis?.playerId ?? null}
             contextId={activeRound.id}
+            round={activeRound.number}
+            momentId={activeMoment?.id ?? null}
+            language={coachLang}
             t={clock.t}
             knows={knows}
             suggestions={suggestions}
             inputRef={askRef}
             placeholder={`Ask about round ${activeRound.number} at ${formatClock(clock.t)}`}
             onAsk={() => setAsking(true)}
-            onSeek={(t) => {
-              clock.pause();
-              seekTo(t);
-            }}
+            {...coachCites}
           />
         ) : null}
       </aside>

@@ -221,8 +221,65 @@ export interface SelectedMoment {
   source: "ranker" | "agent";
 }
 
+export type CoachLanguage = "en" | "pl" | "nl";
+
 export interface PlayerSelectRequest {
   playerId: string;
+  /** Language the stored explanations are written in (default "en"). */
+  language?: CoachLanguage;
+}
+
+/** Analysis-tab text for a moment ("m3") or an on-demand round ("r12"). */
+export interface MomentExplanation {
+  target: string;
+  lang: CoachLanguage;
+  text: string; // with [F..] [t:..] [m..] [K..] tokens
+  citations: string[];
+  findingIds: string[];
+  /** "agent": model text that passed the verifier; "template": finding templates. */
+  source: "agent" | "template";
+  verifierErrors: string[];
+  model?: string | null;
+  promptVersion?: string | null;
+}
+
+export interface ExplainRequest {
+  language?: CoachLanguage;
+}
+
+/** Ask tab question with the Studio's context line. */
+export interface AskRequest {
+  question: string;
+  language?: CoachLanguage;
+  round?: number | null;
+  t?: number | null;
+  momentId?: string | null;
+  view?: StageView | null;
+}
+
+/** Server-sent events of POST /matches/{id}/players/{pid}/ask. */
+export type AskEvent =
+  | { event: "step"; data: { tool: string; ms: number; error: string | null } }
+  | {
+      event: "answer";
+      data: { answer: string; citations: string[]; source: "agent" | "template"; verified: boolean };
+    }
+  | { event: "error"; data: { detail: string } };
+
+export interface KnowledgePassage {
+  id: string; // "K7"
+  title: string;
+  map: string;
+  source: string;
+  text: string;
+}
+
+export interface ClipJob {
+  clipJobId: string;
+  round: number;
+  t0: number;
+  t1: number;
+  status: string;
 }
 
 export interface PlayerAnalysis {

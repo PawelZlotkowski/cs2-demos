@@ -35,11 +35,11 @@ npx @modelcontextprotocol/inspector python -m cs2_demo_mcp
 | `get_player_state(match_id, round, t)` | every player's side, callout, health at time t |
 | `get_player_history(player_id, detector?, exclude_match_id?)` | detector rates across the player's earlier matches |
 | `select_moments(match_id, player_id, moments)` | validates and stores 5–6 picked moments |
+| `search_knowledge(query, map?, k?)` | top map-note passages as `K..` ids with title, source and text |
+| `request_clip(match_id, player_id, round, t0, t1)` | queues a clip of up to 60 s (the CS Demo Manager recorder is not connected yet) |
 
 Resource `match://{match_id}/overview`. Prompts `select_moments`, `explain_moment(language)`,
 `answer_question(language)`.
-
-Not yet: `search_knowledge` (RAG, T32) and `request_clip` (CS Demo Manager clips, T40).
 
 ## How the coach uses it
 

@@ -1,11 +1,17 @@
 import type {
+  AskEvent,
+  AskRequest,
+  ClipJob,
+  CoachLanguage,
   CoachRequest,
   CoachResponse,
   EventsPage,
   Finding,
   FindingKind,
+  KnowledgePassage,
   Match,
   Moment,
+  MomentExplanation,
   PatternsResponse,
   RoundReplay,
   RoundStats,
@@ -71,10 +77,10 @@ export const api = {
     const qs = q.toString();
     return request<EventsPage>(`/matches/${matchId}/events${qs ? `?${qs}` : ""}`);
   },
-  selectPlayer: (matchId: string, playerId: string) =>
+  selectPlayer: (matchId: string, playerId: string, language: CoachLanguage = "en") =>
     request<StatusResponse>(`/matches/${matchId}/player`, {
       method: "POST",
-      body: JSON.stringify({ playerId }),
+      body: JSON.stringify({ playerId, language }),
     }),
   getFindings: (
     matchId: string,
@@ -103,4 +109,72 @@ export const api = {
       body: JSON.stringify(body),
     }),
   patterns: () => request<PatternsResponse>("/users/me/patterns"),
+  getMomentExplanation: (matchId: string, playerId: string, momentId: string, lang: CoachLanguage) =>
+    request<MomentExplanation>(
+      `/matches/${matchId}/players/${playerId}/moments/${momentId}/explanation?lang=${lang}`,
+    ),
+  explainRound: (matchId: string, playerId: string, round: number, language: CoachLanguage) =>
+    request<MomentExplanation>(`/matches/${matchId}/players/${playerId}/rounds/${round}/explain`, {
+      method: "POST",
+      body: JSON.stringify({ language }),
+    }),
+  getClipJobs: (matchId: string, playerId: string) =>
+    request<ClipJob[]>(`/matches/${matchId}/players/${playerId}/clips`),
+  getKnowledge: (id: string) => request<KnowledgePassage>(`/knowledge/${id}`),
+  /** Ask over server-sent events: `step` per tool call, then one verified `answer`. */
+  ask: async (
+    matchId: string,
+    playerId: string,
+    body: AskRequest,
+    onEvent: (e: AskEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<void> => {
+    const res = await fetch(`${API_URL}/matches/${matchId}/players/${playerId}/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      body: JSON.stringify(body),
+      signal,
+    });
+    if (!res.ok || !res.body) {
+      let detail = res.statusText;
+      try {
+        const b = (await res.json()) as { detail?: string };
+        if (b.detail) detail = b.detail;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(detail || "The coach did not answer.");
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (value) buf += decoder.decode(value, { stream: !done });
+      let cut = buf.indexOf("\n\n");
+      while (cut >= 0) {
+        const block = buf.slice(0, cut);
+        buf = buf.slice(cut + 2);
+        const parsed = parseSseBlock(block);
+        if (parsed) onEvent(parsed);
+        cut = buf.indexOf("\n\n");
+      }
+      if (done) break;
+    }
+  },
 };
+
+export function parseSseBlock(block: string): AskEvent | null {
+  let event = "message";
+  const data: string[] = [];
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+  }
+  if (!data.length) return null;
+  try {
+    return { event, data: JSON.parse(data.join("\n")) } as AskEvent;
+  } catch {
+    return null;
+  }
+}

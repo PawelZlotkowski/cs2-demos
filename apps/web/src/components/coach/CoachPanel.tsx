@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type FormEvent, type RefObject } from "react";
 import { api } from "@/lib/api/client";
-import { formatClock } from "@/lib/replay/time";
+import type { CoachLanguage } from "@/lib/contracts";
+import { CoachText, type CiteHandlers } from "./CoachText";
 
 type Turn = {
   id: number;
@@ -11,68 +12,73 @@ type Turn = {
   a: string;
   shown: number;
   pending: boolean;
+  /** Tool lookups reported while the coach works (SSE `step` events). */
+  steps: string[];
   error?: boolean;
   mocked?: boolean;
+  source?: "agent" | "template";
 };
 
-type Props = {
+type Props = CiteHandlers & {
   matchId: string;
-  /** Sent as the coach context id. Rounds stand in for moments until detectors exist. */
+  /** Analysed player: answers come from the coach agent. Without one, the legacy stub answers. */
+  playerId?: string | null;
+  /** Sent as the stub context id when no player is analysed. */
   contextId: string;
+  round: number;
+  momentId?: string | null;
+  language: CoachLanguage;
   t: number;
   knows: string;
   suggestions: string[];
   inputRef: RefObject<HTMLInputElement | null>;
   placeholder: string;
   onAsk: () => void;
-  onSeek: (t: number) => void;
 };
 
-const CITE_RE = /(\[(?:t:[\d.]+|F\d+|m\d+)\])/g;
-
-/** Coach answers cite clip times as [t:12.3] (seekable) and findings as [F4]. */
-function renderCites(text: string, onSeek: (t: number) => void): ReactNode[] {
-  return text.split(CITE_RE).map((part, i) => {
-    const m = part.match(/^\[(t:([\d.]+)|F\d+|m\d+)\]$/);
-    if (!m) return part;
-    if (m[2] != null) {
-      const t = Number(m[2]);
-      return (
-        <button key={i} type="button" className="cite" onClick={() => onSeek(t)}>
-          {formatClock(t)}
-        </button>
-      );
-    }
-    return (
-      <span key={i} className="cite">
-        {m[1]}
-      </span>
-    );
-  });
-}
+/** What the coach is doing, from the tool it just called. */
+const STEP_LABELS: Record<string, string> = {
+  list_rounds: "Reading the rounds",
+  get_round_stats: "Reading the round stats",
+  list_findings: "Looking through the findings",
+  get_finding: "Reading a finding",
+  get_round_timeline: "Reading the round timeline",
+  get_player_state: "Checking the player at that time",
+  get_player_history: "Checking earlier matches",
+  search_knowledge: "Searching the map notes",
+  request_clip: "Queueing a clip",
+};
 
 export function CoachPanel({
   matchId,
+  playerId,
   contextId,
+  round,
+  momentId,
+  language,
   t,
   knows,
   suggestions,
   inputRef,
   placeholder,
   onAsk,
-  onSeek,
+  ...cites
 }: Props) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const threadRef = useRef<HTMLDivElement>(null);
   const nextId = useRef(1);
   const reduce = useRef(false);
+  const aborts = useRef(new Set<AbortController>());
 
   useEffect(() => {
     reduce.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const open = aborts.current;
+    return () => open.forEach((c) => c.abort());
   }, []);
 
-  // Stream answers in word by word (prototype stream()); instant with reduced motion.
+  // Reveal answers word by word (prototype stream()); instant with reduced motion.
+  // Only verified text reaches this point: the server never streams unchecked tokens.
   const streaming = turns.some((x) => !x.pending && x.shown < x.a.length);
   useEffect(() => {
     if (!streaming) return;
@@ -98,23 +104,53 @@ export function CoachPanel({
     if (th) th.scrollTop = th.scrollHeight;
   }, [turns]);
 
+  const patch = (id: number, f: (x: Turn) => Turn) => setTurns((ts) => ts.map((x) => (x.id === id ? f(x) : x)));
+  const fail = (id: number, msg: string) =>
+    patch(id, (x) => ({ ...x, a: msg, shown: msg.length, pending: false, error: true }));
+
   async function ask(raw: string) {
     const question = raw.trim();
     if (!question) return;
     onAsk();
     setDraft("");
     const id = nextId.current++;
-    setTurns((ts) => [...ts, { id, q: question, a: "", shown: 0, pending: true }]);
+    setTurns((ts) => [...ts, { id, q: question, a: "", shown: 0, pending: true, steps: [] }]);
+    if (!playerId) {
+      try {
+        const res = await api.coach(matchId, { momentId: contextId, question, t, view: "radar" });
+        patch(id, (x) => ({ ...x, a: res.answer, pending: false, mocked: res.mocked }));
+      } catch (e) {
+        fail(id, e instanceof Error ? e.message : "The coach did not answer.");
+      }
+      return;
+    }
+    const ctl = new AbortController();
+    aborts.current.add(ctl);
+    let answered = false;
     try {
-      const res = await api.coach(matchId, { momentId: contextId, question, t, view: "radar" });
-      setTurns((ts) =>
-        ts.map((x) => (x.id === id ? { ...x, a: res.answer, pending: false, mocked: res.mocked } : x)),
+      await api.ask(
+        matchId,
+        playerId,
+        { question, language, round, t, momentId: momentId ?? null, view: "radar" },
+        (ev) => {
+          if (ev.event === "step") {
+            const label = STEP_LABELS[ev.data.tool] ?? `Using ${ev.data.tool}`;
+            patch(id, (x) => ({ ...x, steps: [...x.steps, label] }));
+          } else if (ev.event === "answer") {
+            answered = true;
+            patch(id, (x) => ({ ...x, a: ev.data.answer, pending: false, source: ev.data.source }));
+          } else {
+            answered = true;
+            fail(id, ev.data.detail);
+          }
+        },
+        ctl.signal,
       );
+      if (!answered) fail(id, "The coach stopped before answering.");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "The coach did not answer.";
-      setTurns((ts) =>
-        ts.map((x) => (x.id === id ? { ...x, a: msg, shown: msg.length, pending: false, error: true } : x)),
-      );
+      if (!ctl.signal.aborted) fail(id, e instanceof Error ? e.message : "The coach did not answer.");
+    } finally {
+      aborts.current.delete(ctl);
     }
   }
 
@@ -135,11 +171,16 @@ export function CoachPanel({
             <div className="qq">{x.q}</div>
             <div className={`aa${x.error ? " err" : ""}`}>
               {x.pending ? (
-                <span className="thinking">Thinking…</span>
+                <span className="thinking">{x.steps.length ? `${x.steps[x.steps.length - 1]}…` : "Thinking…"}</span>
+              ) : x.error ? (
+                x.a
               ) : (
-                renderCites(x.a.slice(0, x.shown), onSeek)
+                <CoachText text={x.a.slice(0, x.shown)} {...cites} />
               )}
             </div>
+            {!x.pending && x.source === "template" ? (
+              <div className="aa-note">From the finding templates: the coach model is off or its answer failed the checks.</div>
+            ) : null}
           </div>
         ))}
       </div>
@@ -175,11 +216,13 @@ export function CoachPanel({
             Ask
           </button>
         </form>
-        <div className="proto-note">
-          {anyMocked
-            ? "The coach isn't connected yet, so answers are placeholders."
-            : "Answers will come from the coach once it's connected."}
-        </div>
+        {playerId ? null : (
+          <div className="proto-note">
+            {anyMocked
+              ? "Pick a player to analyse first. Until then answers are placeholders."
+              : "Pick a player to analyse, and the coach answers from their findings."}
+          </div>
+        )}
       </div>
     </div>
   );

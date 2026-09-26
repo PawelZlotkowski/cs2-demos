@@ -30,11 +30,13 @@ Tasks T10–T17 in [TASKS](../coach/TASKS.md). No LLM yet.
 
 Tasks T20–T27 in [TASKS](../coach/TASKS.md). Tested with a scripted model only; nothing has run on llama.cpp yet.
 
-- **Tools (T20):** `apps/api/app/coach/tools.py`, eight tools from plan §5 (`search_knowledge` waits for RAG, `request_clip` for clips). Compact JSON, names and callouts instead of SteamIDs and coordinates, result sizes logged.
+- **Tools (T20):** `apps/api/app/coach/tools.py`, all ten tools from plan §5, including `search_knowledge` over the knowledge index and `request_clip`, which queues a clip job (no recorder yet). Compact JSON, names and callouts instead of SteamIDs and coordinates, result sizes logged.
 - **MCP server (T21):** `cs2-demo` (`app/coach/mcp_server.py`, official `mcp` SDK 2.x) run by `python -m cs2_demo_mcp` from `apps/mcp/` over stdio or streamable HTTP; resource `match://{id}/overview`, prompts `select_moments`, `explain_moment`, `answer_question`.
 - **LLM client (T22):** `app/coach/llm_client.py`, OpenAI-compatible (tools, JSON schema, Qwen3 thinking switch, streaming), `MockLLMClient` for tests. Config `RR_LLM_ENABLED` (default off), `RR_LLM_BASE_URL`, `RR_LLM_MODEL`.
 - **Agent (T23):** `app/coach/agent.py`, MCP client by default (`RR_COACH_TOOLS=mcp|inprocess`, `RR_MCP_URL`, `RR_MCP_COMMAND`), max 6 tool steps, match and player bound by code, JSONL traces in `data/traces/`.
 - **Verifier (T24):** `app/coach/verify.py`: citations, numbers against evidence and round stats, cited facts, language (stopword score), moment picks; one repair, then en/pl/nl templates.
+- **RAG v1 (T31, T32):** `app/rag/`, markdown in `data/knowledge/` split by `##` into `K..` passages, SQLite FTS5 plus optional dense vectors (`RR_EMBED_URL`, bge-m3) fused by RRF. Numbers from a cited passage pass the verifier.
+- **Studio (T43, T45):** Analysis tab explanation for the picked moment or, on request, the round; Ask tab over SSE with the coach's lookups shown while it works; `[K..]` opens the passage; language setting en/pl/nl on the processing page and in the Analysis tab.
 - **Jobs (T25–T27):** `app/coach/jobs.py`, prompts in `app/coach/prompts/*.v1.md`. Selection and explanations run in the pipeline when the model is on; on-demand round explanation and the Ask endpoint (SSE) work with or without it (templates when off).
 
 ## Implemented (prototype only — sample data)
@@ -53,7 +55,7 @@ Still in `prototype/analysis-studio.html` (reference): moment rail, Coach panel,
 - **Sample fixture match:** moments/coach/home patterns from `packages/shared` — **no** real round replay blobs (`is_sample`; pipeline skips it).
 - **Coach answers (legacy):** `POST /matches/{id}/coach` is still the scripted mock; the real path is `…/players/{pid}/ask`.
 - **Gameplay video / clip rendering:** not built.
-- **LLM moment selection / explanations / Ask:** built (phase 2) but only exercised with a scripted model. With `RR_LLM_ENABLED` off, the code ranker's moments and the finding templates stand in. The web app does not call the new explanation and Ask routes yet (T42, T43).
+- **LLM moment selection / explanations / Ask:** built (phase 2) but only exercised with a scripted model. With `RR_LLM_ENABLED` off, the code ranker's moments and the finding templates stand in. The Studio shows the explanation in the Analysis tab and answers in the Ask tab; answers built from templates say so.
 
 ## Planned next (AI Coach milestone, kicked off 26 Sep 2026)
 
@@ -61,7 +63,7 @@ Plan: [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN.md). Tasks and status
 
 1. Merge the CS:DM clips branch (`cursor/csdm-gameplay-video`).
 2. Phase 1 follow-ups: run the real-demo tests, correct zone names on the overlays, label rounds and tune thresholds.
-3. Run phase 2 on llama.cpp with Qwen3-14B (T02, T03) and a real match; measure latency; show the explanations and the Ask tab in the Studio (rest of T43, T45).
+3. Run phase 2 on llama.cpp with Qwen3-14B (T02, T03) and a real match; measure latency; write the rest of the knowledge base (T30) and connect the CS:DM recorder to the clip queue (T40).
 4. RAG (map knowledge + player memory), per-moment clips, en/pl/nl.
 5. Fine-tuning (QLoRA), larger model on RTX Pro 6000, evaluation.
 

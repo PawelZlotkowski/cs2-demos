@@ -2,6 +2,30 @@
 
 Concise log for the next engineer or agent. British spelling.
 
+## 26 September 2026 — Knowledge search, clip queue and the coach in the Studio (T30–T32, T40, T43, T45), same branch
+
+Owner asked to finish the MCP tools and the rest of the coach UI. The coordinator moved the Ask tab, the Analysis explanation and the language setting to this thread.
+
+### Done
+
+- `search_knowledge` and `request_clip` tools, so the MCP server now serves all ten tools of plan §5.
+- RAG v1 in `app/rag/`: `data/knowledge/*.md` split by `##` into `K..` passages, FTS5 plus optional dense vectors (`RR_EMBED_URL`), RRF. Starter notes for fundamentals, Mirage and Anubis. `GET /knowledge/{id}`.
+- Clip queue table and `GET …/clips`; an on-demand round explanation queues a clip around the round's top finding.
+- Verifier accepts numbers from cited `K..` passages that a tool actually returned in the run.
+- Web: TS mirror of the coach contracts; `CoachExplanation` in the Analysis tab (moment on open, round on request); `CoachPanel` asks over SSE, shows the coach's lookups, labels template answers; `CoachText` renders `[F]` `[t:]` `[m]` `[K]` tokens; language setting (`rr.coachLanguage`) on the processing page and in the Analysis tab.
+
+### Tested
+
+- API `pytest`: 179 passed, 4 skipped (live model and real demo tests).
+- Web `typecheck`, `lint`, `build` clean.
+- Browser check on the synthetic analysed match with the model off: explanation in English and Polish, Ask answer in Polish with the template note, citations seek.
+
+### Uncertain / limitations
+
+- Nothing has run on llama.cpp yet, so the agent path in the UI (tool steps, `[K..]` passages) is covered by tests only.
+- Knowledge base is a starter set, far below T30's 40 sections per map; no Liquipedia excerpts yet.
+- Clips are queued but never recorded.
+
 ## 26 September 2026 — AI Coach phase 2 (T20–T27), branch `claude/coach-phase-2-r2gzvt`
 
 Owner asked for phase two (tools, MCP, agent). Built on the phase 1 branch, one draft PR for the phase. `apps/web` was not changed: the phase 1 thread owns the UI work.
