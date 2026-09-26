@@ -52,8 +52,8 @@ class KnowledgeIndex:
 
     def _fingerprint(self) -> str:
         h = hashlib.sha256()
-        for path in sorted(self.knowledge_dir.glob("*.md")):
-            h.update(path.name.encode())
+        for path in sorted(self.knowledge_dir.rglob("*.md"), key=lambda p: p.relative_to(self.knowledge_dir).as_posix()):
+            h.update(path.relative_to(self.knowledge_dir).as_posix().encode())
             h.update(path.read_bytes())
         h.update(b"dense" if self.embedder else b"sparse")
         return h.hexdigest()

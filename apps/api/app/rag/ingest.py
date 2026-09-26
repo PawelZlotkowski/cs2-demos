@@ -1,4 +1,7 @@
-"""Read ``data/knowledge/*.md`` into passages, one per ``##`` heading.
+"""Read ``data/knowledge/**/*.md`` into passages, one per ``##`` heading.
+
+Files may sit in subfolders (``de_mirage/``, ``de_anubis/``, ``general/``);
+the front matter, not the folder, sets the map.
 
 Each file starts with a small front matter block::
 
@@ -53,12 +56,12 @@ def parse_front_matter(text: str) -> tuple[dict[str, str], str]:
 def load_passages(directory: Path | None = None) -> list[Passage]:
     directory = directory or KNOWLEDGE_DIR
     raw: list[tuple[str, str, dict[str, str], str]] = []
-    for path in sorted(directory.glob("*.md")):
+    for path in sorted(directory.rglob("*.md"), key=lambda p: p.relative_to(directory).as_posix()):
         if path.name.lower() == "readme.md":
             continue
         meta, body = parse_front_matter(path.read_text(encoding="utf-8"))
         for title, text in _sections(body):
-            raw.append((path.name, title, meta, text))
+            raw.append((path.relative_to(directory).as_posix(), title, meta, text))
     return [
         Passage(
             id=f"K{i}",

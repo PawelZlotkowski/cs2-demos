@@ -36,6 +36,19 @@ def test_ingest_chunks_by_heading(tmp_path):
     assert passages[0].map == "de_mirage" and passages[0].side == "T" and passages[0].source == "own notes"
 
 
+def test_ingest_reads_subfolders(tmp_path):
+    (tmp_path / "de_mirage").mkdir()
+    (tmp_path / "general").mkdir()
+    (tmp_path / "de_mirage" / "palace.md").write_text(DOC)
+    (tmp_path / "general" / "trading.md").write_text("---\nmap: all\n---\n\n## Trade spacing\n\nStay close enough to trade.\n")
+    passages = load_passages(tmp_path)
+    assert [(p.id, p.file, p.map) for p in passages] == [
+        ("K1", "de_mirage/palace.md", "de_mirage"),
+        ("K2", "de_mirage/palace.md", "de_mirage"),
+        ("K3", "general/trading.md", "all"),
+    ]
+
+
 def test_committed_knowledge_parses():
     passages = load_passages(KNOWLEDGE_DIR)
     assert len(passages) >= 15
