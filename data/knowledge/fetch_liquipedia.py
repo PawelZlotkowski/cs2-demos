@@ -87,7 +87,7 @@ class _Sections(HTMLParser):
 
 
 def fetch_html(page: str) -> str:
-    query = urllib.parse.urlencode({"action": "parse", "page": page, "prop": "text", "format": "json", "formatversion": 2})
+    query = urllib.parse.urlencode({"action": "parse", "page": page, "prop": "text", "format": "json", "formatversion": 2, "redirects": 1})
     req = urllib.request.Request(f"{API}?{query}", headers={"User-Agent": USER_AGENT, "Accept-Encoding": "gzip"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         body = resp.read()
@@ -101,16 +101,16 @@ def to_markdown(page: str, html: str) -> str:
     parser.feed(html)
     parser.close()
     parser._flush()
-    map_key = MAP_KEYS.get(page.lower(), "any")
+    map_key = MAP_KEYS.get(page.lower().split("/")[0], "all")
     url = f"https://liquipedia.net/counterstrike/{urllib.parse.quote(page)}"
     lines = [
         "---",
         f"map: {map_key}",
-        "side: both",
+        "side: any",
         "topic: liquipedia",
-        f"source: {url}",
+        f"source: Liquipedia: {url}",
         "license: CC-BY-SA-3.0",
-        f'attribution: "From Liquipedia ({url}), CC BY-SA 3.0"',
+        f"attribution: From Liquipedia ({url}), CC BY-SA 3.0",
         "lang: en",
         "review: draft",
         "---",
@@ -126,6 +126,12 @@ def to_markdown(page: str, html: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def is_stub(markdown: str) -> bool:
+    """True for a redirect page or a page with almost no text after the front matter."""
+    body = markdown.split("\n---\n", 1)[-1]
+    return "Redirect to:" in body or len(body.split()) < 50
+
+
 def main(args: list[str]) -> int:
     force = "--force" in args
     pages = [a for a in args if a != "--force"]
@@ -135,16 +141,21 @@ def main(args: list[str]) -> int:
     OUT_DIR.mkdir(exist_ok=True)
     fetched = 0
     for page in pages:
-        out = OUT_DIR / f"{page.lower()}.md"
+        out = OUT_DIR / f"{page.lower().replace('/', '-')}.md"
         if out.exists() and not force:
             print(f"kept {out} (already downloaded; --force to refresh)")
             continue
         if fetched:
             time.sleep(PARSE_INTERVAL_S)
-        out.write_text(to_markdown(page, fetch_html(page)), encoding="utf-8")
+        md = to_markdown(page, fetch_html(page))
         fetched += 1
+        if is_stub(md):
+            print(f"skipped {page}: Liquipedia returned a redirect or an empty page")
+            continue
+        out.write_text(md, encoding="utf-8")
         print(f"wrote {out}")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

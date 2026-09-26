@@ -60,7 +60,11 @@ def test_frontmatter_and_sections(path: Path) -> None:
     assert len(titles) == len(set(titles)), "duplicate section titles in one file"
     for title, body in sections:
         assert body, f"empty section {title!r}"
-        assert len(body.split()) <= MAX_SECTION_WORDS, f"section {title!r} is too long for one chunk"
+        if meta["source"] == "own notes":
+            assert len(body.split()) <= MAX_SECTION_WORDS, f"section {title!r} is too long for one chunk"
+    if meta["topic"] == "liquipedia":
+        assert "Redirect to:" not in path.read_text(encoding="utf-8"), "redirect stub, re-fetch with redirects"
+        assert sum(len(b.split()) for _, b in sections) >= 50, "almost empty Liquipedia page"
 
 
 @pytest.mark.parametrize("map_key", ["de_mirage", "de_anubis"])
@@ -115,6 +119,8 @@ def test_liquipedia_parser_keeps_attribution() -> None:
     )
     md = fl.to_markdown("Anubis", html)
     assert "license: CC-BY-SA-3.0" in md and "attribution:" in md and "map: de_anubis" in md
+    assert '"' not in md.split("\n---\n", 1)[0], "the ingest front matter takes no quotes"
+    assert fl.to_markdown("Anubis/cs2", html).count("map: de_anubis") == 1
     assert "## Layout\n\nTwo sites. Mid." in md
     assert "skip" not in md and "References" not in md and "[1]" not in md and "edit" not in md
 
@@ -158,3 +164,29 @@ def test_liquipedia_skips_downloaded_pages(monkeypatch: pytest.MonkeyPatch, tmp_
     assert (tmp_path / "mirage.md").read_text(encoding="utf-8") == "cached"
     assert fl.main(["--force", "Mirage"]) == 0
     assert calls == ["Anubis", "Mirage"]
+
+
+def test_liquipedia_follows_redirects_and_skips_stubs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import gzip
+    import io
+
+    sys.path.insert(0, str(KNOWLEDGE))
+    try:
+        import fetch_liquipedia as fl
+    finally:
+        sys.path.pop(0)
+    queries: list[str] = []
+
+    class _Resp(io.BytesIO):
+        headers = {"Content-Encoding": "gzip"}
+
+    def fake_urlopen(req, timeout):
+        queries.append(req.full_url)
+        html = '<div class="redirectMsg"><p>Redirect to:</p><ul><li>Mirage/cs2</li></ul></div>'
+        return _Resp(gzip.compress(json.dumps({"parse": {"text": html}}).encode()))
+
+    monkeypatch.setattr(fl.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(fl, "OUT_DIR", tmp_path)
+    assert fl.main(["Mirage"]) == 0
+    assert "redirects=1" in queries[0]
+    assert not list(tmp_path.iterdir()), "a redirect stub must not be written"

@@ -20,7 +20,7 @@ A trade is a kill on the enemy who just killed your teammate, within a few secon
 ## Untraded deaths
 
 Detectors: untraded_death.
-Dying with no teammate near enough to trade gives the enemy a free man advantage. Common causes are lurking without a plan, pushing ahead of the team, and holding an angle alone that the team cannot reach. If a position cannot be traded, play it for information and fall back after first contact rather than taking a duel.
+Dying alone, where nobody is near enough to trade the kill, gives the enemy a free man advantage. A death is traded when a teammate kills your killer within a few seconds; an untraded death means nobody could. Common causes are lurking without a plan, pushing ahead of the team, and holding an angle alone that the team cannot reach. If a position cannot be traded, play it for information and fall back after first contact rather than taking a duel.
 
 ## Refrag spacing
 
