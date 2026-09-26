@@ -11,8 +11,8 @@ people. The 14B model has a 32k context, so every result stays small (sizes
 are logged per call). A tool that cannot answer returns ``{"error": ...}``
 rather than raising, so the model can correct its arguments.
 
-Not here yet: ``search_knowledge`` (RAG, T32) and ``request_clip`` (CS:DM
-clips, T40).
+``search_knowledge`` reads the RAG index (``app/rag``). ``request_clip`` only
+queues a job: the CS Demo Manager recorder (T00, T40) is not connected yet.
 """
 
 from __future__ import annotations
@@ -373,6 +373,46 @@ def select_moments(
     stored = [m.model_copy(update={"source": "agent"}) for m in result.moments]
     data.repo.analysis.replace_moments(match_id, player_id, stored)
     return {"ok": True, "moments": [m.id for m in stored]}
+
+
+@tool
+def search_knowledge(
+    query: Annotated[str, Field(min_length=2, description="What to look up, in English, e.g. 'trading distance'.")],
+    map: Annotated[
+        Literal["de_mirage", "de_anubis"] | None, Field(description="Also search this map's notes.")
+    ] = None,
+    k: Annotated[int, Field(ge=1, le=6, description="How many passages.")] = 3,
+) -> dict[str, Any]:
+    """Search the coaching knowledge base (fundamentals and map notes) for passages that
+    explain why something is a mistake and what to do instead. Cite a passage as [K7].
+    Search in English even when you answer in Polish or Dutch."""
+    from app.rag.index import default_index
+
+    passages = default_index().search(query, map_name=map, k=k)
+    return {
+        "passages": [
+            {"id": p.id, "title": p.title, "map": p.map, "source": p.source, "text": p.text[:700]}
+            for p in passages
+        ]
+    }
+
+
+@tool
+def request_clip(
+    match_id: MatchId,
+    player_id: PlayerId,
+    round: RoundNo,
+    t0: Annotated[float, Field(ge=0, description="Clip start, round clock seconds.")],
+    t1: Annotated[float, Field(ge=0, description="Clip end, round clock seconds.")],
+) -> dict[str, Any]:
+    """Queue a gameplay clip of the coached player's view for a round window (at most 60 s).
+    Returns the clip job id and status. The radar replay is available meanwhile."""
+    if t1 <= t0 or t1 - t0 > 60:
+        raise ToolError("Use 0 <= t0 < t1 with a window of at most 60 s.")
+    match = data.match(match_id)
+    _round(match, round)
+    job = data.repo.analysis.queue_clip(match_id, player_id, round, round_t(t0), round_t(t1))
+    return {**job, "note": "Queued. The CS Demo Manager recorder is not connected yet, so the clip will not render."}
 
 
 def round_t(t: float) -> float:

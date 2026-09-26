@@ -228,8 +228,31 @@ def explain_round(
     if not any(s.round == round_no for s in repo.analysis.round_stats(match_id, player_id)):
         raise HTTPException(status_code=404, detail="Round not found for that player.")
     target = f"r{round_no}"
+    # Plan §3 step 9: queue a clip of the round's main finding (the recorder picks it up later)
+    in_round = repo.analysis.findings(match_id, player_id, round_no=round_no)
+    if in_round:
+        lead = max(in_round, key=lambda f: f.severity)
+        repo.analysis.queue_clip(match_id, player_id, round_no, round(max(0.0, lead.t - 5), 1), round(lead.t + 3, 1))
     stored = None if refresh else repo.analysis.explanation(match_id, player_id, target, lang)
     return stored or run_sync(pipeline_module.coach_jobs(repo).explain(match_id, player_id, target, lang))
+
+
+@router.get("/matches/{match_id}/players/{player_id}/clips")
+def list_clip_jobs(match_id: str, player_id: str) -> list[dict]:
+    """Queued clip jobs (the CS Demo Manager recorder is not connected yet)."""
+    _require_analysis(match_id, player_id)
+    return repo.analysis.clip_jobs(match_id, player_id)
+
+
+@router.get("/knowledge/{passage_id}")
+def get_knowledge(passage_id: str) -> dict:
+    """One knowledge passage, for [K..] citation tokens in the Studio."""
+    from app.rag.index import default_index
+
+    passage = default_index().get(passage_id)
+    if passage is None:
+        raise HTTPException(status_code=404, detail="Passage not found.")
+    return {"id": passage.id, "title": passage.title, "map": passage.map, "source": passage.source, "text": passage.text}
 
 
 def _sse(event: str, data: dict) -> str:

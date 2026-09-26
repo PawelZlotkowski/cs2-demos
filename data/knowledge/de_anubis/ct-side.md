@@ -1,8 +1,8 @@
 ---
 map: de_anubis
-side: ct
+side: CT
 topic: ct-side
-source: own-notes
+source: own notes
 license: CC-BY-4.0
 lang: en
 review: draft

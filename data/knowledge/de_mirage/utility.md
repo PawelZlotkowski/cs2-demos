@@ -1,8 +1,8 @@
 ---
 map: de_mirage
-side: both
+side: any
 topic: utility
-source: own-notes
+source: own notes
 license: CC-BY-4.0
 lang: en
 review: draft

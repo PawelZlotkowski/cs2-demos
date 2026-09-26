@@ -54,19 +54,19 @@ Built 26 Sep 2026 in one draft PR (branch `claude/coach-phase-2-r2gzvt`, on top 
 | ID | Task | Depends | Paths | Done when | Size | Owner | Status |
 |---|---|---|---|---|---|---|---|
 | T30 | Knowledge base content: Mirage + Anubis notes, fundamentals, licensed excerpts with attribution | – | `data/knowledge/` | ≥ 40 sections per map; sources listed | M | | review (58 Mirage, 49 Anubis, 25 fundamentals; draft notes need an in-game check; Liquipedia via `fetch_liquipedia.py`, run locally) |
-| T31 | Ingest + index (FTS5 + sqlite-vec, bge-m3) | T30 | `apps/api/app/rag/` | re-index command; test retrieval | M | | todo |
-| T32 | `search_knowledge` + player-memory retrieval wired into tools | T31 T20 | `rag/`, `coach/tools.py` | `[K..]` citations resolve in verifier | S | | todo |
+| T31 | Ingest + index (FTS5 + sqlite-vec, bge-m3) | T30 | `apps/api/app/rag/` | re-index command; test retrieval | M | | review (FTS5 BM25 plus optional dense vectors from `RR_EMBED_URL`, fused by RRF; vectors stored in SQLite rows, not sqlite-vec yet; `python -m app.rag.index`) |
+| T32 | `search_knowledge` + player-memory retrieval wired into tools | T31 T20 | `rag/`, `coach/tools.py` | `[K..]` citations resolve in verifier | S | | review (player memory is `get_player_history`) |
 
 ## Phase 4 — clips and UI
 
 | ID | Task | Depends | Paths | Done when | Size | Owner | Status |
 |---|---|---|---|---|---|---|---|
-| T40 | CS:DM per-moment recording with focus player; queue priority; `request_clip` tool | T00 T25 | `processing/video_clips.py`, tools | real clip recorded on Windows host; timings noted | M | | todo |
+| T40 | CS:DM per-moment recording with focus player; queue priority; `request_clip` tool | T00 T25 | `processing/video_clips.py`, tools | real clip recorded on Windows host; timings noted | M | | doing (`request_clip` tool and clip queue done; the CS:DM recorder is not connected) |
 | T41 | Player picker UI on processing page | T13 | `apps/web/src/app/processing/` | screenshots at six sizes; keyboard path | S | | review |
 | T42 | Studio moment rail (selected moments primary, all rounds secondary) | T25 | `apps/web/src/app/studio/` | screenshots; seek sync checks pass | M | | review (code ranker moments until T25) |
-| T43 | Panel tabs Analysis + Ask; citation tokens seek the clock | T26 T27 | Studio components | [09](../handoff/09-AI-COACH.md) rules met; overlay sync checks | M | | doing (Analysis tab with findings, round stats and seeking citations done; Ask waits for T26 T27) |
+| T43 | Panel tabs Analysis + Ask; citation tokens seek the clock | T26 T27 | Studio components | [09](../handoff/09-AI-COACH.md) rules met; overlay sync checks | M | | review (coach explanation per moment or round, Ask over SSE with tool steps, `[F]` `[t:]` `[m]` `[K]` tokens seek or open the passage; template answers are labelled) |
 | T44 | Coach lane on timeline with finding markers | T42 | timeline components | colours/shapes per decision 4 | S | | review |
-| T45 | Language setting (en/pl/nl) end to end | T26 T27 | web settings, API param | answers in chosen language; UI copy stays English | S | | todo |
+| T45 | Language setting (en/pl/nl) end to end | T26 T27 | web settings, API param | answers in chosen language; UI copy stays English | S | | review (set on the processing page and in the Analysis tab, stored per browser, sent with selection, explanations and Ask) |
 
 ## Phase 5 — fine-tuning and bigger model
 

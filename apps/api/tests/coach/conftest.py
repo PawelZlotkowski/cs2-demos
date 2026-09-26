@@ -37,4 +37,9 @@ def analysed(tmp_path, monkeypatch):
     repo.set_status(mid, pipe_mod.MatchStatus.awaiting_player)
     pipe_mod.pipeline.select_player(mid, PLAYER, run_async=False)
     tools.use_repository(repo)
-    return mid, PLAYER
+    # Knowledge index over the committed data/knowledge files, in a temp DB
+    from app.rag.index import KnowledgeIndex, use_index
+
+    use_index(KnowledgeIndex(tmp_path / "knowledge.db"))
+    yield mid, PLAYER
+    use_index(None)

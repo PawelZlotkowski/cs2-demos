@@ -1,8 +1,8 @@
 ---
 map: de_anubis
-side: both
+side: any
 topic: rotations
-source: own-notes
+source: own notes
 license: CC-BY-4.0
 lang: en
 review: draft

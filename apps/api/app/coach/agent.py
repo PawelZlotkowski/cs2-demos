@@ -20,7 +20,7 @@ import json
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -171,7 +171,7 @@ class TraceWriter:
         if self.directory is None:
             return None
         self.directory.mkdir(parents=True, exist_ok=True)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         path = self.directory / f"{now:%Y-%m-%d}.jsonl"
         line = json.dumps({"ts": now.isoformat(), **record}, ensure_ascii=False, default=str)
         with path.open("a", encoding="utf-8") as fh:

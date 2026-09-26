@@ -209,3 +209,31 @@ def test_pipeline_without_model_hides_coach_stages(analysed):
     mid, _ = analysed
     ids_ = [s.id for s in pipe_mod.pipeline.status_response(mid).stages]
     assert MatchStatus.selecting not in ids_ and ids_[-1] == MatchStatus.detecting
+
+
+def test_explanation_can_cite_knowledge_it_looked_up(analysed, tmp_path):
+    mid, pid = analysed
+    from app.rag.index import default_index
+
+    passage = default_index().search("moving while shooting", k=1)[0]
+    i = ids(mid, pid)
+    text = (
+        f"You fired 1 of 1 shots while moving at 206 u/s in Mid [{i['shot_while_moving']}]. "
+        f"Stop before you shoot, because running shots spread widely [{passage.id}]."
+    )
+    jobs, _ = jobs_with(
+        [ChatResult(content="", tool_calls=[call("search_knowledge", {"query": "moving while shooting", "k": 1})]), text],
+        tmp_path,
+    )
+    expl = asyncio.run(jobs.explain(mid, pid, "m1", "en"))
+    assert expl.source == "agent", expl.verifier_errors
+    assert passage.id in expl.citations
+
+
+def test_citing_knowledge_that_was_not_looked_up_fails(analysed, tmp_path):
+    mid, pid = analysed
+    i = ids(mid, pid)
+    text = f"You fired while moving in Mid [{i['shot_while_moving']}]. Stop first [K3]."
+    jobs, _ = jobs_with([text, text], tmp_path)
+    expl = asyncio.run(jobs.explain(mid, pid, "m1", "en"))
+    assert expl.source == "template" and any("K3" in e for e in expl.verifier_errors)

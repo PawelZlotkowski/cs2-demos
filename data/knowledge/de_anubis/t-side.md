@@ -1,8 +1,8 @@
 ---
 map: de_anubis
-side: t
+side: T
 topic: t-side
-source: own-notes
+source: own notes
 license: CC-BY-4.0
 lang: en
 review: draft

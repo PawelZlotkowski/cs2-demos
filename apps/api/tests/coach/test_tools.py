@@ -27,6 +27,8 @@ def test_registry_has_the_plan_tools():
         "get_player_state",
         "get_player_history",
         "select_moments",
+        "search_knowledge",
+        "request_clip",
     }
     for fn in TOOLS.values():
         assert len((fn.__doc__ or "").strip()) > 40, "docstrings are what the model reads"
@@ -132,3 +134,23 @@ def test_match_overview(analysed):
     out = tools.match_overview(mid)
     assert out["selectedPlayerId"] == pid and len(out["players"]) == 10
     json.dumps(out)
+
+
+def test_search_knowledge(analysed):
+    out = call("search_knowledge", query="died alone and nobody traded", k=2)
+    ids = [p["id"] for p in out["passages"]]
+    assert len(ids) == 2 and all(i.startswith("K") for i in ids)
+    assert out["passages"][0]["title"] == "Trading a teammate"
+    mirage = call("search_knowledge", query="B apartments molotov", map="de_mirage")
+    assert mirage["passages"][0]["map"] == "de_mirage"
+    assert all(p["map"] in ("all", "de_mirage") for p in mirage["passages"])
+
+
+def test_request_clip_queues_once(analysed):
+    mid, pid = analysed
+    first = call("request_clip", match_id=mid, player_id=pid, round=1, t0=10.0, t1=18.0)
+    again = call("request_clip", match_id=mid, player_id=pid, round=1, t0=10.0, t1=18.0)
+    assert first["status"] == "queued" and first["clipJobId"] == again["clipJobId"]
+    assert "not connected" in first["note"]
+    assert "at most 60" in call("request_clip", match_id=mid, player_id=pid, round=1, t0=0, t1=90)["error"]
+    assert "No round 9" in call("request_clip", match_id=mid, player_id=pid, round=9, t0=0, t1=5)["error"]

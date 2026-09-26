@@ -7,6 +7,8 @@ import { api } from "@/lib/api/client";
 import type { Match, ReplayEvent, StatusResponse } from "@/lib/contracts";
 import { PlayerPicker, type PickerPlayer } from "@/components/processing/PlayerPicker";
 import { makeRosterLookup } from "@/lib/replay/roster";
+import { COACH_LANGUAGES, useCoachLanguage } from "@/lib/coach/language";
+import type { CoachLanguage } from "@/lib/contracts";
 
 const TERMINAL = new Set(["complete", "failed"]);
 
@@ -101,12 +103,14 @@ export default function ProcessingPage() {
     })();
   }, [awaiting, id]);
 
+  const [coachLang, setCoachLang] = useCoachLanguage();
+
   const choose = useCallback(
     async (playerId: string) => {
       setPicking(playerId);
       setError(null);
       try {
-        const s = await api.selectPlayer(id, playerId);
+        const s = await api.selectPlayer(id, playerId, coachLang);
         setStatus(s);
         setPollKey((k) => k + 1);
       } catch (e) {
@@ -114,7 +118,7 @@ export default function ProcessingPage() {
         setError(e instanceof Error ? e.message : "Could not start the analysis.");
       }
     },
-    [id],
+    [id, coachLang],
   );
 
   const done = status ? TERMINAL.has(status.status) : Boolean(error);
@@ -146,7 +150,19 @@ export default function ProcessingPage() {
           ) : (
             <p className="meta">Loading players…</p>
           )}
-          <p className="meta" style={{ marginTop: 16 }}>
+          <p className="meta lang-row" style={{ marginTop: 16 }}>
+            <label>
+              Coach language{" "}
+              <select value={coachLang} onChange={(e) => setCoachLang(e.target.value as CoachLanguage)}>
+                {COACH_LANGUAGES.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </p>
+          <p className="meta" style={{ marginTop: 8 }}>
             <Link className="link" href={`/studio/${id}`}>
               Watch the replay without analysis
             </Link>

@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     mcp_command: str | None = None
     coach_max_steps: int = 6
     traces_dir: Path | None = None
+    # Knowledge base (plan §7): markdown folder, optional local embedding server
+    knowledge_dir: Path | None = None
+    embed_url: str | None = None
+    embed_model: str = "bge-m3"
 
     def resolved_upload_dir(self) -> Path:
         path = self.upload_dir or (self.data_dir / "uploads")

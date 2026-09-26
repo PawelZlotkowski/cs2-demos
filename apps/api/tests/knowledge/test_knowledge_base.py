@@ -52,8 +52,8 @@ def test_files_exist() -> None:
 def test_frontmatter_and_sections(path: Path) -> None:
     meta, sections = _parse(path)
     assert REQUIRED_KEYS <= meta.keys(), f"missing keys: {REQUIRED_KEYS - meta.keys()}"
-    assert meta["map"] in {"de_mirage", "de_anubis", "any"}
-    assert meta["side"] in {"t", "ct", "both"}
+    assert meta["map"] in {"de_mirage", "de_anubis", "all"}
+    assert meta["side"] in {"T", "CT", "any"}
     assert meta["lang"] in {"en", "pl", "nl"}
     assert sections, "no ## sections"
     titles = [t for t, _ in sections]

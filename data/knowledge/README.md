@@ -1,6 +1,6 @@
 # Coach knowledge base (T30)
 
-Markdown the RAG index (`apps/api/app/rag/`, T31) reads for the `search_knowledge` tool (T32). Plan: [AI-COACH-PLAN §7](../../docs/coach/AI-COACH-PLAN.md).
+Markdown the coach searches with the `search_knowledge` tool (plan §7, T30–T32). It is indexed by `python -m app.rag.index` from `apps/api` (`app/rag/ingest.py`), and the index also rebuilds itself when these files change.
 
 ## Layout
 
@@ -9,21 +9,42 @@ data/knowledge/
   de_mirage/     callouts, t-side, ct-side, utility, rotations
   de_anubis/     same topics
   general/       fundamentals (one section per detector topic)
-  liquipedia/    fetched pages, CC BY-SA (not committed until reviewed, see below)
+  liquipedia/    fetched pages, CC BY-SA 3.0 (commit only after review, see below)
   SOURCES.md     every source with licence and attribution
 ```
 
 ## Format
 
-- One file per topic. YAML frontmatter with `map` (`de_mirage`, `de_anubis` or `any`), `side` (`t`, `ct`, `both`), `topic`, `source`, `license`, `lang`, `review` (`draft` until a player has checked it).
-- One retrieval chunk per `##` section. Keep a section to one idea and under about 150 words.
-- The first line of a section says which zones (`Zones: …`, names exactly as in `apps/api/app/maps/zones/*.json`) or detectors (`Detectors: …`, the `Finding.detector` values) it is about. The ingest can use these as filters; they also help BM25.
-- Notes are written in English. The embedding model (bge-m3) is multilingual, so Polish and Dutch questions still match; the coach answers in the user's language.
+Each file starts with flat front matter (not full YAML: `key: value` lines, no quotes or lists, `#` starts a comment), then one passage per `##` heading:
+
+```markdown
+---
+map: de_mirage        # de_mirage | de_anubis | all
+side: any             # T | CT | any
+topic: callouts
+source: own notes     # or Liquipedia: <page URL>
+license: CC-BY-4.0
+lang: en
+review: draft         # draft until a player has checked it in-game
+---
+
+## Palace
+
+Zones: Palace.
+Three to six sentences about one idea...
+```
+
+- The ingest reads `map`, `side`, `topic` and `source`; the other keys are for people and the content test.
+- Text before the first `##` is not indexed. `###` stays inside its passage. Keep a passage to one idea and under about 150 words.
+- The first line of a passage names its zones (`Zones: …`, exactly as in `apps/api/app/maps/zones/*.json`) or detectors (`Detectors: …`, the `Finding.detector` values). This helps BM25 match a finding to the right notes.
+- Write in English. The coach answers in en, pl or nl; bge-m3 embeddings are multilingual.
+- Passage ids (`K1`, `K2`, …) follow the sorted file path and heading order, so adding a file renumbers them. Citations are resolved per run.
+- The coach may quote a number only from a passage it cited, so check every number you write.
 - No exact grenade lineups: they change with patches and belong in-game.
 
 ## Counts
 
-`pytest apps/api/tests/knowledge` checks the frontmatter, the zone and detector names and the minimum of 40 sections per map.
+`pytest tests/knowledge` (in `apps/api`) checks the front matter, the zone and detector names and the minimum of 40 sections per map.
 
 | Map | Sections |
 |---|---|
@@ -37,10 +58,10 @@ Everything here is a first draft written from general CS2 knowledge, not checked
 
 ## Liquipedia
 
-Liquipedia text is CC BY-SA 3.0. `fetch_liquipedia.py` downloads the map pages into `liquipedia/` with attribution frontmatter, split by heading. The cloud sessions could not reach liquipedia.net, so run it locally:
+Liquipedia text is CC BY-SA 3.0. `fetch_liquipedia.py` downloads the map pages into `liquipedia/` with attribution front matter, split by heading. The cloud sessions cannot reach liquipedia.net, so run it locally:
 
 ```bash
 python data/knowledge/fetch_liquipedia.py Mirage Anubis   # --force to refresh
 ```
 
-It follows the Liquipedia API terms: a User-Agent with the repo URL (set `LIQUIPEDIA_CONTACT` to add an email), gzip, one parse request per 30 seconds, and no re-download of pages already in `liquipedia/`. Read the output before committing: keep only sections that help coaching and leave the attribution frontmatter in place. Because of share-alike, a derived dataset that includes these sections (for example fine-tuning data, T50) must carry the same licence.
+It follows the Liquipedia API terms: a User-Agent with the repo URL (set `LIQUIPEDIA_CONTACT` to add an email), gzip, one parse request per 30 seconds, and no re-download of pages already in `liquipedia/`. Read the output before committing: keep only sections that help coaching and leave the attribution in place. Because of share-alike, a derived dataset that includes these sections (for example fine-tuning data, T50) must carry the same licence.

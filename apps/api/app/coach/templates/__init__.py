@@ -8,7 +8,7 @@ Callout names stay English in every language (players use them that way).
 from __future__ import annotations
 
 import json
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +16,7 @@ LANGUAGES = ("en", "pl", "nl")
 TEMPLATES_DIR = Path(__file__).resolve().parent
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_templates(lang: str) -> dict[str, str]:
     if lang not in LANGUAGES:
         raise ValueError(f"Unsupported language: {lang}")
