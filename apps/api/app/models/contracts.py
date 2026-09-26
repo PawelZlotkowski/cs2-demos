@@ -474,8 +474,46 @@ class SelectedMoment(CamelModel):
     source: Literal["ranker", "agent"] = "ranker"
 
 
+CoachLanguage = Literal["en", "pl", "nl"]
+
+
 class PlayerSelectRequest(CamelModel):
     player_id: str = Field(alias="playerId")
+    # Language of the stored explanations (plan §6.4); the UI copy stays English
+    language: CoachLanguage = "en"
+
+
+class MomentExplanation(CamelModel):
+    """Analysis-tab text for one moment ("m3") or an on-demand round ("r12").
+
+    ``source`` is ``agent`` when the model's text passed the verifier, and
+    ``template`` when it fell back to the finding templates (plan §6.3).
+    """
+
+    target: str
+    lang: CoachLanguage
+    text: str
+    citations: list[str] = Field(default_factory=list)
+    finding_ids: list[str] = Field(default_factory=list, alias="findingIds")
+    source: Literal["agent", "template"]
+    verifier_errors: list[str] = Field(default_factory=list, alias="verifierErrors")
+    model: str | None = None
+    prompt_version: str | None = Field(None, alias="promptVersion")
+
+
+class ExplainRequest(CamelModel):
+    language: CoachLanguage = "en"
+
+
+class AskRequest(CamelModel):
+    """Ask tab question with the Studio's context line (plan §6.2 job 3)."""
+
+    question: str = Field(min_length=1, max_length=500)
+    language: CoachLanguage = "en"
+    round: int | None = None
+    t: float | None = None
+    moment_id: str | None = Field(None, alias="momentId")
+    view: StageView | None = None
 
 
 class PlayerAnalysis(CamelModel):

@@ -1,16 +1,24 @@
+import asyncio
+import json
+
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 
 from app.core.config import settings
 from app.core.validation import UPLOAD_REJECT_MESSAGE, is_allowed_demo_filename
 from app.models.contracts import (
     REPLAY_READY_STATUSES,
+    AskRequest,
+    CoachLanguage,
     CoachRequest,
     CoachResponse,
     EventsPage,
+    ExplainRequest,
     Finding,
     Match,
     MatchStatus,
     Moment,
+    MomentExplanation,
     PatternsResponse,
     PlayerSelectRequest,
     ReplayEvent,
@@ -21,6 +29,7 @@ from app.models.contracts import (
     StatusResponse,
     UploadResponse,
 )
+from app.processing import pipeline as pipeline_module
 from app.processing.pipeline import PlayerSelectionError, pipeline
 from app.repositories.matches import repo
 from app.services.coach import coach_service
@@ -145,7 +154,7 @@ def list_events(
 def select_player(match_id: str, body: PlayerSelectRequest) -> StatusResponse:
     """Choose the player to coach; runs the detectors for them."""
     try:
-        pipeline.select_player(match_id, body.player_id)
+        pipeline.select_player(match_id, body.player_id, language=body.language)
     except PlayerSelectionError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
     return pipeline.status_response(match_id)
@@ -180,6 +189,98 @@ def list_round_stats(match_id: str, player_id: str) -> list[RoundStats]:
 def list_player_moments(match_id: str, player_id: str) -> list[SelectedMoment]:
     _require_analysis(match_id, player_id)
     return repo.analysis.moments(match_id, player_id)
+
+
+# --- Coach agent (AI Coach plan §6.2, tasks T25–T27) ---
+
+
+@router.get(
+    "/matches/{match_id}/players/{player_id}/moments/{moment_id}/explanation",
+    response_model=MomentExplanation,
+)
+def get_moment_explanation(
+    match_id: str, player_id: str, moment_id: str, lang: CoachLanguage = "en"
+) -> MomentExplanation:
+    """Analysis-tab text for a moment: stored, or written now (model or templates)."""
+    from app.coach.jobs import run_sync
+
+    _require_analysis(match_id, player_id)
+    stored = repo.analysis.explanation(match_id, player_id, moment_id, lang)
+    if stored:
+        return stored
+    if not any(m.id == moment_id for m in repo.analysis.moments(match_id, player_id)):
+        raise HTTPException(status_code=404, detail="Moment not found.")
+    return run_sync(pipeline_module.coach_jobs(repo).explain(match_id, player_id, moment_id, lang))
+
+
+@router.post(
+    "/matches/{match_id}/players/{player_id}/rounds/{round_no}/explain",
+    response_model=MomentExplanation,
+)
+def explain_round(
+    match_id: str, player_id: str, round_no: int, body: ExplainRequest | None = None, refresh: bool = False
+) -> MomentExplanation:
+    """On-demand analysis of any round (plan §3 step 9). Cached per language."""
+    from app.coach.jobs import run_sync
+
+    _require_analysis(match_id, player_id)
+    lang = (body or ExplainRequest()).language
+    if not any(s.round == round_no for s in repo.analysis.round_stats(match_id, player_id)):
+        raise HTTPException(status_code=404, detail="Round not found for that player.")
+    target = f"r{round_no}"
+    stored = None if refresh else repo.analysis.explanation(match_id, player_id, target, lang)
+    return stored or run_sync(pipeline_module.coach_jobs(repo).explain(match_id, player_id, target, lang))
+
+
+def _sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+@router.post("/matches/{match_id}/players/{player_id}/ask")
+async def ask_coach(match_id: str, player_id: str, body: AskRequest) -> StreamingResponse:
+    """Ask tab over server-sent events.
+
+    ``step`` events report each tool call while the coach looks things up;
+    one ``answer`` event carries the verified answer (or the template
+    fallback, ``source: "template"``). Unverified text is never streamed.
+    """
+    _require_analysis(match_id, player_id)
+    queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+    async def on_step(step: dict) -> None:
+        await queue.put(_sse("step", {"tool": step["tool"], "ms": step["ms"], "error": step["error"]}))
+
+    async def work() -> None:
+        try:
+            outcome = await pipeline_module.coach_jobs(repo).ask(match_id, player_id, body, on_step=on_step)
+            await queue.put(
+                _sse(
+                    "answer",
+                    {
+                        "answer": outcome.answer,
+                        "citations": outcome.citations,
+                        "source": outcome.source,
+                        "verified": outcome.source == "agent",
+                    },
+                )
+            )
+        except Exception:  # pragma: no cover - logged, reported to the client
+            import logging
+
+            logging.getLogger(__name__).exception("Ask failed for %s / %s", match_id, player_id)
+            await queue.put(_sse("error", {"detail": "The coach could not answer. Check the server log."}))
+        finally:
+            await queue.put(None)
+
+    async def events():
+        task = asyncio.create_task(work())
+        try:
+            while (item := await queue.get()) is not None:
+                yield item
+        finally:
+            await task
+
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
 
 # --- Legacy coaching stubs (unused by replay MVP) ---
