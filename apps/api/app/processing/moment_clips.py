@@ -45,7 +45,7 @@ def moment_clip_url(match_id: str, player_id: str, clip_job_id: str) -> str:
 
 
 def moment_window(moment: SelectedMoment, duration: float | None) -> tuple[float, float]:
-    """The moment plus a little lead-in and follow-through, inside the round, at most 60 s."""
+    """The window the coach picked (plus optional padding), inside the round, at most 60 s."""
     t0 = max(0.0, moment.t0 - settings.csdm_moment_pad_before)
     t1 = moment.t1 + settings.csdm_moment_pad_after
     if duration:
@@ -117,6 +117,18 @@ class MomentClipRecorder:
                 return
             _running.add(key)
         _video_executor.submit(self._run_safe, match_id, player_id)
+
+    def record_now(self, match_id: str, player_id: str) -> None:
+        """Record the player's queued jobs and wait (the pipeline's ``recording`` stage).
+
+        Runs on the shared CS:DM worker so it never overlaps other recordings.
+        """
+        if not settings.csdm_enabled:
+            return
+        key = (match_id, player_id)
+        with _lock:
+            _running.add(key)
+        _video_executor.submit(self._run_safe, match_id, player_id).result()
 
     def _run_safe(self, match_id: str, player_id: str) -> None:
         try:

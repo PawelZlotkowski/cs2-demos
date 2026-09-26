@@ -53,9 +53,9 @@ class Settings(BaseSettings):
     csdm_timeout_seconds: float = 600.0
     # Whole-round clips right after parsing (off: the coach records its moments instead)
     csdm_round_clips: bool = False
-    # Seconds of lead-in and follow-through around each coach moment
-    csdm_moment_pad_before: float = 3.0
-    csdm_moment_pad_after: float = 2.0
+    # Extra seconds around each coach moment (0: the clip is exactly the picked window)
+    csdm_moment_pad_before: float = 0.0
+    csdm_moment_pad_after: float = 0.0
 
     def resolved_upload_dir(self) -> Path:
         path = self.upload_dir or (self.data_dir / "uploads")

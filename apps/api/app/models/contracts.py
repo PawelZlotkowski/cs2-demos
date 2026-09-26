@@ -30,9 +30,9 @@ class CamelModel(BaseModel):
 class MatchStatus(str, Enum):
     """Replay stages, then the coach stages (AI Coach plan §3).
 
-    Radar is usable from ``awaiting_player`` on. ``selecting``, ``recording`` and
-    ``explaining`` are reserved for phase 2 and 4; today ``detecting`` goes
-    straight to ``complete`` with the code ranker's moments.
+    Radar is usable from ``awaiting_player`` on. After ``detecting`` come
+    ``selecting`` (coach model on), ``recording`` (gameplay recording on: the POV
+    clip of each moment) and ``explaining`` (coach model on), then ``complete``.
     """
 
     uploaded = "uploaded"

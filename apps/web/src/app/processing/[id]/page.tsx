@@ -125,7 +125,8 @@ export default function ProcessingPage() {
   const done = status ? TERMINAL.has(status.status) : Boolean(error);
   const failed = status?.status === "failed";
 
-  const clips = status?.clips;
+  // Whole-round clips; hidden when that recorder is off (the coach records its moments instead)
+  const clips = status?.clips?.clips.some((c) => c.status !== "skipped") ? status.clips : null;
   const clipDetail =
     clips && clips.total > 0
       ? clips.done < clips.total

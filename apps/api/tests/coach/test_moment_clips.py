@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import Future
 from pathlib import Path
 
 import pytest
@@ -41,11 +42,16 @@ def recording(analysed, tmp_path, monkeypatch):
     monkeypatch.setattr(moment_clips, "csdm_analyze", lambda dem: calls.append(("analyze",)))
     monkeypatch.setattr(moment_clips, "csdm_record", fake_record)
     # Run the background worker inline
-    monkeypatch.setattr(moment_clips._video_executor, "submit", lambda fn, *a: fn(*a))
+    def inline(fn, *a):
+        done: Future = Future()
+        done.set_result(fn(*a))
+        return done
+
+    monkeypatch.setattr(moment_clips._video_executor, "submit", inline)
     return calls
 
 
-def test_every_moment_gets_a_padded_window(analysed):
+def test_every_moment_gets_exactly_its_window(analysed):
     mid, pid = analysed
     moments = repo.analysis.moments(mid, pid)
     assert moments
@@ -55,7 +61,8 @@ def test_every_moment_gets_a_padded_window(analysed):
     for m in moments:
         c = by_moment[m.id]
         assert c["round"] == m.round
-        assert c["t0"] <= m.t0 and c["t1"] >= min(m.t1, c["t1"]) and c["t1"] - c["t0"] <= 60
+        # The clip is the part the coach picked, so selecting the moment starts the clip
+        assert (c["t0"], c["t1"]) == (round(m.t0, 1), round(m.t1, 1))
     # Recording is off by default: queued jobs read as skipped with a reason, never as ready
     assert all(c["status"] == "skipped" and "RR_CSDM_ENABLED" in c["error"] for c in clips)
 
@@ -67,12 +74,15 @@ def test_queueing_again_does_not_duplicate(analysed):
     assert len(client.get(f"{base(mid, pid)}/clips").json()) == n
 
 
-def test_window_is_clamped_to_the_round_and_sixty_seconds():
+def test_window_is_clamped_to_the_round_and_sixty_seconds(monkeypatch):
     from app.models.contracts import SelectedMoment
 
+    monkeypatch.setattr(settings, "csdm_moment_pad_before", 3.0)
     m = SelectedMoment(id="m1", round=1, t0=1.0, t1=90.0, findingIds=[], kind="good", pickedBecause="x")
     assert moment_window(m, 100.0) == (0.0, 60.0)
     assert moment_window(m, 50.0) == (0.0, 50.0)
+    short = SelectedMoment(id="m2", round=1, t0=10.0, t1=18.0, findingIds=[], kind="good", pickedBecause="x")
+    assert moment_window(short, 100.0) == (7.0, 18.0)
 
 
 def test_recorder_records_from_the_players_view_and_serves_the_file(recording, analysed):
@@ -123,10 +133,26 @@ def test_missing_demo_fails_honestly(recording, analysed, tmp_path):
     assert all(c["status"] == "failed" and "missing" in c["error"] for c in clips)
 
 
-def test_selecting_a_player_with_recording_on_records_the_moments(recording, analysed):
+def test_clips_are_recorded_before_the_analysis_opens(recording, analysed, monkeypatch):
     mid, pid = analysed
     from app.processing import pipeline as pipe_mod
 
+    seen: list[tuple[str, list[str]]] = []
+    real_set_status = repo.set_status
+
+    def spy(match_id, status, **kw):
+        # What the clips looked like when each stage started
+        states = [c.status.value for c in moment_clips.list_moment_clips(match_id, pid) if c.moment_id]
+        seen.append((status.value, states))
+        return real_set_status(match_id, status, **kw)
+
+    monkeypatch.setattr(repo, "set_status", spy)
     pipe_mod.pipeline.select_player(mid, pid, run_async=False)
-    clips = client.get(f"{base(mid, pid)}/clips").json()
-    assert clips and all(c["status"] == "ready" for c in clips if c["momentId"])
+    order = [s for s, _ in seen]
+    assert order.index("recording") < order.index("complete")
+    at_complete = dict(seen)["complete"]
+    assert at_complete and all(s == "ready" for s in at_complete)
+
+    status = client.get(f"/matches/{mid}/status").json()
+    stage = next(s for s in status["stages"] if s["id"] == "recording")
+    assert stage["state"] == "done" and stage["detail"].startswith(f"{len(at_complete)} of {len(at_complete)} clips")
