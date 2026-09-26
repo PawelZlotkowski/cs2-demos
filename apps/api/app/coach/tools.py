@@ -321,14 +321,14 @@ def get_player_state(
 def get_player_history(
     player_id: PlayerId,
     detector: Annotated[str | None, Field(description="Only this detector.")] = None,
-    exclude_match_id: Annotated[str | None, Field(description="Leave this match out (usually the current one).")] = None,
+    match_id: Annotated[str | None, Field(description="The current match, which is left out.")] = None,
 ) -> dict[str, Any]:
     """How often each detector fired for this player in their earlier analysed matches:
     findings per 10 rounds overall and per match, oldest match first. Use it to say whether
-    a mistake is a habit. Returns matches=0 when there is no history yet."""
+    a mistake is a habit. The current match is left out. Returns matches=0 when there is no history yet."""
     if detector is not None and detector not in DETECTORS:
         raise ToolError(f"Unknown detector {detector!r}. Known: {', '.join(DETECTORS)}.")
-    history = data.repo.analysis.player_history(player_id, exclude_match_id=exclude_match_id)
+    history = data.repo.analysis.player_history(player_id, exclude_match_id=match_id)
     total_rounds = sum(h["rounds"] for h in history)
     detectors = [detector] if detector else sorted({d for h in history for d in h["counts"]})
     rates = {}

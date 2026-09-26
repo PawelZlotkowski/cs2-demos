@@ -428,6 +428,8 @@ class CoachJobs:
                     runs.append(run)
                     # Passages the model looked up may be cited as [K..]
                     ctx.knowledge.update(knowledge_in(run.messages))
+                    # Counts from the player's earlier matches may be quoted (owner decision, 26 Sep)
+                    ctx.history_numbers.update(history_numbers_in(run.messages))
                     check = verify_text(
                         run.text, ctx, lang, require_citation=require_citation, max_sentences=max_sentences
                     )
@@ -488,6 +490,33 @@ def knowledge_in(messages: list[dict[str, Any]]) -> dict[str, str]:
         for p in body.get("passages") or []:
             if isinstance(p, dict) and isinstance(p.get("id"), str):
                 found[p["id"]] = str(p.get("text") or "")
+    return found
+
+
+def history_numbers_in(messages: list[dict[str, Any]]) -> set[float]:
+    """Numbers in ``get_player_history`` results returned in a run."""
+    found: set[float] = set()
+
+    def walk(v: Any) -> None:
+        if isinstance(v, bool):
+            return
+        if isinstance(v, int | float):
+            found.add(float(v))
+        elif isinstance(v, dict):
+            for x in v.values():
+                walk(x)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x)
+
+    for m in messages:
+        content = m.get("content") or ""
+        if m.get("role") != "tool" or '"per10Rounds"' not in content:
+            continue
+        try:
+            walk(json.loads(content))
+        except json.JSONDecodeError:
+            continue
     return found
 
 

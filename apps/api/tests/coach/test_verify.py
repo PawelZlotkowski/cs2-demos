@@ -213,3 +213,13 @@ def test_picks_too_close_in_one_round():
 def test_scarce_findings_lower_the_bar():
     few = FINDINGS[:1] + [FINDINGS[3]]
     assert verify_moments([pick("F1"), pick("F4", "good")], few).ok
+
+
+def test_history_numbers_pass_without_a_finding_citation():
+    ctx = VerifyContext.build([finding("F1")])
+    text = "You threw no utility before dying in 4 of your last 3 matches."
+    # Ask answers need no finding citation; the history counts are the only facts here
+    assert not verify_text(text, ctx, "en", require_citation=False).ok
+    ctx.history_numbers.update({4.0, 3.0})
+    check = verify_text(text, ctx, "en", require_citation=False)
+    assert check.ok, check.errors
