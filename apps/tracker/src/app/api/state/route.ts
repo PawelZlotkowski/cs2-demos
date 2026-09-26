@@ -1,18 +1,23 @@
 import { NextResponse } from "next/server";
-import { clearEdit, readEdits, sharedStorage, writeEdit } from "@/lib/store";
+import { clearEdit, readEdits, sharedStorage, storageEnvSeen, writeEdit } from "@/lib/store";
 import { isStatus, taskIds, type TaskEdit } from "@/lib/tasks";
 
 export const dynamic = "force-dynamic";
 
-const passcode = process.env.TRACKER_PASSCODE || "";
+const passcode = () => process.env.TRACKER_PASSCODE || "";
 
 export async function GET() {
-  if (!sharedStorage) {
-    return NextResponse.json({ mode: "local", edits: {}, passcodeRequired: false });
+  if (!sharedStorage()) {
+    return NextResponse.json({
+      mode: "local",
+      edits: {},
+      passcodeRequired: false,
+      envSeen: storageEnvSeen(),
+    });
   }
   try {
     const edits = await readEdits();
-    return NextResponse.json({ mode: "shared", edits, passcodeRequired: Boolean(passcode) });
+    return NextResponse.json({ mode: "shared", edits, passcodeRequired: Boolean(passcode()) });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 502 });
   }
@@ -22,10 +27,10 @@ const clip = (value: unknown, max: number) =>
   typeof value === "string" ? value.trim().slice(0, max) : undefined;
 
 export async function POST(request: Request) {
-  if (!sharedStorage) {
+  if (!sharedStorage()) {
     return NextResponse.json({ error: "Shared storage is not configured" }, { status: 409 });
   }
-  if (passcode && request.headers.get("x-tracker-passcode") !== passcode) {
+  if (passcode() && request.headers.get("x-tracker-passcode") !== passcode()) {
     return NextResponse.json({ error: "Wrong passcode" }, { status: 401 });
   }
 
