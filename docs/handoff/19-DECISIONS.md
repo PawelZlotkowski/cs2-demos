@@ -43,3 +43,15 @@ Don't reverse any of these without the owner's approval. Each lists the decision
     - *Consequence:* secondary UI collapses first. Tablet uses a drawer and mobile uses a bottom sheet with the key finding visible when collapsed.
 15. **Honest processing.**
     - *Consequence:* real stages, and only counts that exist. No fake percentages.
+16. **Self-hosted models only.** (Owner, 26 Sep 2026)
+    - *Reason:* the owner wants the whole system to run on hardware they control; no paid or third-party model APIs.
+    - *Consequence:* Qwen3-14B Q4_K_M on llama.cpp (RTX 5080), a larger open model on an RTX Pro 6000 later. No hosted LLM for the app, training-data generation or evaluation judging. Human ratings are the primary quality signal.
+17. **One coached player per match, chosen after parsing.** (Owner, 26 Sep 2026)
+    - *Consequence:* a player picker between parsing and analysis; findings, moments and answers are per player (SteamID64).
+18. **The LLM selects the moments from code statistics; clips are recorded afterwards.** (Owner, 26 Sep 2026)
+    - *Reason:* recording is slow, so only chosen moments get clips.
+    - *Consequence:* refines decision 3: the ranker is an LLM agent over findings and round stats with a verifier and a code-ranker fallback; picks mix good plays and mistakes. CS Demo Manager records one clip per moment from the chosen player's view. Any other round can be analysed on demand. The all-rounds Studio layout is temporary.
+19. **Coach in three languages.** (Owner, 26 Sep 2026)
+    - *Consequence:* answers in English, Polish or Dutch per user setting; callouts stay English; UI copy stays English.
+20. **Ask sits next to Analysis.** (Owner, 26 Sep 2026)
+    - *Consequence:* the Studio panel has two tabs, Analysis and Ask; the Coach still follows decision 5.

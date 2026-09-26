@@ -53,6 +53,10 @@ These are used as references; don't vendor them.
 
 The adopted rules are summarised in [12](./12-SKILLS-AND-REFERENCES.md).
 
+## Current milestone
+
+AI Coach (26 Sep 2026): see [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN.md) and the task board [docs/coach/TASKS.md](../coach/TASKS.md). The list below is the older prototype backlog.
+
 ## Work on first
 
 1. With the owner, settle the design-direction contradiction ([18](./18-CURRENT-STATE.md#contradictions)): Analysis Studio versus the older `DESIGN.md`.

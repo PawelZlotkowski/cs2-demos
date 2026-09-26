@@ -54,3 +54,9 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# AI Coach (models, traces, raw eval outputs)
+*.gguf
+*.safetensors
+data/traces/
+ml/finetune/outputs/

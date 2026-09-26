@@ -2,7 +2,7 @@
 
 British spelling. Handoff docs in `docs/handoff/` are the source of truth for product/design.
 **Demo Replay MVP:** landed — real `.dem.zst` → demoparser2 → Radar playback. See [docs/replay-architecture.md](docs/replay-architecture.md), [docs/demo-parser.md](docs/demo-parser.md), and [docs/handoff/18-CURRENT-STATE.md](docs/handoff/18-CURRENT-STATE.md).
-**Next milestone (not started):** analysis detectors → findings → moments on the replay clock. Do not implement coaching/LLM until that milestone is kicked off.
+**Current milestone (kicked off 26 Sep 2026): AI Coach.** Detectors → findings → LLM moment selection → CS:DM clips → Analysis/Ask with a self-hosted Qwen3-14B agent (tools via MCP, RAG, verifier, later QLoRA fine-tuning). Plan: [docs/coach/AI-COACH-PLAN.md](docs/coach/AI-COACH-PLAN.md) · tasks: [docs/coach/TASKS.md](docs/coach/TASKS.md) · proposal: [docs/coach/PROPOSAL.md](docs/coach/PROPOSAL.md). Work only on tasks the owner assigned.
 
 ## Monorepo layout
 
@@ -14,6 +14,14 @@ British spelling. Handoff docs in `docs/handoff/` are the source of truth for pr
 | `docs/handoff/` | All agents (read-first) | Product, design, contracts, decisions |
 | `docs/demo-parser.md` | Demo Replay | Parser research |
 | `docs/replay-architecture.md` | Demo Replay | Time model, sampling, API, persistence |
+| `docs/coach/` | AI Coach (read-first for this milestone) | Plan, task board, school proposal |
+| `apps/api/app/analysis/` | AI Coach (planned) | Extended parse helpers, detectors, zones, round stats |
+| `apps/api/app/coach/` | AI Coach (planned) | LLM client, agent loop, tools, verifier, prompts |
+| `apps/api/app/rag/` | AI Coach (planned) | Knowledge ingest, hybrid index, retrieval |
+| `apps/mcp/` | AI Coach (planned) | `cs2-demo` MCP server wrapping `coach/tools.py` |
+| `ml/` | AI Coach (planned) | llama.cpp serving notes, fine-tuning (QLoRA) |
+| `eval/` | AI Coach (planned) | Evaluation datasets, runner, reports |
+| `data/knowledge/`, `data/labels/` | AI Coach (planned) | RAG sources and hand labels (never raw demos) |
 | `prototype/` | Reference only | Analysis Studio HTML — do not port wholesale |
 | `tools/qa/` | Agent E (QA) | Playwright / overlay sync / smoke |
 | `tests/` | Agent E | Cross-cutting / e2e placeholders |
@@ -23,13 +31,15 @@ British spelling. Handoff docs in `docs/handoff/` are the source of truth for pr
 
 **Replay (this milestone):** Pydantic models in `apps/api/app/models/contracts.py` (`RoundReplay`, `RoundSummary`, …) mirrored in `apps/web/src/lib/contracts/`.
 
-**Coaching stubs:** moments/coach remain for later milestones; main path must not depend on fabricated match positions.
+**Coach (this milestone):** `Finding`, `RoundStats`, moment selection and coach answers are defined in the plan (§4.4, §6). The mocked `services/coach.py` stays for tests only once the agent is live; the main path must not depend on fabricated match positions.
 
 **Sync:** edit Pydantic first → update TypeScript → optional OpenAPI diff.
 
 ## Processing states (replay)
 
-`uploaded` → `decompressing` → `decompressed` → `parsing` → `normalizing` → `complete` | `failed`
+Current: `uploaded` → `decompressing` → `decompressed` → `parsing` → `normalizing` → `complete` | `failed`
+
+Planned for the coach (plan §3): `… → normalizing` → `awaiting_player` → `detecting` → `selecting` → `recording` → `explaining` → `complete` | `failed`. Radar works from `awaiting_player`; clips may finish after `explaining`.
 
 ## Design direction (preserve)
 
@@ -38,7 +48,7 @@ British spelling. Handoff docs in `docs/handoff/` are the source of truth for pr
 - Stage-first Radar; one shared playback clock
 - Anti-AI rules in [04](docs/handoff/04-ANTI-AI-DESIGN-RULES.md)
 - Visual reference: [`prototype/analysis-studio.html`](prototype/analysis-studio.html) (chrome only — do not port wholesale)
-- Agent skills: [12 Skills](docs/handoff/12-SKILLS-AND-REFERENCES.md); local paths under `.cursor/skills/` (Emil + GSAP)
+- Agent skills: [12 Skills](docs/handoff/12-SKILLS-AND-REFERENCES.md); local paths under `.cursor/skills/` (Emil + GSAP for UI; `rr-detector`, `rr-coach-agent`, `rr-eval` for the coach milestone)
 
 ## How to run
 
@@ -83,6 +93,15 @@ npm run typecheck
 npm run build
 ```
 
+### Local LLM (coach milestone, planned)
+
+```bash
+llama-server -m Qwen3-14B-Q4_K_M.gguf --jinja -c 32768 -ctk q8_0 -ctv q8_0 -ngl 99 --port 8080
+# API reads RR_LLM_BASE_URL=http://127.0.0.1:8080/v1 and RR_LLM_MODEL
+```
+
+CI and unit tests must not need a GPU: use the mock LLM client.
+
 ### Tests
 
 ```bash
@@ -96,16 +115,23 @@ pytest
 |---|---|
 | 0 Foundation | Layout, contracts, stubs (done) |
 | **Demo Replay Lead** | Real parse → replay API → Radar/timeline (**done**; see agent log) |
-| Analysis (next) | Detectors → findings → moments on replay clock (not started) |
+| Analysis | Extended parse, zones, detectors → findings, round stats (TASKS phase 1) |
+| Coach agent | Tools, MCP server, LLM client, agent, verifier, moment selection, explanations, Ask (phase 2) |
+| RAG | Knowledge base, index, retrieval (phase 3) |
+| Clips + UI | CS:DM per-moment clips, player picker, moment rail, Analysis/Ask tabs (phase 4) |
+| ML | Fine-tuning, bigger model on RTX Pro 6000 (phase 5) |
 | A / B | Upload/processing shells; Studio polish |
 | C / D | Persistence / pipeline (merged into Demo Replay for MVP) |
-| E QA | Overlay sync, smoke, e2e |
+| E QA / Eval | Overlay sync, smoke, e2e; coach evaluation (phase 6) |
 | F Design review | Anti-AI / design-system compliance |
 
 ## Do not
 
 - Redesign the product or reverse [19-DECISIONS.md](docs/handoff/19-DECISIONS.md)
 - Copy the whole prototype HTML as the app
-- Implement coaching / moment ranking / LLM in this milestone
+- Call any hosted LLM API (OpenAI, Anthropic, Google, …) from app code, data generation or evaluation. Everything runs on self-hosted models (owner decision, [19](docs/handoff/19-DECISIONS.md) #16)
+- Let the LLM produce a number or fact that is not in a finding or `RoundStats`; every claim cites an ID and passes the verifier
+- Commit raw demos or player data other than derived labels and manifests
+- Add maps beyond Mirage and Anubis without the owner asking
 - Use generic shadcn / neon esports styling
-- Commit unless the owner asks
+- Commit or push unless the owner asks (the owner assigns tasks from [TASKS](docs/coach/TASKS.md))
