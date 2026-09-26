@@ -49,6 +49,27 @@ Expect recording to take longer than wall-clock (CS2 exclusive, HLAE). Measure a
 
 Docker Linux **cannot** run CS:DM. Run the API (or a host worker) on Windows with a bind-mounted `data/matches` directory, or keep `RR_CSDM_ENABLED=0` and use Radar-only.
 
+## CS Demo Manager PostgreSQL (Docker)
+
+CS:DM needs Postgres **17+** and a host-side `psql` on `PATH` (Docker alone is not enough — see [installation docs](https://cs-demo-manager.com/docs/installation)).
+
+```powershell
+# From repo root — starts only the DB (profile csdm)
+docker compose --profile csdm up -d csdm-db
+```
+
+Connect in CS:DM with:
+
+| Field | Value |
+|---|---|
+| Hostname | `127.0.0.1` |
+| Port | `5432` |
+| Name | `csdm` |
+| Username | `postgres` |
+| Password | `postgres` |
+
+If you also installed PostgreSQL via the Windows installer, stop its service so it does not fight Docker for port 5432: `Stop-Service postgresql-x64-17`.
+
 ## Environment
 
 | Variable | Default | Meaning |

@@ -1,5 +1,10 @@
 # Round Reviewer — API + Web
 # From repo root: docker compose up --build
+#
+# CS Demo Manager database (optional):
+#   docker compose --profile csdm up -d csdm-db
+# Then install PostgreSQL Command Line Tools on Windows and put psql on PATH
+# (CS:DM will not connect without a host-side psql binary).
 
 services:
   api:
@@ -41,5 +46,25 @@ services:
       api:
         condition: service_healthy
 
+  # PostgreSQL for the CS Demo Manager desktop app (Windows host + psql on PATH).
+  csdm-db:
+    profiles: ["csdm"]
+    image: postgres:17
+    container_name: csdm-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: csdm
+    volumes:
+      - csdm-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d csdm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   api-data:
+  csdm-pgdata:

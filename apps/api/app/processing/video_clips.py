@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 import subprocess
 import threading
@@ -16,6 +17,30 @@ from app.models.contracts import ClipManifest, ClipStatus, RoundClip
 from app.repositories.matches import MatchRepository, repo
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_csdm_bin() -> str:
+    """Resolve the CS:DM CLI so Windows `.cmd` shims are found by subprocess."""
+    configured = (settings.csdm_bin or "csdm").strip()
+    as_path = Path(configured)
+    if as_path.is_file():
+        return str(as_path)
+
+    which = shutil.which(configured)
+    if which:
+        return which
+
+    # shutil.which sometimes misses .cmd; try PATHEXT-aware lookup
+    for name in (configured, f"{configured}.cmd", f"{configured}.exe", f"{configured}.bat"):
+        which = shutil.which(name)
+        if which:
+            return which
+
+    local = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "cs-demo-manager" / "csdm.cmd"
+    if local.is_file():
+        return str(local)
+
+    return configured
 
 # Tiny ftyp+free stub used when no fixture/ffmpeg is available (enough for Range/E2E plumbing).
 _PLACEHOLDER_MP4 = (
@@ -49,7 +74,7 @@ def load_manifest(match_id: str, repository: MatchRepository | None = None) -> C
     path = manifest_path(match_id, repository)
     if not path.exists():
         return None
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = json.loads(path.read_text(encoding="utf-8-sig"))
     return ClipManifest.model_validate(data)
 
 
@@ -287,13 +312,13 @@ class VideoWorker:
                 )
 
     def _csdm_analyze(self, dem: Path) -> None:
-        cmd = [settings.csdm_bin, "analyze", str(dem)]
+        cmd = [resolve_csdm_bin(), "analyze", str(dem)]
         self._run(cmd, timeout=settings.csdm_timeout_seconds)
 
     def _csdm_video(self, dem: Path, clip: RoundClip, out: Path) -> None:
         out_dir = out.parent
         cmd = [
-            settings.csdm_bin,
+            resolve_csdm_bin(),
             "video",
             str(dem),
             str(clip.start_tick),
@@ -331,9 +356,15 @@ class VideoWorker:
         raise RuntimeError("CS Demo Manager did not produce an MP4 in the output folder.")
 
     def _run(self, cmd: list[str], timeout: float) -> None:
+        bin_path = cmd[0]
+        # Windows: .cmd/.bat need cmd.exe — CreateProcess cannot launch them directly.
+        if os.name == "nt" and bin_path.lower().endswith((".cmd", ".bat")):
+            run_cmd = ["cmd.exe", "/c", *cmd]
+        else:
+            run_cmd = cmd
         try:
             completed = subprocess.run(
-                cmd,
+                run_cmd,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -348,6 +379,13 @@ class VideoWorker:
         if completed.returncode != 0:
             detail = (completed.stderr or completed.stdout or "").strip()
             raise RuntimeError(detail or f"Command failed: {' '.join(cmd)}")
+        # CS:DM sometimes exits 0 while printing a fatal condition (e.g. Steam closed).
+        combined = f"{completed.stdout or ''}\n{completed.stderr or ''}".strip()
+        low = combined.lower()
+        if "steam is not running" in low:
+            raise RuntimeError("Steam is not running. Start Steam (signed in), then retry recording.")
+        if "counter-strike" in low and "not found" in low:
+            raise RuntimeError("Counter-Strike 2 was not found. Install CS2 via Steam, then retry.")
 
 
 def _friendly_error(exc: Exception) -> str:
@@ -355,10 +393,14 @@ def _friendly_error(exc: Exception) -> str:
     low = msg.lower()
     if "not found" in low and "csdm" in low:
         return "CS Demo Manager is not installed or not on PATH."
+    if "steam is not running" in low or ("steam" in low and "not running" in low):
+        return "Steam is not running. Start Steam signed in, then retry."
     if "steam" in low:
         return "Steam login or CS2 is required to record gameplay."
     if "timed out" in low:
         return "Gameplay recording timed out."
+    if "did not produce an mp4" in low:
+        return "Recording finished without an MP4 — check Steam/CS2/HLAE and retry."
     return msg[:280] if msg else "Gameplay recording failed."
 
 
