@@ -208,6 +208,35 @@ def get_round_stats(match_id: MatchId, player_id: PlayerId, round: RoundNo) -> d
 
 
 @tool
+def get_match_totals(match_id: MatchId, player_id: PlayerId) -> dict[str, Any]:
+    """Whole-match totals for the coached player over the counted rounds: rounds played and
+    won, kills, deaths, assists, damage, damage per round (ADR), headshot kills, utility
+    thrown, opening kills and deaths, trade kills. Use it for questions about the whole match.
+    These numbers may be quoted without citing a finding."""
+    stats = data.repo.analysis.round_stats(match_id, player_id)
+    if not stats:
+        raise ToolError("No round stats for this player.")
+    total = lambda attr: sum(getattr(s, attr) for s in stats)
+    rounds = len(stats)
+    return {
+        "matchTotals": {
+            "rounds": rounds,
+            "roundsWon": sum(1 for s in stats if s.won),
+            "kills": total("kills"),
+            "deaths": total("deaths"),
+            "assists": total("assists"),
+            "damage": total("damage"),
+            "adr": round(total("damage") / rounds, 1),
+            "headshotKills": total("headshot_kills"),
+            "utilityThrown": total("utility_thrown"),
+            "openingKills": sum(1 for s in stats if s.opening_kill),
+            "openingDeaths": sum(1 for s in stats if s.opening_death),
+            "tradeKills": total("trade_kills"),
+        }
+    }
+
+
+@tool
 def list_findings(
     match_id: MatchId,
     player_id: PlayerId,

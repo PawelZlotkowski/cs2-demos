@@ -29,6 +29,7 @@ npx @modelcontextprotocol/inspector python -m cs2_demo_mcp
 |---|---|
 | `list_rounds(match_id, player_id)` | side, result, score, K/D/damage per round |
 | `get_round_stats(match_id, player_id, round)` | `RoundStats` for one round |
+| `get_match_totals(match_id, player_id)` | whole-match totals: rounds, kills, deaths, damage, ADR, utility, openings, trades |
 | `list_findings(match_id, player_id, round?, kind?, detector?)` | findings: id, kind, detector, round, t, zone, severity, summary |
 | `get_finding(match_id, player_id, finding_id)` | one finding with its evidence |
 | `get_round_timeline(match_id, round)` | kills, grenades, plant/defuse with round clock times and callouts |

@@ -34,6 +34,7 @@ from app.coach.tools import MomentPick
 from app.coach.verify import (
     LANGUAGE_NAMES,
     VerifyContext,
+    autocite,
     citations_in,
     fallback_text,
     verify_text,
@@ -48,6 +49,17 @@ T = TypeVar("T")
 # Candidates shown to the selection model (plan §6.2: top ~40 by severity)
 MAX_CANDIDATES = 40
 MIN_GOOD_CANDIDATES = 12
+# Extra prompt rules per answer language (first live run, 26 Sep: weak Polish)
+LANGUAGE_NOTES = {
+    "en": "",
+    "pl": (
+        "\n- Polish: write correct Polish grammar with the right case endings (dobrej wymiany, szybkiej śmierci)."
+        "\n- Polish: avoid gendered past-tense verbs (zginąłeś/zginęłaś); use noun phrases such as"
+        " 'śmierć od P5' or 'twoja śmierć'. A player killed in the game 'ginie', never 'umiera' or 'zmarł'."
+    ),
+    "nl": "\n- Dutch: address the player as 'je', and keep callout names in English.",
+}
+
 EXPLAIN_TOOLS = {
     "get_finding",
     "list_findings",
@@ -55,6 +67,7 @@ EXPLAIN_TOOLS = {
     "get_round_timeline",
     "get_player_state",
     "get_player_history",
+    "get_match_totals",
     "search_knowledge",
 }
 
@@ -279,7 +292,9 @@ class CoachJobs:
                 a.save_explanation(match_id, player_id, expl)
             return expl
 
-        system = prompt.render(language=LANGUAGE_NAMES[lang], sentences="2 to 4")
+        system = prompt.render(
+            language=LANGUAGE_NAMES[lang], sentences="2 to 4", language_notes=LANGUAGE_NOTES[lang]
+        )
         user = "\n".join(
             [
                 self._context_line(match_id, player_id, round_no),
@@ -304,6 +319,7 @@ class CoachJobs:
             require_citation=True,
             fallback=lambda: fallback_text(findings, lang),
             record=record,
+            cite_candidates=[f.id for f in findings],
         )
         expl = MomentExplanation(
             target=target,
@@ -379,7 +395,7 @@ class CoachJobs:
         return await self._answer(
             job="ask",
             prompt_version=prompt.version,
-            system=prompt.render(language=LANGUAGE_NAMES[req.language]),
+            system=prompt.render(language=LANGUAGE_NAMES[req.language], language_notes=LANGUAGE_NOTES[req.language]),
             user="\n".join(lines),
             bound={"match_id": match_id, "player_id": player_id},
             ctx=self._verify_context(match_id, player_id, extra),
@@ -389,6 +405,7 @@ class CoachJobs:
             fallback=fallback,
             record=record,
             on_step=on_step,
+            cite_candidates=[f.id for f in in_view],
         )
 
     # --- shared: tool loop → verify → one repair → fallback ----------------------------
@@ -408,7 +425,9 @@ class CoachJobs:
         fallback: Callable[[], str],
         record: dict[str, Any],
         on_step: StepCallback | None = None,
+        cite_candidates: list[str] | None = None,
     ) -> AskOutcome:
+        cite_candidates = cite_candidates or []
         messages: list[dict[str, Any]] = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         runs: list[AgentRun] = []
         errors: list[str] = []
@@ -428,15 +447,17 @@ class CoachJobs:
                     runs.append(run)
                     # Passages the model looked up may be cited as [K..]
                     ctx.knowledge.update(knowledge_in(run.messages))
-                    # Counts from the player's earlier matches may be quoted (owner decision, 26 Sep)
-                    ctx.history_numbers.update(history_numbers_in(run.messages))
+                    # History counts (owner decision, 26 Sep) and match totals may be quoted
+                    ctx.summary_numbers.update(summary_numbers_in(run.messages))
+                    text = autocite(run.text, ctx, cite_candidates)
                     check = verify_text(
-                        run.text, ctx, lang, require_citation=require_citation, max_sentences=max_sentences
+                        text, ctx, lang, require_citation=require_citation, max_sentences=max_sentences
                     )
                     errors = check.errors
                     if check.ok:
-                        self._trace({**record, **_runs_record(runs), "verifier": {"ok": True, "errors": []}, "source": "agent"})
-                        return AskOutcome(run.text.strip(), check.citations, "agent")
+                        verdict = {"ok": True, "errors": [], "autocited": text != run.text.strip()}
+                        self._trace({**record, **_runs_record(runs), "verifier": verdict, "source": "agent"})
+                        return AskOutcome(text, check.citations, "agent")
                     messages = run.messages + [{"role": "user", "content": repair_message(errors)}]
         except LLMError as exc:
             errors = [str(exc)]
@@ -493,8 +514,8 @@ def knowledge_in(messages: list[dict[str, Any]]) -> dict[str, str]:
     return found
 
 
-def history_numbers_in(messages: list[dict[str, Any]]) -> set[float]:
-    """Numbers in ``get_player_history`` results returned in a run."""
+def summary_numbers_in(messages: list[dict[str, Any]]) -> set[float]:
+    """Numbers in ``get_player_history`` and ``get_match_totals`` results returned in a run."""
     found: set[float] = set()
 
     def walk(v: Any) -> None:
@@ -511,7 +532,7 @@ def history_numbers_in(messages: list[dict[str, Any]]) -> set[float]:
 
     for m in messages:
         content = m.get("content") or ""
-        if m.get("role") != "tool" or '"per10Rounds"' not in content:
+        if m.get("role") != "tool" or ('"per10Rounds"' not in content and '"matchTotals"' not in content):
             continue
         try:
             walk(json.loads(content))
