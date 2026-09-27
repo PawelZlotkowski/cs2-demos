@@ -24,6 +24,7 @@
   --ui: "Hanken Grotesk", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --serif: "Newsreader", Georgia, "Times New Roman", serif;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 
   --r-ctl: 4px;
@@ -571,6 +572,7 @@ h1 {
   *::after {
     transition-property: opacity, color, background-color, border-color !important;
     animation-duration: 0ms !important;
+    animation-delay: 0ms !important;
   }
 
   .btn:active,
@@ -583,4 +585,80 @@ h1 {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* ---- Motion polish for Home, Upload and Processing (11 Motion system) ---- */
+
+/* A stage changing state eases its colour; the tick draws in once, when it is done. */
+.stage-list li {
+  transition: color 200ms ease;
+}
+
+.s-ic {
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease;
+}
+
+.stage-list li[data-state="done"] .s-ic::after {
+  animation: rr-tick 220ms var(--ease-out) both;
+}
+
+@keyframes rr-tick {
+  from {
+    opacity: 0;
+    transform: rotate(45deg) scale(0.6);
+  }
+}
+
+/* Only a stage that is really working turns (linear: constant motion); waiting on you does not. */
+.stage-list li[data-state="active"]:not([data-stage="awaiting_player"]) .s-ic {
+  border-top-color: transparent;
+  animation: rr-spin 900ms linear infinite;
+}
+
+@keyframes rr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The picker and the upload bar arrive once, so they rise in rather than pop. */
+.picker,
+.upload-bar {
+  animation: rr-rise 240ms var(--ease-out) both;
+}
+
+.pick-row {
+  transition:
+    transform 140ms var(--ease-out),
+    background-color 120ms ease;
+}
+
+.pick-row:not(:disabled):active {
+  transform: scale(0.99);
+}
+
+.drop {
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms var(--ease-out);
+}
+
+.drop[data-over] {
+  transform: scale(1.01);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mom:active,
+  .rs-cell:active,
+  .icon-btn:active,
+  .step:active,
+  .t-opt:active,
+  .seg button:not(:disabled):active,
+  .pick-row:not(:disabled):active,
+  .drop[data-over] {
+    transform: none;
+  }
 }

@@ -44,3 +44,20 @@ This is every animation in the prototype.
 ## React port
 
 The GSAP React skill applies to the planned React app. Use `useGSAP` with a `scope`, and `contextSafe` for handlers. Keep the sequencing timeline paused and driven by media time, and revert it on unmount.
+
+## In the React app (27 Sep 2026)
+
+Built with CSS and the Web Animations API (`apps/web/src/lib/motion.ts`), without GSAP so far. It was audited against Emil Kowalski's `improve-animations` rules.
+
+| Animation | How | Duration and ease |
+|---|---|---|
+| Gameplay and Radar swap | FLIP on the POV clip and the radar surface (click only; `V` is instant) | 240ms `--ease-in-out` |
+| Rail selection indicator | FLIP on `.rail-ind` (click only) | 180ms `--ease-in-out` |
+| Panel content on a moment switch | Opacity only (click only) | 140ms `--ease-out` |
+| Overview and wrap-up | One-shot rise, 40ms stagger (60ms for drills); none when reached with `N` | 240ms `--ease-out` |
+| Phone sheet | Follows the finger, with resistance past either end; a flick over 0.11 px/ms decides, otherwise the halfway point | 260ms `--ease-drawer` snap |
+| Press feedback | `scale(.97)` on rail rows, round strip, icon buttons, transport, view switch; `scale(.99)` on picker rows | 140ms `--ease-out` |
+| Processing stages | Colour eases; the tick draws in once; a turning ring only on a stage that is really working (not "Choose a player") | 200 to 220ms; ring 900ms linear |
+| Upload | Drop zone scales to 1.01 on drag-over; the progress bar and the player picker rise in once | 160 to 240ms |
+
+The POV clip no longer transitions `width` (a layout property); the swap FLIP replaces it. Under reduced motion, the FLIPs, the fade and the rise are skipped, and press scales are removed.

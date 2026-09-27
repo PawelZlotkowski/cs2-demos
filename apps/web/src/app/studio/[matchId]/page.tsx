@@ -66,8 +66,11 @@ import { NotFound, isNotFound } from "@/components/NotFound";
 import { RoundStrip } from "@/components/review/RoundStrip";
 import { ReviewOverview, ReviewWrapUpPanel } from "@/components/review/ReviewPanels";
 import { useCoachLanguage } from "@/lib/coach/language";
+import { fadeIn, flipFrom } from "@/lib/motion";
 
 const RATES: PlaybackRate[] = [1, 2, 4, 0.5];
+/** The two stage surfaces that trade places when Gameplay and Radar swap. */
+const SWAP_SURFACES = [".stage .pov", '.stage .surface[data-mode="radar"]'];
 const LANE_BASE = 22;
 const LIVE_SEC = 2.5;
 
@@ -120,8 +123,14 @@ export default function StudioPage() {
   const [seen, setSeen] = useState<Set<string>>(() => new Set());
   const [panelOn, setPanelOn] = useState(true);
   const [ctxOpen, setCtxOpen] = useState(false);
-  const grabY = useRef<number | null>(null);
+  /** Sheet drag on phones: where it started, and whether the pointer moved enough to be a drag. */
+  const grab = useRef<{ y: number; t: number; base: number; max: number; dy: number } | null>(null);
   const grabDragged = useRef(false);
+  /** Set while a keyboard shortcut is being handled: keyboard actions never animate (11 Motion). */
+  const viaKey = useRef(false);
+  const insightRef = useRef<HTMLDivElement>(null);
+  const railPrev = useRef<{ top: number; left: number; w: number; h: number } | null>(null);
+  const swapFirst = useRef<Map<string, DOMRect> | null>(null);
   const [whole, setWhole] = useState(false);
   const [asking, setAsking] = useState(false);
   const [analysis, setAnalysis] = useState<PlayerAnalysisView | null>(null);
@@ -479,10 +488,29 @@ export default function StudioPage() {
   const setMode = useCallback(
     (mode: StageView) => {
       if (mode === "gameplay" && !gameplayReady) return;
+      // Continuity for the Gameplay/Radar swap: remember where both surfaces were (FLIP)
+      if (!viaKey.current && mode !== stageMode) {
+        const first = new Map<string, DOMRect>();
+        for (const sel of SWAP_SURFACES) {
+          const el = document.querySelector(sel);
+          if (el) first.set(sel, el.getBoundingClientRect());
+        }
+        swapFirst.current = first;
+      }
       setStageMode(mode);
     },
-    [gameplayReady],
+    [gameplayReady, stageMode],
   );
+
+  useLayoutEffect(() => {
+    const first = swapFirst.current;
+    swapFirst.current = null;
+    if (!first) return;
+    for (const [sel, rect] of first) {
+      const el = document.querySelector(sel);
+      if (el) flipFrom(el, rect, { duration: 240 });
+    }
+  }, [stageMode]);
 
   // ---- Stage fitting (prototype fitStage): 16:9 stage, spare height to the lanes ----
 
@@ -708,6 +736,12 @@ export default function StudioPage() {
       const tag = el?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      viaKey.current = true;
+      insightRef.current?.setAttribute("data-instant", "");
+      window.setTimeout(() => {
+        viaKey.current = false;
+      }, 0);
+      window.setTimeout(() => insightRef.current?.removeAttribute("data-instant"), 300);
 
       if (e.code === "Space") {
         e.preventDefault();
@@ -762,6 +796,37 @@ export default function StudioPage() {
       ? `Round ${activeRound.number}, ${mapLabel} · Round Reviewer`
       : "Round Reviewer";
   }, [activeRound, mapLabel]);
+
+  // Selection moves in the rail (FLIP, 180 ms) and the panel's new content fades in (140 ms),
+  // so a moment switch reads as one change rather than a jump. Keyboard switches stay instant.
+  const railKey = `${review ?? ""}|${activeMoment?.id ?? ""}|${roundId ?? ""}`;
+  useLayoutEffect(() => {
+    const animate = !viaKey.current && !loadingMatch;
+    const scroller = document.querySelector(".rail-scroll");
+    const ind = document.querySelector(".rail .rail-ind");
+    if (ind && scroller) {
+      const box = scroller.getBoundingClientRect();
+      const r = ind.getBoundingClientRect();
+      const prev = railPrev.current;
+      if (prev && animate) {
+        const first = new DOMRect(
+          prev.left - scroller.scrollLeft + box.left,
+          prev.top - scroller.scrollTop + box.top,
+          prev.w,
+          prev.h,
+        );
+        flipFrom(ind, first, { duration: 180 });
+      }
+      railPrev.current = {
+        top: r.top - box.top + scroller.scrollTop,
+        left: r.left - box.left + scroller.scrollLeft,
+        w: r.width,
+        h: r.height,
+      };
+    } else railPrev.current = null;
+    if (animate) fadeIn(insightRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [railKey]);
 
   const empty = !loadingMatch && Boolean(loadError) && !replay && rounds.length === 0;
 
@@ -1308,16 +1373,47 @@ export default function StudioPage() {
           aria-controls="ctx"
           aria-label={ctxOpen ? "Close the analysis" : "Open the analysis"}
           onPointerDown={(e) => {
+            const sheet = e.currentTarget.parentElement;
+            if (!sheet) return;
             e.currentTarget.setPointerCapture(e.pointerId);
-            grabY.current = e.clientY;
+            const h = sheet.getBoundingClientRect().height;
+            const peek = parseFloat(getComputedStyle(sheet).getPropertyValue("--peek")) || 132;
+            grab.current = { y: e.clientY, t: performance.now(), base: ctxOpen ? 0 : h - peek, max: h - peek, dy: 0 };
             grabDragged.current = false;
           }}
-          onPointerUp={(e) => {
-            const dy = grabY.current == null ? 0 : e.clientY - grabY.current;
-            grabY.current = null;
-            if (Math.abs(dy) < 24) return;
+          onPointerMove={(e) => {
+            const g = grab.current;
+            const sheet = e.currentTarget.parentElement;
+            if (!g || !sheet) return;
+            g.dy = e.clientY - g.y;
+            if (!grabDragged.current && Math.abs(g.dy) < 4) return;
             grabDragged.current = true;
-            setCtxOpen(dy < 0);
+            // The sheet follows the finger; past either end it resists instead of stopping dead
+            let y = g.base + g.dy;
+            if (y < 0) y = -Math.sqrt(-y) * 2;
+            if (y > g.max) y = g.max + Math.sqrt(y - g.max) * 2;
+            sheet.style.transition = "none";
+            sheet.style.transform = `translateY(${y}px)`;
+          }}
+          onPointerUp={(e) => {
+            const g = grab.current;
+            const sheet = e.currentTarget.parentElement;
+            grab.current = null;
+            if (!g || !sheet || !grabDragged.current) return;
+            // A flick decides by velocity; a slow drag by where it was let go
+            const v = g.dy / Math.max(1, performance.now() - g.t);
+            const open = Math.abs(v) > 0.11 ? v < 0 : g.base + g.dy < g.max / 2;
+            sheet.style.transition = "";
+            sheet.style.transform = "";
+            setCtxOpen(open);
+          }}
+          onPointerCancel={(e) => {
+            grab.current = null;
+            const sheet = e.currentTarget.parentElement;
+            if (sheet) {
+              sheet.style.transition = "";
+              sheet.style.transform = "";
+            }
           }}
           onClick={() => {
             // A drag already decided; a tap or the keyboard toggles.
@@ -1403,7 +1499,9 @@ export default function StudioPage() {
           ) : null}
         </div>
 
-        <div className="insight" id="insight" role="tabpanel" aria-labelledby="tab-insight">
+        <div className="insight" id="insight" role="tabpanel" aria-labelledby="tab-insight" ref={insightRef}
+          data-review={review ?? undefined}
+        >
           {review === "overview" && analysis ? (
             <ReviewOverview
               matchId={matchId}

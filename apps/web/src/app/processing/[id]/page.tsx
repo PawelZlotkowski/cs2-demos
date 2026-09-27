@@ -191,7 +191,7 @@ export default function ProcessingPage() {
 
       <ol className={`stage-list${awaiting ? " compact" : ""}`} aria-live="polite">
         {(status?.stages ?? []).map((stage) => (
-          <li key={stage.id} data-state={stage.state}>
+          <li key={stage.id} data-state={stage.state} data-stage={stage.id}>
             <span className="s-ic" aria-hidden />
             <strong>{stage.label}</strong>
             <span className="meta" style={{ gridColumn: "3", textAlign: "right" }}>
