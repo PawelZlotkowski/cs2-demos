@@ -76,6 +76,29 @@ class Settings(BaseSettings):
     csdm_moment_pad_before: float = 1.0
     csdm_moment_pad_after: float = 3.0
 
+    # Accounts and the admin panel (docs 27 and 30). Off by default: the app is
+    # then one local user who is also the admin, as before accounts existed.
+    auth_enabled: bool = False
+    # "invite" (a code from the admin panel), "open" or "closed". The first
+    # account can always be created and becomes the admin.
+    signup: str = "invite"
+    session_days: int = 30
+    # Where the browser reaches the app, for Steam's return address. Empty: taken
+    # from the request (the Next.js /api rewrite forwards the host).
+    public_url: str | None = None
+    # Optional Steam Web API key, only for the Steam name and avatar
+    steam_api_key: str | None = None
+    # Per-user upload limit (0 = no limit) and the user study switch (consent step)
+    max_matches_per_user: int = 20
+    study_mode: bool = False
+    # Read-only share links for a review (A14); off by default
+    share_links: bool = False
+    # FastAPI's /docs and /openapi.json; hidden when accounts are on unless set
+    api_docs: bool | None = None
+
+    def docs_enabled(self) -> bool:
+        return self.api_docs if self.api_docs is not None else not self.auth_enabled
+
     def resolved_upload_dir(self) -> Path:
         path = self.upload_dir or (self.data_dir / "uploads")
         path.mkdir(parents=True, exist_ok=True)

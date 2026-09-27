@@ -970,6 +970,7 @@ class MatchRow(CamelModel):
     moments: int = 0
     model: str | None = None  # model that wrote the review; None for templates only
     versions: int = 0  # earlier reviews kept by a re-run
+    title: str | None = None  # the owner's own name for the match
 
 
 class ProgressMatch(CamelModel):
@@ -1089,3 +1090,83 @@ class GoodExample(CamelModel):
 class GoodExamples(CamelModel):
     zone: str | None = None
     items: list[GoodExample]
+
+
+# --- Accounts and admin (docs 27 and 30) ---
+
+Role = Literal["admin", "labeller", "player"]
+
+
+class UserOut(CamelModel):
+    id: str
+    username: str | None = None
+    display_name: str = Field(alias="displayName")
+    avatar_url: str | None = Field(None, alias="avatarUrl")
+    role: Role
+    steam_id: str | None = Field(None, alias="steamId")
+    has_password: bool = Field(False, alias="hasPassword")
+    created_at: str | None = Field(None, alias="createdAt")
+    last_seen_at: str | None = Field(None, alias="lastSeenAt")
+    disabled: bool = False
+    consented: bool = False
+
+
+class AuthState(CamelModel):
+    auth_enabled: bool = Field(alias="authEnabled")
+    user: UserOut | None = None
+    needs_setup: bool = Field(False, alias="needsSetup")  # no account yet: the first becomes admin
+    signup: Literal["invite", "open", "closed"] = "invite"
+    steam: bool = True
+    study_mode: bool = Field(False, alias="studyMode")
+    needs_consent: bool = Field(False, alias="needsConsent")
+
+
+class RegisterRequest(CamelModel):
+    username: str = Field(min_length=3, max_length=32, pattern=r"^[A-Za-z0-9_.-]+$")
+    password: str = Field(min_length=1, max_length=256)
+    display_name: str | None = Field(None, alias="displayName", max_length=40)
+    invite_code: str | None = Field(None, alias="inviteCode", max_length=40)
+
+
+class LoginRequest(CamelModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class ResetPasswordRequest(CamelModel):
+    code: str = Field(min_length=8, max_length=80)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class ProfileUpdate(CamelModel):
+    display_name: str | None = Field(None, alias="displayName", min_length=1, max_length=40)
+    current_password: str | None = Field(None, alias="currentPassword", max_length=256)
+    new_password: str | None = Field(None, alias="newPassword", max_length=256)
+    username: str | None = Field(None, min_length=3, max_length=32, pattern=r"^[A-Za-z0-9_.-]+$")
+
+
+class DeleteAccountRequest(CamelModel):
+    confirm: str = Field(max_length=64)  # the username, or DELETE for a Steam-only account
+
+
+class UserSettings(CamelModel):
+    language: CoachLanguage = "en"
+    playback_speed: float = Field(1.0, alias="playbackSpeed", ge=0.25, le=4)
+    explanation_length: Literal["short", "normal", "long"] = Field("normal", alias="explanationLength")
+    autoplay_clips: bool = Field(True, alias="autoplayClips")
+
+
+class FeedbackRequest(CamelModel):
+    target: str = Field(min_length=1, max_length=80)  # moment id, "summary", "wrapup" or an Ask message id
+    kind: Literal["explanation", "answer"] = "explanation"
+    verdict: Literal["useful", "not_right"]
+    note: str | None = Field(None, max_length=500)
+
+
+class ReviewProgressRequest(CamelModel):
+    moment_id: str = Field(alias="momentId", min_length=1, max_length=40)
+    t: float | None = None
+
+
+class MatchPatch(CamelModel):
+    title: str | None = Field(None, max_length=80)

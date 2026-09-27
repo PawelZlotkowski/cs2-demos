@@ -38,7 +38,8 @@ def _load(line: str) -> dict[str, Any] | None:
         record = json.loads(line)
     except json.JSONDecodeError:
         return None
-    return record if isinstance(record, dict) else None
+    # A deleted match's traces are blanked in place, so the line ids stay stable
+    return record if isinstance(record, dict) and not record.get("deleted") else None
 
 
 def steps_of(record: dict[str, Any]) -> list[dict[str, Any]]:
@@ -73,6 +74,25 @@ def _summary(trace_id: str, record: dict[str, Any]) -> dict[str, Any]:
         "latency_s": latency,
         "tool_calls": len(steps_of(record)),
     }
+
+
+def redact_match(match_id: str) -> int:
+    """Blank every trace of a match (it was deleted); returns how many."""
+    count = 0
+    for path in _folder().glob("*.jsonl"):
+        if not DAY_RE.match(path.stem):
+            continue
+        lines = path.read_text(encoding="utf-8").splitlines()
+        changed = False
+        for i, line in enumerate(lines):
+            record = _load(line)
+            if record is not None and record.get("matchId") == match_id:
+                lines[i] = json.dumps({"ts": record.get("ts"), "deleted": True})
+                changed = True
+                count += 1
+        if changed:
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return count
 
 
 def iter_traces() -> Iterator[tuple[str, dict[str, Any]]]:
