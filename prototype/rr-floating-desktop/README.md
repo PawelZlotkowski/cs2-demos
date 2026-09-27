@@ -1,181 +1,83 @@
-# Round Reviewer — Floating Desktop Prototype
+# Round Reviewer — floating desktop prototype (experimental)
 
-A runnable hi-fi prototype of Round Reviewer's floating-window desktop interface. Built with Vite + React + TypeScript, following Night ops design tokens.
+A runnable prototype of Round Reviewer as a light macOS-style desktop: every player surface from the roadmap branch (PR #22) is a floating window with frosted chrome, traffic lights, drag, focus and a dock. Mock data only; nothing calls the API or a model.
 
-![Desktop with overlapping windows](./screenshot-placeholder.png)
+This folder is isolated. It does not replace `apps/web`, the Night ops layouts or `prototype/analysis-studio.html`.
 
-## Quick Start
+## Run it
 
 ```bash
+cd prototype/rr-floating-desktop
 npm install
 npm run dev
 ```
 
-Then open **http://localhost:5173** (Vite's default port).
+Open **http://localhost:5173**. `npm run build` type-checks and builds to `dist/`.
 
-## Happy-Path Demo Script
+The radar images and callout polygons come from the main app (`apps/web/public/maps`, `apps/api/app/maps/zones`), so run it from inside this repo.
 
-This prototype implements a fully interactive window manager. Follow this script to test all features:
+## Happy path
 
-### 1. Launch the desktop
-- Run `npm run dev`
-- Open the URL in your browser
-- You'll see the dark desktop with menu bar (top) and dock (bottom)
+1. **Matches** opens on start (or click the first dock icon). Each row shows the map, score, player, moments and the model that wrote the review, with “1 earlier review kept”.
+2. Click **Re-run the coach** on a row, then **Re-run**: the row steps through Picking moments and Writing the review, the earlier review is kept, and a notification offers **Open in Studio**.
+3. Click **Mirage 13–9**. The **Studio** opens on the **Match brief**: rounds strip, summary with citations, **Review moment 1**.
+4. Click **Review moment 1**. The stage shows the **clip large** with the **radar peeking** top right; the rail lists the six moments (POV tag, reason) and every round.
+5. Click the radar peek (or **Enlarge**): radar and clip swap with a 300 ms ease. Click the clip peek to swap back. `V` does the same, and the **Gameplay | Radar** control follows.
+6. Press **Play** (or `Space`). The clip, radar, alive count and timeline follow one clock. Scrub the timeline, click a finding marker, `,` and `.` step events, `N` goes to the next moment.
+7. Inspector tabs:
+   - **Analysis**: finding, why it was picked, the coach explanation (`[F3]` jumps, `[t:34.0]` seeks, `[K1]` opens the passage), **Show a round where you did this well**, stats, findings and events. The last moment's **Done** opens the **Debrief**.
+   - **Ask**: match-scoped questions with suggestions; answers cite findings and times.
+   - **Round**: facts, duels, utility thrown, buy; no model.
+   - **Notes**: save a note at the current time, then **Ask about this** for the 10 seconds around it.
+   - **Download** in the clip caption shows the file name the app would save (map, player, round, finding, time).
+8. **Coach** (dock): **Ask** across matches; click a `[M4:F1]` citation to open that match in the Studio at that finding. **Plan**: three repeated mistakes with evidence, a drill each and a **Practised** tick; **Write a new plan**. **Knowledge**: click a callout on the radar or in the list, search, **Flag as wrong**.
+9. **Progress** (dock): detector counts per match, oldest first, with the recent trend; **Where you die** shades callouts by deaths, and each `M#:F#` opens the Studio.
+10. **Settings** (dock, or Round Reviewer › Settings…): System checks with **Check again**, **Connect another app** with copyable MCP commands and the LM Studio block.
+11. **Lab** is owner-only and hidden. Turn it on with the **Lab** switch in Settings, or open **http://localhost:5173/?lab=1**. It then appears in the dock and the View menu: **Runs** (click a row for tool calls and the verifier), **Labels**, **Evaluation** (blind A/B vote) and **Dataset**. With the Lab on, Knowledge shows **Add a note (admin)** and the coach text links **How this was written**.
+12. **Add match** (Matches toolbar or File menu): drop a demo, choose a file or **Use the sample demo**; the pipeline runs, you pick the player, and the new match opens in the Studio.
+13. Window manager: drag by the title bar, click to focus, double-click the title bar or the green light to zoom, drag an edge to resize, yellow minimises into the dock (click the tile to restore), red closes and the dock reopens the same window. Several windows can overlap; the inactive ones grey their traffic lights and selection.
 
-### 2. Open Matches window
-- **Click "Matches" in the dock** (leftmost icon)
-- A floating Matches window opens with 3 mock matches
-
-### 3. Select a match → opens Analysis
-- **Click any match row** (e.g. "Mirage vs. Tech United")
-- Analysis window opens automatically, showing:
-  - Score with cobalt last digit (e.g. 12-**8**)
-  - List of 5 key problems
-
-### 4. Select a problem → opens Problem with PiP
-- **Click any problem row** (e.g. "R7 • Missed Exit Angle")
-- Problem window opens with:
-  - **Clip view (large)** — center stage with play placeholder
-  - **Radar view (peek)** — top-right corner overlay
-
-### 5. Test PiP swap
-- **Click the Radar peek** (top-right corner)
-- Views swap: Radar becomes large, Clip becomes peek
-- **Click the Clip peek** (now in corner)
-- Swaps back: Clip large, Radar peek
-- Animation is ~300ms with cubic-bezier easing
-
-### 6. Open Coach and Drills
-- **Click "Coach" in the dock** → Coach window opens with messages
-- **Click "Drills" in the dock** → Drills window opens with checklist
-- Toggle drill completion by clicking checkboxes
-
-### 7. Test window management
-- **Drag any window** by its title bar
-- **Click any window** to bring it to front (z-index)
-- **Close a window** with the red traffic light
-- **Minimize a window** with the yellow traffic light (hides it)
-- **Reopen from dock** — focuses existing window instead of creating duplicate
-
-### 8. Verify overlapping
-- Open 2+ windows (e.g. Analysis + Problem + Coach)
-- Drag them so they overlap
-- Click different windows to test focus/stacking
-
-## Features Implemented
-
-- [x] Desktop WM: drag, focus, z-order, dock singletons
-- [x] Analysis: calm single-column brief (not ops desk)
-- [x] Problem PiP: Clip default large; swap works; shared timeline
-- [x] Night ops tokens only; no banned slop
-- [x] Labelling absent from dock
-- [x] Match → Analysis → Problem flow
-- [x] Coach and Drills windows functional
-
-## Tech Stack
-
-- **Vite** — Fast dev server and build
-- **React 18** — Component-based UI
-- **TypeScript** — Type safety
-- **CSS Modules** — Scoped styling with Night ops tokens
-- **No UI libraries** — Custom window manager, no Tailwind/shadcn
-
-## Design Tokens (Night ops)
-
-```css
---void: #050505      /* Desktop background */
---panel: #0A0A0A     /* Window backgrounds */
---ink: #F2F2F2       /* Primary text */
---muted: #666666     /* Secondary text */
---line: #1A1A1A      /* Borders/separators */
---accent: #3B6AE8    /* Cobalt (only accent) */
-```
-
-**Typography:**
-- UI: Instrument Sans (Fontshare)
-- Monospace: Fragment Mono (times, scores)
-
-**Motion:**
-- Duration: 300ms
-- Easing: `cubic-bezier(0.32, 0.72, 0, 1)`
-- Reduced motion: respects `prefers-reduced-motion`
-
-## Anti-Slop Compliance
-
-This prototype **avoids**:
-- ❌ Purple/indigo gradients or pink-purple "AI" glow
-- ❌ Lime/acid green (#C8F53C)
-- ❌ Inter/Roboto as primary face
-- ❌ Generic SaaS dashboard cards
-- ❌ Nested glass stacks
-- ❌ Emoji UI icons or sparkle badges
-- ❌ "Elevate your workflow" marketing copy
-
-This prototype **includes**:
-- ✅ Cobalt (#3B6AE8) as sole accent
-- ✅ Instrument Sans + Fragment Mono
-- ✅ Calm Apple spatial hierarchy
-- ✅ Floating windows with traffic lights
-- ✅ Single-column Analysis brief
-- ✅ Picture-in-picture evidence (one window)
-
-## File Structure
-
-```
-prototype/rr-floating-desktop/
-├── package.json
-├── vite.config.ts
-├── tsconfig.json
-├── index.html
-├── README.md
-└── src/
-    ├── main.tsx
-    ├── App.tsx                    # App state & window management
-    ├── styles/
-    │   └── tokens.css             # Night ops design tokens
-    ├── desktop/
-    │   ├── Desktop.tsx            # Shell container
-    │   ├── MenuBar.tsx            # Top bar
-    │   ├── Dock.tsx               # Bottom dock
-    │   ├── WindowManager.tsx      # Orchestrates all windows
-    │   └── WindowFrame.tsx        # Draggable window chrome
-    ├── windows/
-    │   ├── MatchesWindow.tsx      # Match list + import
-    │   ├── AnalysisWindow.tsx     # Score + problems
-    │   ├── ProblemWindow.tsx      # PiP Clip/Radar + timeline
-    │   ├── CoachWindow.tsx        # Coach messages
-    │   └── DrillsWindow.tsx       # Practice checklist
-    └── mock/
-        └── data.ts                # Mock matches, problems, etc.
-```
-
-## Known Limitations (v1)
-
-- Fixed window sizes (resize handles not implemented)
-- No localStorage persistence of positions
-- No keyboard shortcuts (Cmd+W, Cmd+`)
-- Placeholder clip and radar (no real video/demo data)
-- Menu bar items are non-functional stubs
-- Import Match button is a stub
-
-## Build for Production
+To check the whole path in a browser (fails on any console error):
 
 ```bash
-npm run build
-npm run preview
+pip install playwright && python -m playwright install chromium
+python qa/happy_path.py http://localhost:5173/ qa/out
 ```
 
-Static build outputs to `dist/`. Can be deployed to any static host.
+`CHROME_PATH=/path/to/chrome` uses an installed Chrome instead. Screenshots land in `qa/out/`, including `15-overlapping-windows.png`.
 
-## Notes
+## What maps to PR #22
 
-- This is an **isolated experimental prototype** on branch `feat/rr-floating-desktop`
-- It does **not** replace the existing app or design prototypes
-- Window manager is custom (~100 lines), not react-rnd
-- PiP swap is pure CSS transitions + React state
-- All interactions work without console errors
-- Tested in Chrome/Firefox/Safari (desktop only)
+| Window | PR #22 surface |
+|---|---|
+| Matches, Add match | `/matches`, `/upload`, processing and the player picker |
+| Studio | `/studio/[matchId]`: moment rail, POV clip over the radar, transport, timeline, Analysis / Ask / Round / Notes, Done well, Debrief |
+| Progress | `/progress` |
+| Coach | `/coach`: Ask, Plan, Knowledge |
+| Settings | `/settings`: System, Connect another app |
+| Lab (flag) | `/lab`: Runs, Labels, Evaluation, Dataset |
 
-## License
+## Look
 
-Part of the Round Reviewer project. See main repo for details.
+Light macOS materials: a quiet grey wallpaper, a translucent menu bar and dock, windows with `backdrop-filter` blur on the chrome and sidebars, and near-opaque content so text stays legible. System faces (`-apple-system`, Segoe UI) with Hanken Grotesk only where no system face exists; system blue `#007AFF` as the one accent; an orange triangle for a mistake and a blue circle for a good play. The media stage stays dark, like a video well. Motion is limited to window open and close, minimise, zoom, the segmented pill and the PiP swap, and `prefers-reduced-motion` turns it off.
+
+## Files
+
+```
+src/
+  main.tsx, state/store.tsx       window manager and shared state
+  desktop/                        Desktop, MenuBar, Dock, WindowFrame, Notices
+  windows/                        Matches, AddMatch, Studio, Progress, Coach, Settings, Lab
+  studio/                         Stage (PiP), ClipView, Radar, Timeline, Rail, AnalysisPanel, SidePanels, useClock
+  ui/                             CoachText (citations), Segmented, icons, time
+  mock/                           world (matches, findings, moments, passages), replay (rounds, tracks), coach, lab, maps
+  styles/                         tokens, desktop, windows, studio
+qa/happy_path.py                  browser check of the path above
+```
+
+## Limits
+
+- The clip is a placeholder scene that follows the clock; there is no recorded video.
+- Player tracks are generated between callout centres, so they cross walls.
+- Coach text is written ahead of time from the mock findings; the language picker changes the label, not the text.
+- Nothing persists except the Lab switch (`localStorage`).
