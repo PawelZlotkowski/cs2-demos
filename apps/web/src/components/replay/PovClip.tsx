@@ -17,6 +17,8 @@ type PovClipProps = {
   onSeek: (t: number) => void;
   onRetry: (clipId: string) => void;
   onEnlarge: () => void;
+  /** The clock reached the end of the clip while it filled the stage. */
+  onEnd: () => void;
 };
 
 /** Seconds the video may drift from the clock while playing before it is re-seeked. */
@@ -27,12 +29,34 @@ const DRIFT = 0.25;
  * The clip covers round seconds t0..t1, so it follows the shared clock at `t - t0`:
  * it plays natively while the clock plays inside the window and holds its edge frame outside it.
  */
-export function PovClip({ clip, src, main, playerName, t, playing, rate, onSeek, onRetry, onEnlarge }: PovClipProps) {
+export function PovClip({
+  clip,
+  src,
+  main,
+  playerName,
+  t,
+  playing,
+  rate,
+  onSeek,
+  onRetry,
+  onEnlarge,
+  onEnd,
+}: PovClipProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [muted, setMuted] = useState(true);
-  const length = clip.t1 - clip.t0;
+  // The recorded file can come out shorter than the window asked for; trust the file
+  const [fileLength, setFileLength] = useState<number | null>(null);
+  const length = Math.min(clip.t1 - clip.t0, fileLength ?? Infinity);
+  const end = clip.t0 + length;
   const local = t - clip.t0;
-  const inside = local >= 0 && t <= clip.t1;
+  const inside = local >= 0 && t <= end;
+
+  useEffect(() => setFileLength(null), [src]);
+
+  // In the Gameplay view the clip is what you watch, so stop at its end instead of freezing on it
+  useEffect(() => {
+    if (main && playing && fileLength != null && t >= end && t - end < 0.5) onEnd();
+  }, [main, playing, fileLength, t, end, onEnd]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -48,7 +72,7 @@ export function PovClip({ clip, src, main, playerName, t, playing, rate, onSeek,
     if (Math.abs(v.currentTime - hold) > 0.04) v.currentTime = hold;
   }, [src, local, inside, playing, rate, length]);
 
-  const span = `${formatClock(clip.t0)} to ${formatClock(clip.t1)}`;
+  const span = `${formatClock(clip.t0)} to ${formatClock(end)}`;
 
   if (!src) {
     const text =
@@ -79,7 +103,9 @@ export function PovClip({ clip, src, main, playerName, t, playing, rate, onSeek,
         preload="auto"
         aria-label={`${playerName}'s view, round ${clip.round}, ${span}`}
         onLoadedMetadata={(e) => {
-          e.currentTarget.currentTime = Math.max(0, Math.min(length, local));
+          const v = e.currentTarget;
+          if (Number.isFinite(v.duration) && v.duration > 0) setFileLength(v.duration);
+          v.currentTime = Math.max(0, Math.min(v.duration || length, local));
         }}
       />
       {inside ? null : (

@@ -51,7 +51,7 @@ def recording(analysed, tmp_path, monkeypatch):
     return calls
 
 
-def test_every_moment_gets_exactly_its_window(analysed):
+def test_every_moment_gets_its_window_with_a_margin(analysed):
     mid, pid = analysed
     moments = repo.analysis.moments(mid, pid)
     assert moments
@@ -61,8 +61,9 @@ def test_every_moment_gets_exactly_its_window(analysed):
     for m in moments:
         c = by_moment[m.id]
         assert c["round"] == m.round
-        # The clip is the part the coach picked, so selecting the moment starts the clip
-        assert (c["t0"], c["t1"]) == (round(m.t0, 1), round(m.t1, 1))
+        # The picked window plus 1 s before and 3 s after, so the play is not cut at the edges
+        assert c["t0"] == round(max(0.0, m.t0 - 1.0), 1)
+        assert round(m.t1, 1) < c["t1"] <= round(m.t1 + 3.0, 1)
     # Recording is off by default: queued jobs read as skipped with a reason, never as ready
     assert all(c["status"] == "skipped" and "RR_CSDM_ENABLED" in c["error"] for c in clips)
 
@@ -82,7 +83,7 @@ def test_window_is_clamped_to_the_round_and_sixty_seconds(monkeypatch):
     assert moment_window(m, 100.0) == (0.0, 60.0)
     assert moment_window(m, 50.0) == (0.0, 50.0)
     short = SelectedMoment(id="m2", round=1, t0=10.0, t1=18.0, findingIds=[], kind="good", pickedBecause="x")
-    assert moment_window(short, 100.0) == (7.0, 18.0)
+    assert moment_window(short, 100.0) == (7.0, 21.0)
 
 
 def test_recorder_records_from_the_players_view_and_serves_the_file(recording, analysed):

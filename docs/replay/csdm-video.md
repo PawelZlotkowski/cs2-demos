@@ -43,7 +43,7 @@ Expect recording to take longer than wall-clock (CS2 exclusive, HLAE). Measure a
 
 After the player is picked and the coach has chosen its moments, the API records one clip per moment from **that player's** first-person view, in the `recording` stage (`selecting → recording → explaining → complete`). The analysis opens only after every clip is recorded or has failed with a reason:
 
-1. Window: exactly the moment's `t0`..`t1` (round clock seconds) that the coach picked, so selecting a moment starts its clip. `RR_CSDM_MOMENT_PAD_BEFORE` / `_AFTER` can add seconds; clamped to the round and 60 s.
+1. Window: the moment's `t0`..`t1` (round clock seconds) that the coach picked, plus `RR_CSDM_MOMENT_PAD_BEFORE` / `_AFTER` (1 s / 3 s) so the play is not cut at the edges; clamped to the round and 60 s. The Studio trusts the recorded file's real length and, in the Gameplay view, pauses at the clip's end.
 2. Ticks: `round.startTick + t × tickRate`, so the clip lines up with the Radar clock.
 3. `csdm analyze` once, then `csdm video … --focus-player {playerSteamId}` per clip, into its own temp folder, moved to `data/matches/{matchId}/clips/moments/c{N}.mp4`.
 4. Jobs live in the `clip_jobs` table (`queued → recording → ready | failed`). The processing page shows the stage with a done/total count. An on-demand round explanation and the agent's `request_clip` tool add jobs to the same queue and record in the background. The recorder shares the one-at-a-time worker with whole-round clips.
@@ -97,7 +97,7 @@ If you also installed PostgreSQL via the Windows installer, stop its service so 
 | `RR_CSDM_MAX_ROUNDS` | `0` | If >0, only first N rounds (faster iteration) |
 | `RR_CSDM_TIMEOUT_SECONDS` | `600` | Per-clip subprocess timeout |
 | `RR_CSDM_ROUND_CLIPS` | `false` | Also record every whole round after parsing (slow; the coach's moment clips do not need it) |
-| `RR_CSDM_MOMENT_PAD_BEFORE` / `_AFTER` | `0` / `0` | Seconds added around each coach moment |
+| `RR_CSDM_MOMENT_PAD_BEFORE` / `_AFTER` | `1` / `3` | Seconds added around each coach moment |
 
 ## Storage layout
 

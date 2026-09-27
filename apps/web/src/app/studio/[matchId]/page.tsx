@@ -1050,6 +1050,7 @@ export default function StudioPage() {
                     onSeek={(t) => seekTo(t)}
                     onRetry={retryPov}
                     onEnlarge={() => setMode("gameplay")}
+                    onEnd={clock.pause}
                   />
                 ) : null}
               </>
