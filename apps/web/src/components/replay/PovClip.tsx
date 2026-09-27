@@ -82,7 +82,7 @@ export function PovClip({
       clip.status === "queued" || clip.status === "recording"
         ? `Recording ${playerName}'s view of ${span}…`
         : clip.status === "failed"
-          ? (clip.error ?? "Recording failed.")
+          ? (clip.error ?? "Unable to record this clip. The radar still covers the moment.")
           : (clip.error ?? "Gameplay recording is off.");
     return (
       <div className={`pov pov-note${clip.status === "failed" ? " is-failed" : ""}`} role="status">
@@ -123,6 +123,10 @@ export function PovClip({
         <button type="button" aria-pressed={!muted} onClick={() => setMuted((m) => !m)}>
           {muted ? "Sound off" : "Sound on"}
         </button>
+        {/* The API names the file after the moment: map, player, round, what happened, time */}
+        <a href={`${src}${src.includes("?") ? "&" : "?"}download=1`} download>
+          Download
+        </a>
         {main ? null : (
           <button type="button" onClick={onEnlarge} title="Show the clip large (V)">
             Enlarge

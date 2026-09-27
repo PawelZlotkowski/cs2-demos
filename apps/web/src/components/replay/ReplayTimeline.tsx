@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import type { RoundSummary } from "@/lib/contracts";
-import { LANE_NAMES, LANE_ORDER, reasonLabel, type Lane, type LaneMark } from "@/lib/replay/roster";
+import { LANE_NAMES, LANE_ORDER, type AliveStep, type Lane, type LaneMark } from "@/lib/replay/roster";
 import { formatClock } from "@/lib/replay/time";
 
 type Props = {
@@ -11,15 +10,12 @@ type Props = {
   marks: LaneMark[];
   /** Lanes to draw, in order; fixed for the match so rows don't move between rounds. */
   lanes?: readonly Lane[];
-  rounds: RoundSummary[];
-  /** Per-round result from the match (1 = won), for the match strip. */
-  won: (0 | 1)[];
-  /** Round number -> glyph of its coaching moment, drawn above the match strip. */
-  momentRounds?: ReadonlyMap<number, "mistake" | "strength">;
-  roundId: string | null;
+  /** Players alive per side over the round, for the Fight lane's step graph. */
+  alive: AliveStep[];
+  /** The picked moment in view: a tinted band across every lane with its number and label. */
+  band?: { t0: number; t1: number; label: string; glyph: "mistake" | "strength" | "note"; n: number } | null;
   selectedEventId: string | null;
   laneH: number;
-  onSelectRound: (id: string) => void;
   onSeek: (t: number, eventId?: string) => void;
   onScrub: (active: boolean) => void;
 };
@@ -39,13 +35,10 @@ export function ReplayTimeline({
   t,
   marks,
   lanes = LANE_ORDER,
-  rounds,
-  won,
-  momentRounds,
-  roundId,
+  alive,
+  band,
   selectedEventId,
   laneH,
-  onSelectRound,
   onSeek,
   onScrub,
 }: Props) {
@@ -92,21 +85,25 @@ export function ReplayTimeline({
         flushCoach();
         continue;
       }
-      let group: LaneMark[] = [];
-      const flush = () => {
-        if (group.length === 1) out.push({ kind: "mark", lane, mark: group[0] });
-        else if (group.length > 1) out.push({ kind: "cluster", lane, group });
-        group = [];
-      };
-      for (const m of ms) {
-        const prev = group[group.length - 1];
-        if (prev && ((m.t - prev.t) / max) * trackW < CLUSTER_GAP) group.push(m);
-        else {
-          flush();
-          group = [m];
+      // Fight ticks cluster per side, so a trade stays two ticks, one above the axis and one below.
+      const runs = lane === "fight" ? [ms.filter((m) => m.side === "us"), ms.filter((m) => m.side !== "us")] : [ms];
+      for (const run of runs) {
+        let group: LaneMark[] = [];
+        const flush = () => {
+          if (group.length === 1) out.push({ kind: "mark", lane, mark: group[0] });
+          else if (group.length > 1) out.push({ kind: "cluster", lane, group });
+          group = [];
+        };
+        for (const m of run) {
+          const prev = group[group.length - 1];
+          if (prev && ((m.t - prev.t) / max) * trackW < CLUSTER_GAP) group.push(m);
+          else {
+            flush();
+            group = [m];
+          }
         }
+        flush();
       }
-      flush();
     }
     return out;
   }, [lanes, marks, max, trackW]);
@@ -145,36 +142,9 @@ export function ReplayTimeline({
 
   return (
     <div className="tl" style={{ "--lane-h": `${laneH}px` } as CSSProperties}>
-      <div className="row">
-        <span className="row-n">Match</span>
-        <div
-          className="rounds"
-          style={{ gridTemplateColumns: `repeat(${Math.max(rounds.length, 1)}, 1fr)` }}
-        >
-          {rounds.map((r, i) => {
-            const detail = `${r.winner ? `${r.winner} win` : "No result"}, ${reasonLabel(r.reason).toLowerCase()}`;
-            const moment = momentRounds?.get(r.number);
-            return (
-              <button
-                key={r.id}
-                type="button"
-                className={`rcell${won[i] ? " won" : ""}${r.id === roundId ? " cur" : ""}`}
-                aria-label={`Round ${r.number}, ${detail}${moment ? ", has a coaching moment" : ""}`}
-                aria-current={r.id === roundId ? "true" : undefined}
-                onClick={() => onSelectRound(r.id)}
-                onMouseEnter={(e) => showTip(e.currentTarget, `Round ${r.number}`, detail)}
-                onMouseLeave={hideTip}
-              >
-                {moment ? <i className={`g g-${moment} rmark`} aria-hidden /> : null}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       <div className="lanes">
         {lanes.map((lane) => (
-          <LaneRow key={lane} lane={lane}>
+          <LaneRow key={lane} lane={lane} extra={lane === "fight" ? <FightGraph alive={alive} max={max} /> : null}>
             {items
               .filter((it) => it.lane === lane)
               .map((it) =>
@@ -196,7 +166,7 @@ export function ReplayTimeline({
                     type="button"
                     className={`mk${now(it.mark) ? " now" : ""}${
                       it.mark.eventId === selectedEventId ? " sel" : ""
-                    }`}
+                    }${it.mark.side ? ` k-${it.mark.side}` : ""}${it.mark.you ? " k-you" : ""}`}
                     style={{ left: pct(it.mark.t) }}
                     aria-label={`${it.mark.label}, ${formatClock(it.mark.t)}`}
                     onClick={() => onSeek(it.mark.t, it.mark.eventId)}
@@ -205,13 +175,13 @@ export function ReplayTimeline({
                     onFocus={(e) => showTip(e.currentTarget, it.mark.label, formatClock(it.mark.t))}
                     onBlur={hideTip}
                   >
-                    <i className={`d d-${it.mark.glyph}`} aria-hidden />
+                    {it.mark.side ? <i className="k" aria-hidden /> : <i className={`d d-${it.mark.glyph}`} aria-hidden />}
                   </button>
                 ) : (
                   <button
                     key={it.group[0].key}
                     type="button"
-                    className="cluster"
+                    className={`cluster${it.lane === "fight" ? ` k-${it.group[0].side ?? "them"}` : ""}`}
                     style={{
                       left: pct(it.group.reduce((s, m) => s + m.t, 0) / it.group.length),
                     }}
@@ -237,6 +207,18 @@ export function ReplayTimeline({
             <div className="lane-n">Events</div>
             <div className="lane-t" />
           </>
+        ) : null}
+
+        {band ? (
+          <div
+            className={`band band-${band.glyph}`}
+            style={{ "--b0": Math.max(0, band.t0) / max, "--b1": Math.min(max, band.t1) / max } as CSSProperties}
+            aria-hidden
+          >
+            <span>
+              <b>{String(band.n).padStart(2, "0")}</b> {band.label}
+            </span>
+          </div>
         ) : null}
 
         <div
@@ -360,13 +342,44 @@ function CoachMarker({
   );
 }
 
-function LaneRow({ lane, children }: { lane: Lane; children: ReactNode }) {
+function LaneRow({ lane, extra, children }: { lane: Lane; extra?: ReactNode; children: ReactNode }) {
   return (
     <>
       <div className={`lane-n l-${lane}`}>{LANE_NAMES[lane]}</div>
       <div className={`lane-t l-${lane}`} data-lane={lane}>
+        {extra}
         {children}
       </div>
     </>
+  );
+}
+
+/**
+ * Players alive per side as a mirrored step graph: the followed player's team above the axis,
+ * the other team below. Each kill is a step, so trades and man advantage read at a glance.
+ */
+function FightGraph({ alive, max }: { alive: AliveStep[]; max: number }) {
+  if (!alive.length) return null;
+  const top = Math.max(5, ...alive.map((a) => Math.max(a.us, a.them)));
+  const H = 10;
+  const mid = H / 2;
+  const k = (mid - 0.4) / top;
+  const path = (sign: 1 | -1, key: "us" | "them") => {
+    let d = `M0 ${mid}`;
+    let prev = alive[0][key];
+    d += ` L0 ${mid - sign * prev * k}`;
+    for (const a of alive.slice(1)) {
+      d += ` L${a.t} ${mid - sign * prev * k} L${a.t} ${mid - sign * a[key] * k}`;
+      prev = a[key];
+    }
+    d += ` L${max} ${mid - sign * prev * k} L${max} ${mid} Z`;
+    return d;
+  };
+  return (
+    <svg className="fight" viewBox={`0 0 ${max} ${H}`} preserveAspectRatio="none" aria-hidden>
+      <path className="fight-us" d={path(1, "us")} vectorEffect="non-scaling-stroke" />
+      <path className="fight-them" d={path(-1, "them")} vectorEffect="non-scaling-stroke" />
+      <line x1={0} x2={max} y1={mid} y2={mid} className="fight-axis" vectorEffect="non-scaling-stroke" />
+    </svg>
   );
 }

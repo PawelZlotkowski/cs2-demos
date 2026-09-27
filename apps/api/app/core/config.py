@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     mcp_command: str | None = None
     coach_max_steps: int = 6
     traces_dir: Path | None = None
+    # Admin Lab (doc 29 §2.2): trace viewer, labelling, evaluation. Until accounts
+    # (A13 roles) exist it is switched on per PC, since traces hold player data.
+    lab_enabled: bool = False
+    # Lab Labels write T17 files here (default: the repo's data/labels, which is committed)
+    labels_dir: Path | None = None
+    # Fine-tuning set built from the traces (T50); the Lab Dataset tab reviews it (T51)
+    dataset_dir: Path | None = None
     # Knowledge base (plan §7): markdown folder, optional local embedding server
     knowledge_dir: Path | None = None
     embed_url: str | None = None

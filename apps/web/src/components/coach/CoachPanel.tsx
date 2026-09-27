@@ -30,6 +30,8 @@ type Props = CiteHandlers & {
   language: CoachLanguage;
   t: number;
   knows: string;
+  /** What the coach is looking at, shown on the ask bar: round, time, moment, view. */
+  context: string[];
   suggestions: string[];
   inputRef: RefObject<HTMLInputElement | null>;
   placeholder: string;
@@ -37,7 +39,7 @@ type Props = CiteHandlers & {
 };
 
 /** What the coach is doing, from the tool it just called. */
-const STEP_LABELS: Record<string, string> = {
+export const STEP_LABELS: Record<string, string> = {
   list_rounds: "Reading the rounds",
   get_round_stats: "Reading the round stats",
   list_findings: "Looking through the findings",
@@ -47,6 +49,8 @@ const STEP_LABELS: Record<string, string> = {
   get_player_history: "Checking earlier matches",
   search_knowledge: "Searching the map notes",
   request_clip: "Queueing a clip",
+  list_matches: "Listing your matches",
+  find_moments: "Looking through your matches",
 };
 
 export function CoachPanel({
@@ -58,6 +62,7 @@ export function CoachPanel({
   language,
   t,
   knows,
+  context,
   suggestions,
   inputRef,
   placeholder,
@@ -166,6 +171,9 @@ export function CoachPanel({
   return (
     <div className="coach" id="coach" role="tabpanel" aria-labelledby="tab-ask">
       <div className="thread" ref={threadRef} aria-live="polite">
+        {turns.length ? null : (
+          <p className="thread-empty">Questions about this round collect here. Answers cite the findings and times they use.</p>
+        )}
         {turns.map((x) => (
           <div className="qa" key={x.id}>
             <div className="qq">{x.q}</div>
@@ -185,10 +193,8 @@ export function CoachPanel({
         ))}
       </div>
       <div className="coach-body">
-        <p className="coach-h">Ask about this round</p>
-        <p className="knows">{knows}</p>
         {open.length ? (
-          <ul className="qs">
+          <ul className="qs" aria-label="Suggested questions">
             {open.map((q) => (
               <li key={q}>
                 <button type="button" className="q" onClick={() => void ask(q)}>
@@ -198,23 +204,36 @@ export function CoachPanel({
             ))}
           </ul>
         ) : null}
+        {/* The ask bar states its context instead of greeting: the coach already knows the moment. */}
         <form className="ask-row" onSubmit={onSubmit}>
-          <label className="sr-only" htmlFor="coach-ask">
-            Question about this round
-          </label>
-          <input
-            ref={inputRef}
-            className="field"
-            id="coach-ask"
-            placeholder={placeholder}
-            autoComplete="off"
-            aria-keyshortcuts="/"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-          />
-          <button type="submit" className="btn btn-line" disabled={!draft.trim()}>
-            Ask
-          </button>
+          <p className="ask-ctx" title={knows}>
+            <span className="sr-only">{knows}</span>
+            {context.map((c, i) => (
+              <span key={i} aria-hidden>
+                {c}
+              </span>
+            ))}
+          </p>
+          <div className="ask-field">
+            <label className="sr-only" htmlFor="coach-ask">
+              Question about this round
+            </label>
+            <input
+              ref={inputRef}
+              className="field"
+              id="coach-ask"
+              placeholder={placeholder}
+              autoComplete="off"
+              aria-keyshortcuts="/"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onFocus={onAsk}
+            />
+            {draft.trim() ? null : <kbd aria-hidden>/</kbd>}
+            <button type="submit" className="ask-send" disabled={!draft.trim()}>
+              Ask
+            </button>
+          </div>
         </form>
         {playerId ? null : (
           <div className="proto-note">

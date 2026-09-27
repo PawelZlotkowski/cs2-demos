@@ -10,6 +10,7 @@ import { PlayerPicker, type PickerPlayer } from "@/components/processing/PlayerP
 import { makeRosterLookup } from "@/lib/replay/roster";
 import { COACH_LANGUAGES, useCoachLanguage } from "@/lib/coach/language";
 import type { CoachLanguage } from "@/lib/contracts";
+import { askToNotify, notifyPermission, notifyReviewReady } from "@/lib/notify";
 
 const TERMINAL = new Set(["complete", "failed"]);
 
@@ -60,12 +61,13 @@ export default function ProcessingPage() {
         if (cancelled) return;
         setStatus(s);
         if (s.status === "complete") {
+          notifyReviewReady(id, "The coach has picked your moments. Open the tab to start the review.");
           // Radar is ready — open Studio; clips may still be recording.
           router.replace(`/studio/${id}`);
           return;
         }
         if (s.status === "failed") {
-          setError(s.error ?? "Processing failed.");
+          setError(s.error ?? "Unable to process this demo. Upload it again, or try another demo.");
           return;
         }
         // The Radar is ready here; stop and let the viewer choose whose game to analyse.
@@ -76,7 +78,7 @@ export default function ProcessingPage() {
         timer = setTimeout(poll, 800);
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Status failed.");
+          setError(e instanceof Error ? e.message : "Unable to check progress. Check the API is running, then reload the page.");
           timer = setTimeout(poll, 1500);
         }
       }
@@ -104,12 +106,14 @@ export default function ProcessingPage() {
         setPlayers(withKillCounts(m, kills));
       } catch (e) {
         loadedPlayers.current = false;
-        setError(e instanceof Error ? e.message : "Could not load the players.");
+        setError(e instanceof Error ? e.message : "Unable to load the players. Reload the page to try again.");
       }
     })();
   }, [awaiting, id]);
 
   const [coachLang, setCoachLang] = useCoachLanguage();
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">("unsupported");
+  useEffect(() => setPermission(notifyPermission()), []);
 
   const choose = useCallback(
     async (playerId: string) => {
@@ -121,7 +125,7 @@ export default function ProcessingPage() {
         setPollKey((k) => k + 1);
       } catch (e) {
         setPicking(null);
-        setError(e instanceof Error ? e.message : "Could not start the analysis.");
+        setError(e instanceof Error ? e.message : "Unable to start the analysis. Pick the player again to retry.");
       }
     },
     [id, coachLang],
@@ -144,7 +148,7 @@ export default function ProcessingPage() {
     return <NotFound title="This match isn't here" detail="It may have been deleted, or the link is wrong." />;
   }
   return (
-    <main className="main">
+    <main className="main" id="content">
       <h1>{awaiting ? "Choose a player" : "Processing"}</h1>
       <p className="lede">
         {awaiting
@@ -231,6 +235,17 @@ export default function ProcessingPage() {
       {status && !done && !awaiting ? (
         <p className="meta" style={{ marginTop: 12 }}>
           Status: {status.status}
+        </p>
+      ) : null}
+      {status && !done && !awaiting && ["detecting", "selecting", "recording", "explaining"].includes(status.status) ? (
+        <p className="meta" style={{ marginTop: 8 }}>
+          {permission === "granted" ? (
+            "You can switch to another tab: this one tells you when the review is ready."
+          ) : permission === "default" ? (
+            <button type="button" className="link" onClick={() => void askToNotify().then(setPermission)}>
+              Tell me when the review is ready
+            </button>
+          ) : null}
         </p>
       ) : null}
     </main>

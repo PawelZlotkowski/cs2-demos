@@ -180,7 +180,7 @@ export function ReviewWrapUpPanel({
       <p className="row-actions review-actions">
         {actions}
         <Link className="btn btn-line" href="/upload">
-          Add demo
+          Add match
         </Link>
       </p>
     </>

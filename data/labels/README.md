@@ -9,6 +9,10 @@ Hand labels for the detectors (AI Coach plan §11). Committed; raw demos are not
 
 ## How to label
 
+In the app: Lab, Labels (needs `RR_LAB_ENABLED=1`). It writes the same files, lets you pick your own six moments for a match before seeing the coach's (saved to `moments/<match-id>-<player-id>-<labeller>.json` and scored with overlap@6 and NDCG@6), and shows precision, recall and κ. Labeller names use letters, digits and `_`.
+
+From the command line:
+
 1. Process the demo in the app (upload, then choose the player). The match lands in `apps/api/data/matches/<match-id>/`.
 2. Run the tool from the repo root with the API venv active:
 

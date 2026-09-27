@@ -63,6 +63,15 @@ Still in `prototype/analysis-studio.html` (reference): moment rail, Coach panel,
 
 - **Knowledge base (T30):** `data/knowledge/` with Mirage (58 sections) and Anubis (49) notes on callouts, T and CT play, utility and rotations, plus 25 fundamentals sections tied to the detectors. One chunk per `##` section, frontmatter `map/side/topic/source/license/lang/review`, `Zones:` and `Detectors:` lines. First draft from general CS2 knowledge, not checked in-game. Liquipedia pages come from `data/knowledge/fetch_liquipedia.py` run locally (the cloud sessions cannot reach the site). Content test: `pytest tests/knowledge`. The index and `search_knowledge` (T31, T32) are built in the phase 2 PR.
 
+## Implemented (doc 29 roadmap, in review on PR #22)
+
+- **R00:** the verifier rejects tool names and tool-call markup written into the text (the leaked `search_knowledge "practice drill dry peek"` wrap-up), so the job repairs once, then falls back to templates.
+- **R01:** `GET /system` checks llama-server and whether it serves `RR_LLM_MODEL`, the MCP tool list, CS Demo Manager, the knowledge index and the traces folder.
+- **R03:** `GET /lab/traces` and `/lab/traces/{id}` read `data/traces/*.jsonl` for the Lab's Runs tab, behind `RR_LAB_ENABLED`.
+- **R05:** MCP tools `list_matches` and `find_moments`, the `answer_across.v1` prompt and `POST /players/{pid}/ask` for the Coach page, with `[M2:F3]` citations checked by the verifier.
+- **Web:** top bar with Home, Coach and Lab (flagged), a setup warning and a Settings link; `/coach` (Ask across matches, citations open the Studio at the finding via `?f=`), `/lab` (Runs table and run detail), `/settings` (System checks). `GET /players` and `GET /features` feed them.
+- **Second batch (R04, R07–R18):** Studio Round and Notes tabs (a note's "Ask about this" explains the window around it), "Show a round where you did this well" under a mistake, clip download; Coach page Plan (code picks up to three repeated mistakes with a drill each, the model writes the note) and Knowledge (radar callout picker, flag as wrong, admin notes); Lab Labels (T17 files and blind picks with κ, precision and recall), Evaluation (per-model table from the traces, `compare_models` results, blind A/B) and Dataset (review and export, also `ml/finetune/build_dataset.py`); `/matches` with re-run that keeps the old review; `/progress` with detector counts per match and deaths per callout; Settings, Connect another app; review-ready notification. Where this differs from doc 29 is in its section 9.
+
 ## Planned next (AI Coach milestone, kicked off 26 Sep 2026)
 
 Plan: [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN.md). Tasks and status: [docs/coach/TASKS.md](../coach/TASKS.md).
