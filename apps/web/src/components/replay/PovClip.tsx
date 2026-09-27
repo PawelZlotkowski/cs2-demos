@@ -82,7 +82,7 @@ export function PovClip({
       clip.status === "queued" || clip.status === "recording"
         ? `Recording ${playerName}'s view of ${span}…`
         : clip.status === "failed"
-          ? (clip.error ?? "Recording failed.")
+          ? (clip.error ?? "Unable to record this clip. The radar still covers the moment.")
           : (clip.error ?? "Gameplay recording is off.");
     return (
       <div className={`pov pov-note${clip.status === "failed" ? " is-failed" : ""}`} role="status">

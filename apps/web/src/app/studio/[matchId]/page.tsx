@@ -40,6 +40,7 @@ import {
 } from "@/lib/replay/camera";
 import {
   LANE_ORDER,
+  aliveSteps,
   eventTitle,
   glyphForEvent,
   laneMarks,
@@ -66,6 +67,7 @@ import { NotFound, isNotFound } from "@/components/NotFound";
 import { RoundStrip } from "@/components/review/RoundStrip";
 import { ReviewOverview, ReviewWrapUpPanel } from "@/components/review/ReviewPanels";
 import { useCoachLanguage } from "@/lib/coach/language";
+import gsap from "gsap";
 import { fadeIn, flipFrom } from "@/lib/motion";
 
 const RATES: PlaybackRate[] = [1, 2, 4, 0.5];
@@ -463,7 +465,7 @@ export default function StudioPage() {
         : "Recording gameplay…";
     }
     if (activeClip.status === "failed") {
-      return activeClip.error ?? "Gameplay recording failed for this round.";
+      return activeClip.error ?? "Unable to record gameplay for this round. The radar still covers it.";
     }
     if (activeClip.status === "skipped") {
       return activeClip.error ?? "Clips are off on this computer, so the radar is shown instead.";
@@ -603,24 +605,24 @@ export default function StudioPage() {
       return;
     }
     animateCam.current = false;
-    let raf = 0;
-    const t0 = performance.now();
-    const ease = (u: number) => (u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2);
-    const step = (now: number) => {
-      const u = Math.min(1, (now - t0) / 320);
-      const k = ease(u);
-      const b = {
-        x: from.x + (target.x - from.x) * k,
-        y: from.y + (target.y - from.y) * k,
-        w: from.w + (target.w - from.w) * k,
-        h: from.h + (target.h - from.h) * k,
-      };
-      vbRef.current = b;
-      setViewBox(b);
-      if (u < 1) raf = requestAnimationFrame(step);
+    // Radar camera move (GSAP: space and continuity). A proxy box tweens; React draws each frame.
+    const box = { ...from };
+    const tween = gsap.to(box, {
+      x: target.x,
+      y: target.y,
+      w: target.w,
+      h: target.h,
+      duration: 0.32,
+      ease: "power2.inOut",
+      onUpdate: () => {
+        const b = { x: box.x, y: box.y, w: box.w, h: box.h };
+        vbRef.current = b;
+        setViewBox(b);
+      },
+    });
+    return () => {
+      tween.kill();
     };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
   }, [target]);
 
   const pxPerUnit = Math.min(stageSize.w / viewBox.w, stageSize.h / viewBox.h);
@@ -629,7 +631,7 @@ export default function StudioPage() {
 
   const selectRound = useCallback(
     (id: string) => {
-      animateCam.current = true;
+      animateCam.current = !viaKey.current;
       setReview(null);
       setMomentId(null);
       setRoundId(id);
@@ -659,7 +661,7 @@ export default function StudioPage() {
         clock.seek(m.t0);
         setSelectedEventId(lead);
       } else {
-        animateCam.current = true;
+        animateCam.current = !viaKey.current;
         pendingSeek.current = m.t0;
         setRoundId(target.id);
       }
@@ -677,7 +679,7 @@ export default function StudioPage() {
       if (target.id === roundId && replay) {
         seekTo(f.t, f.id);
       } else {
-        animateCam.current = true;
+        animateCam.current = !viaKey.current;
         pendingSeek.current = f.t;
         setMomentId(null);
         setRoundId(target.id);
@@ -965,29 +967,92 @@ export default function StudioPage() {
   const momentIdx = activeMoment ? moments.findIndex((m) => m.id === activeMoment.id) : -1;
   const unreviewedRound = rounds.find((r) => !momentRounds.has(r.number));
 
+  const alive = aliveSteps(events, roster, lookup, focus);
+  let aliveNow = alive[0];
+  for (const a of alive) if (a.t <= clock.t + 0.05) aliveNow = a;
+  const band =
+    activeMoment && !review && momentIdx >= 0
+      ? {
+          t0: activeMoment.t0,
+          t1: activeMoment.t1,
+          label: momentTitle(activeMoment),
+          glyph: kindGlyph(activeMoment.kind),
+          n: momentIdx + 1,
+        }
+      : null;
+  // What the ask bar says it is looking at: one line of context instead of a greeting.
+  const askContext = activeRound
+    ? [
+        `R${activeRound.number}`,
+        formatClock(clock.t),
+        ...(band ? [band.label] : selected ? [typeLabel(selected.type)] : []),
+        stageMode === "gameplay" ? "Gameplay" : "Radar",
+      ]
+    : [];
+  // Scorebug: rounds from the coached player's side when stats exist, else the match's own score.
+  const sbWon = (r: RoundSummary, i: number): boolean | undefined =>
+    wonByRound.get(r.number) ?? (match?.won?.[i] != null ? Boolean(match.won[i]) : undefined);
+  const scoreParts = String(match?.score ?? "").match(/(\d+)\s*[–-]\s*(\d+)/);
+  const sbScore = wonByRound.size
+    ? { us: roundsWon, them: roundsLost, text: `${roundsWon}–${roundsLost}` }
+    : { us: Number(scoreParts?.[1] ?? 0), them: Number(scoreParts?.[2] ?? 0), text: String(match?.score ?? "") };
+
   if (!loadingMatch && !match && isNotFound(loadError)) {
     return <NotFound title="This match isn't here" detail="It may have been deleted, or the link is wrong." />;
   }
   return (
-    <main className={`studio${panelOn ? "" : " panel-off"}`}>
+    <main id="content" className={`studio${panelOn ? "" : " panel-off"}`}>
+      <h1 className="sr-only">
+        {match ? `${mapLabel} review${analysedName ? ` for ${analysedName}` : ""}` : "Match review"}
+      </h1>
       {barSlot && match
         ? createPortal(
-            <>
-              <b>{mapLabel}</b>, {scorePhrase(match.score)}, {match.when}
-            </>,
+            <div className="sb" aria-label={`${mapLabel}, ${scorePhrase(sbScore.text)}`}>
+              <span className="sb-map">{mapLabel}</span>
+              <span className="sb-score" aria-hidden>
+                <b>{sbScore.us}</b>
+                <i>:</i>
+                <b className="them">{sbScore.them}</b>
+              </span>
+              {rounds.length ? (
+                <ol className="sb-rounds" aria-label="Rounds">
+                  {rounds.map((r, i) => {
+                    const w = sbWon(r, i);
+                    const glyph = momentRounds.get(r.number);
+                    const result = w == null ? "no result" : w ? "won" : "lost";
+                    return (
+                      <li key={r.id} className={i > 0 && i === Math.ceil(rounds.length / 2) && rounds.length > 12 ? "half" : undefined}>
+                        <button
+                          type="button"
+                          className="sb-cell"
+                          data-won={w == null ? undefined : String(w)}
+                          aria-current={r.id === roundId ? "true" : undefined}
+                          aria-label={`Round ${r.number}, ${result}${glyph ? `, ${glyph === "mistake" ? "a mistake" : "a good play"} picked` : ""}`}
+                          title={`Round ${r.number}, ${result}`}
+                          onClick={() => selectRound(r.id)}
+                        >
+                          <span className="sb-box" aria-hidden />
+                          {glyph ? <i className={`g g-${glyph}`} aria-hidden /> : null}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              ) : null}
+              {activeRound ? (
+                <span className="sb-round">
+                  R{activeRound.number}
+                  {roundStats?.side ? <small>{roundStats.side}</small> : null}
+                </span>
+              ) : null}
+            </div>,
             barSlot,
           )
         : null}
 
-      <aside className="rail" aria-label={moments.length ? "Moments and rounds" : "Rounds in this match"}>
+      <aside className="rail" aria-label={moments.length ? "Review path" : "Rounds in this match"}>
         <div className="rail-h">
-          <b>
-            {loadingMatch
-              ? "Loading…"
-              : moments.length
-                ? `${moments.length} ${moments.length === 1 ? "moment" : "moments"}`
-                : `${rounds.length} rounds`}
-          </b>
+          <b>{loadingMatch ? "Loading…" : moments.length ? "Review" : "Rounds"}</b>
           {moments.length ? (
             <span>
               {seenMoments.size} of {moments.length} seen
@@ -1009,39 +1074,48 @@ export default function StudioPage() {
                 <li>
                   <button
                     type="button"
-                    className="mom mom-overview"
+                    className="mom mom-cap"
                     aria-current={review === "overview" ? "true" : "false"}
                     onClick={() => setReview("overview")}
                   >
                     {review === "overview" ? <span className="rail-ind" aria-hidden /> : null}
-                    <i className="g g-round" aria-hidden />
-                    <span className="mom-title">Match overview</span>
+                    <span className="mom-n" aria-hidden>
+                      <i className="g g-round" />
+                    </span>
+                    <span className="mom-title">Match brief</span>
                     <span className="mom-meta">
                       <span className="when">Summary and rounds</span>
                     </span>
                   </button>
                 </li>
-                {moments.map((m) => {
+                {moments.map((m, i) => {
                   const current = m.id === activeMoment?.id && !review;
                   const lead = leadFinding(m, findingsById);
                   const title = lead ? findingLabel(lead) : kindLabel(m.kind);
                   const reason = pickedBecause(m);
+                  const done = seenMoments.has(m.id) && !current;
                   return (
                     <li key={m.id}>
                       <button
                         type="button"
-                        className="mom"
+                        className={`mom k-${kindGlyph(m.kind)}${done ? " is-seen" : ""}`}
                         aria-current={current ? "true" : "false"}
-                        aria-label={`${kindLabel(m.kind)}: ${title}. Round ${m.round}, ${formatClock(lead?.t ?? m.t0)}. ${reason}`}
+                        aria-label={`Moment ${i + 1}, ${kindLabel(m.kind)}: ${title}. Round ${m.round}, ${formatClock(lead?.t ?? m.t0)}. ${reason}${done ? ". Seen" : ""}`}
                         onClick={() => selectMoment(m)}
                         data-moment={m.id}
                       >
                         {current ? <span className="rail-ind" aria-hidden /> : null}
-                        <i className={`g g-${kindGlyph(m.kind)}`} aria-hidden />
-                        <span className="mom-title">{title}</span>
+                        <span className="mom-n" aria-hidden>
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                        <span className="mom-title">
+                          <i className={`g g-${kindGlyph(m.kind)}`} aria-hidden />
+                          {title}
+                        </span>
                         <span className="mom-meta">
                           <span className="when">
                             R{m.round} {formatClock(lead?.t ?? m.t0)}
+                            {lead?.zone ? ` · ${lead.zone}` : ""}
                             {povReady.has(m.id) ? (
                               <span className="pov-tag" title="First-person clip ready">
                                 POV
@@ -1049,14 +1123,28 @@ export default function StudioPage() {
                             ) : null}
                           </span>
                           <span className="reason">{reason.charAt(0).toUpperCase() + reason.slice(1)}</span>
-                          <span className="seen" title={seenMoments.has(m.id) && !current ? "Seen" : undefined}>
-                            {seenMoments.has(m.id) && !current ? "✓" : ""}
-                          </span>
                         </span>
                       </button>
                     </li>
                   );
                 })}
+                <li>
+                  <button
+                    type="button"
+                    className="mom mom-cap"
+                    aria-current={review === "wrapup" ? "true" : "false"}
+                    onClick={() => setReview("wrapup")}
+                  >
+                    {review === "wrapup" ? <span className="rail-ind" aria-hidden /> : null}
+                    <span className="mom-n" aria-hidden>
+                      <i className="g g-round" />
+                    </span>
+                    <span className="mom-title">Debrief</span>
+                    <span className="mom-meta">
+                      <span className="when">What to practise next</span>
+                    </span>
+                  </button>
+                </li>
               </ol>
             ) : null}
             {moments.length ? (
@@ -1069,28 +1157,27 @@ export default function StudioPage() {
             ) : null}
             <ol className={`moments${moments.length ? " secondary" : ""}`} aria-label="All rounds">
               {rounds.map((r) => {
-                const current = r.id === roundId && !activeMoment;
+                const current = r.id === roundId && !activeMoment && !review;
                 return (
                   <li key={r.id}>
                     <button
                       type="button"
-                      className="mom"
+                      className={`mom${seen.has(r.id) && !current ? " is-seen" : ""}`}
                       aria-current={current ? "true" : "false"}
                       aria-label={`Round ${r.number}. ${r.winner ?? "No"} win, ${reasonLabel(r.reason)}.`}
                       onClick={() => selectRound(r.id)}
                       data-round={r.id}
                     >
                       {current ? <span className="rail-ind" aria-hidden /> : null}
-                      {/* Neutral mark: triangle and circle mean mistake and good play (decision 4) */}
-                      <i className="g g-round" aria-hidden />
-                      <span className="mom-title">Round {r.number}</span>
+                      <span className="mom-n" aria-hidden>
+                        {String(r.number).padStart(2, "0")}
+                      </span>
+                      <span className="mom-title">
+                        {r.winner ? `${r.winner} win` : "No result"}
+                      </span>
                       <span className="mom-meta">
                         <span className="when">
-                          {r.winner ? `${r.winner} win` : "—"}, {Math.round(r.durationSec)} s
-                        </span>
-                        <span className="reason">{reasonLabel(r.reason)}</span>
-                        <span className="seen" title={seen.has(r.id) && !current ? "Seen" : undefined}>
-                          {seen.has(r.id) && !current ? "✓" : ""}
+                          {reasonLabel(r.reason)}, {Math.round(r.durationSec)} s
                         </span>
                       </span>
                     </button>
@@ -1107,7 +1194,7 @@ export default function StudioPage() {
           <div className="studio-empty">
             <h2>Replay not available</h2>
             <p>
-              {loadError} <Link href="/upload">Add a demo</Link> to parse rounds onto the Radar stage.
+              {loadError} <Link href="/upload">Add a match</Link> to parse rounds onto the Radar stage.
             </p>
           </div>
         ) : null}
@@ -1147,18 +1234,20 @@ export default function StudioPage() {
                         utility={utility}
                         viewBox={viewBox}
                         pxPerUnit={pxPerUnit}
+                        moment={activeMoment && !review ? activeMoment : null}
+                        instantRef={viaKey}
                       />
                       <div className="legend" aria-hidden>
                         <span>
-                          <i style={{ background: "#fff", boxShadow: "0 0 0 1.5px #8FA9FF" }} />
+                          <i className="lg-you" />
                           {focus?.name ?? "You"}
                         </span>
                         <span>
-                          <i style={{ background: "#9AA4AE" }} />
+                          <i className="lg-team" />
                           Team
                         </span>
                         <span>
-                          <i style={{ background: "#F28C4C" }} />
+                          <i className="lg-enemy" />
                           Enemy
                         </span>
                       </div>
@@ -1199,6 +1288,21 @@ export default function StudioPage() {
                     onEnd={clock.pause}
                   />
                 ) : null}
+                {/* The shared label (decision 11): the same words as the path, the timeline band and the panel. */}
+                <div className={`chip${band ? ` chip-${band.glyph}` : ""}${panelLive && band ? " live" : ""}`}>
+                  {band ? (
+                    <>
+                      <i className={`g g-${band.glyph}`} aria-hidden />
+                      <b>{String(band.n).padStart(2, "0")}</b>
+                      <span>{band.label}</span>
+                    </>
+                  ) : activeRound ? (
+                    <>
+                      <b>R{activeRound.number}</b>
+                      <span>{review === "overview" ? "Match brief" : review === "wrapup" ? "Debrief" : `${activeRound.winner ?? "No"} win`}</span>
+                    </>
+                  ) : null}
+                </div>
               </>
             ) : (
               <div className="stage-msg">
@@ -1208,156 +1312,167 @@ export default function StudioPage() {
           </div>
         </div>
 
-        <div className="transport" ref={transportRef} hidden={empty}>
-          <button
-            type="button"
-            className="play"
-            aria-label={clock.playing ? "Pause" : "Play"}
-            aria-keyshortcuts="Space"
-            onClick={togglePlay}
-          >
-            <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden>
-              {clock.playing ? (
-                <>
-                  <rect x="3" y="2" width="3" height="10" fill="currentColor" />
-                  <rect x="8" y="2" width="3" height="10" fill="currentColor" />
-                </>
-              ) : (
-                <path d="M3 1.5v11l9.5-5.5z" fill="currentColor" />
-              )}
-            </svg>
-          </button>
-          <button
-            type="button"
-            className="step"
-            aria-label="Previous event"
-            title="Previous event (,)"
-            onClick={() => stepEvent(-1)}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-              <path d="M2 1.5v9M10 1.5L4.5 6 10 10.5z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className="step"
-            aria-label="Next event"
-            title="Next event (.)"
-            onClick={() => stepEvent(1)}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-              <path d="M10 1.5v9M2 1.5L7.5 6 2 10.5z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-            </svg>
-          </button>
-          <div className="clock">
-            <b>{formatClock(clock.t)}</b>
-            <span>
-              {activeRound ? `round ${activeRound.number}, ` : ""}of {formatClock(clock.duration)}
-            </span>
-          </div>
-          <div className="now" aria-live="off">
-            {nowEvent ? eventTitle(nowEvent, lookup) : ""}
-          </div>
-          <div
-            className={`seg${stageMode === "radar" ? " is-radar" : ""}`}
-            role="group"
-            aria-label="View"
-            title="Switch view (V)"
-          >
-            <span className="seg-pill" aria-hidden />
+        <div className="dock" hidden={empty}>
+          <div className="transport" ref={transportRef}>
             <button
               type="button"
-              data-mode="gameplay"
-              aria-pressed={stageMode === "gameplay"}
-              disabled={!gameplayReady}
-              title={gameplayReady ? "Gameplay" : (gameplayDisabledReason ?? "Gameplay unavailable")}
-              onClick={() => setMode("gameplay")}
+              className="play"
+              aria-label={clock.playing ? "Pause" : "Play"}
+              aria-keyshortcuts="Space"
+              title={clock.playing ? "Pause (Space)" : "Play (Space)"}
+              onClick={togglePlay}
             >
-              Gameplay
-            </button>
-            <button
-              type="button"
-              data-mode="radar"
-              aria-pressed={stageMode === "radar"}
-              onClick={() => setMode("radar")}
-            >
-              Radar
-            </button>
-          </div>
-          {clipManifest && clipManifest.total > 0 && clipManifest.done < clipManifest.total ? (
-            <span className="clip-progress" title="Gameplay clip recording">
-              Clips {clipManifest.done}/{clipManifest.total}
-            </span>
-          ) : null}
-          <button
-            type="button"
-            className="t-opt"
-            aria-label={`Playback speed, ${clock.rate} times`}
-            title="Playback speed"
-            onClick={() => clock.setRate(RATES[(RATES.indexOf(clock.rate) + 1) % RATES.length])}
-          >
-            {clock.rate}×
-          </button>
-          <button
-            type="button"
-            className="icon-btn fs-btn"
-            aria-label="Fullscreen"
-            onClick={toggleFullscreen}
-          >
-            <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
-              <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className="btn btn-line ctx-toggle"
-            aria-expanded={ctxOpen}
-            aria-controls="ctx"
-            onClick={() => setCtxOpen((o) => !o)}
-          >
-            Analysis
-          </button>
-          {!panelOn ? (
-            <button
-              type="button"
-              className="icon-btn panel-show"
-              aria-label="Show the details panel"
-              title="Show panel"
-              onClick={() => setPanelOn(true)}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-                <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-                <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.4" />
-                <path d="M7.8 6.2L6 8l1.8 1.8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden>
+                {clock.playing ? (
+                  <>
+                    <rect x="2.5" y="1.5" width="3.2" height="11" fill="currentColor" />
+                    <rect x="8.3" y="1.5" width="3.2" height="11" fill="currentColor" />
+                  </>
+                ) : (
+                  <path d="M3 1.5v11l9.5-5.5z" fill="currentColor" />
+                )}
               </svg>
             </button>
+            <button
+              type="button"
+              className="step"
+              aria-label="Previous event"
+              title="Previous event (,)"
+              onClick={() => stepEvent(-1)}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+                <path d="M2 1.5v9M10 1.5L4.5 6 10 10.5z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="step"
+              aria-label="Next event"
+              title="Next event (.)"
+              onClick={() => stepEvent(1)}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+                <path d="M10 1.5v9M2 1.5L7.5 6 2 10.5z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <div className="clock">
+              <b>{formatClock(clock.t)}</b>
+              <span>/ {formatClock(clock.duration)}</span>
+            </div>
+            {aliveNow ? (
+              <div
+                className={`adv${aliveNow.us > aliveNow.them ? " up" : aliveNow.us < aliveNow.them ? " down" : ""}`}
+                title="Players alive, your team first"
+                aria-label={`${aliveNow.us} of your team alive against ${aliveNow.them}`}
+              >
+                <b>{aliveNow.us}</b>
+                <i>v</i>
+                <b>{aliveNow.them}</b>
+              </div>
+            ) : null}
+            <div className="now" aria-live="off">
+              {nowEvent ? eventTitle(nowEvent, lookup) : ""}
+            </div>
+            <div
+              className={`seg${stageMode === "radar" ? " is-radar" : ""}`}
+              role="group"
+              aria-label="View"
+              title="Switch view (V)"
+            >
+              <span className="seg-pill" aria-hidden />
+              <button
+                type="button"
+                data-mode="gameplay"
+                aria-pressed={stageMode === "gameplay"}
+                disabled={!gameplayReady}
+                title={gameplayReady ? "Gameplay (V)" : (gameplayDisabledReason ?? "Gameplay unavailable")}
+                onClick={() => setMode("gameplay")}
+              >
+                Gameplay
+              </button>
+              <button
+                type="button"
+                data-mode="radar"
+                aria-pressed={stageMode === "radar"}
+                title="Radar (V)"
+                onClick={() => setMode("radar")}
+              >
+                Radar
+              </button>
+            </div>
+            {clipManifest && clipManifest.total > 0 && clipManifest.done < clipManifest.total ? (
+              <span className="clip-progress" title="Gameplay clip recording">
+                Clips {clipManifest.done}/{clipManifest.total}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              className="t-opt"
+              aria-label={`Playback speed, ${clock.rate} times`}
+              title="Playback speed"
+              onClick={() => clock.setRate(RATES[(RATES.indexOf(clock.rate) + 1) % RATES.length])}
+            >
+              {clock.rate}×
+            </button>
+            <button
+              type="button"
+              className="icon-btn fs-btn"
+              aria-label="Fullscreen"
+              title="Fullscreen"
+              onClick={toggleFullscreen}
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
+                <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="btn btn-line ctx-toggle"
+              aria-expanded={ctxOpen}
+              aria-controls="ctx"
+              onClick={() => setCtxOpen((o) => !o)}
+            >
+              Analysis
+            </button>
+            {!panelOn ? (
+              <button
+                type="button"
+                className="icon-btn panel-show"
+                aria-label="Show the analysis"
+                title="Show the analysis"
+                onClick={() => setPanelOn(true)}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+                  <rect x="1.5" y="2.5" width="13" height="11" rx="1" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                  <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.4" />
+                  <path d="M7.8 6.2L6 8l1.8 1.8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            ) : null}
+          </div>
+
+          {replay && !empty ? (
+            <div ref={tlRef}>
+              <ReplayTimeline
+                duration={replay.durationSec}
+                t={clock.t}
+                marks={marks}
+                lanes={lanes}
+                alive={alive}
+                band={band}
+                selectedEventId={selectedEventId}
+                laneH={laneH}
+                onSeek={seekTo}
+                onScrub={(active) => {
+                  if (active) {
+                    wasPlaying.current = clock.playing;
+                    clock.pause();
+                  } else if (wasPlaying.current) clock.play();
+                }}
+              />
+            </div>
           ) : null}
         </div>
-
-        {replay && !empty ? (
-          <div ref={tlRef}>
-            <ReplayTimeline
-              duration={replay.durationSec}
-              t={clock.t}
-              marks={marks}
-              lanes={lanes}
-              rounds={rounds}
-              won={match?.won ?? []}
-              momentRounds={momentRounds}
-              roundId={roundId}
-              selectedEventId={selectedEventId}
-              laneH={laneH}
-              onSelectRound={selectRound}
-              onSeek={seekTo}
-              onScrub={(active) => {
-                if (active) {
-                  wasPlaying.current = clock.playing;
-                  clock.pause();
-                } else if (wasPlaying.current) clock.play();
-              }}
-            />
-          </div>
-        ) : null}
       </section>
 
       <aside
@@ -1560,12 +1675,25 @@ export default function StudioPage() {
                 ? `${activeRound.winner ?? "No"} win, ${reasonLabel(activeRound.reason).toLowerCase()}`
                 : "Pick a round"}
           </h2>
+          {headFinding ? (
+            <p className={`ins-meta k-${kindGlyph(headFinding.kind)}`}>
+              <b>
+                <i className={`g g-${kindGlyph(headFinding.kind)}`} aria-hidden />
+                {kindLabel(headFinding.kind)}
+              </b>
+              {activeMoment && momentIdx >= 0 ? <span>Moment {momentIdx + 1} of {moments.length}</span> : null}
+              <span>
+                Round {headFinding.round}, {formatClock(headFinding.t)}
+                {headFinding.zone ? `, ${headFinding.zone}` : ""}
+              </span>
+            </p>
+          ) : null}
           <p className="picked">
             {headFinding && activeMoment && activeMoment.findingIds[0] === headFinding.id
               ? cited(
                   activeMoment.source === "agent"
-                    ? `${kindLabel(activeMoment.kind)}. Picked by the coach: ${activeMoment.pickedBecause}`
-                    : `${kindLabel(activeMoment.kind)}, ${momentRank === 1 ? "the most important" : `the ${ordinal(momentRank)} most important`} of ${moments.length} ${moments.length === 1 ? "moment" : "moments"}. Evidence: ${activeMoment.findingIds
+                    ? `Picked by the coach: ${activeMoment.pickedBecause}`
+                    : `${momentRank === 1 ? "The most important" : `The ${ordinal(momentRank)} most important`} of ${moments.length} ${moments.length === 1 ? "moment" : "moments"}. Evidence: ${activeMoment.findingIds
                         .map((id) => `[${id}]`)
                         .join(" ")}.`,
                 )
@@ -1592,26 +1720,29 @@ export default function StudioPage() {
 
           {activeMoment && momentIdx >= 0 ? (
             <div className="moment-step">
-              <span className="meta">
-                Moment {momentIdx + 1} of {moments.length}
-              </span>
               {nextMoment ? (
                 <button
                   type="button"
-                  className="btn btn-line btn-wrap"
-                  title="Next moment (N)"
+                  className="next-btn"
+                  aria-keyshortcuts="N"
                   onClick={() => selectMoment(nextMoment)}
                 >
-                  Next: {momentTitle(nextMoment)}
+                  <span className="next-k">Next</span>
+                  <b>{String(momentIdx + 2).padStart(2, "0")}</b>
+                  <i className={`g g-${kindGlyph(nextMoment.kind)}`} aria-hidden />
+                  <span className="next-t">{momentTitle(nextMoment)}</span>
+                  <kbd aria-hidden>N</kbd>
                 </button>
               ) : (
                 <button
                   type="button"
-                  className="btn btn-fill"
-                  title="Finish the review (N)"
+                  className="next-btn is-last"
+                  aria-keyshortcuts="N"
                   onClick={() => setReview("wrapup")}
                 >
-                  Finish the review
+                  <span className="next-k">Done</span>
+                  <span className="next-t">Open the debrief</span>
+                  <kbd aria-hidden>N</kbd>
                 </button>
               )}
             </div>
@@ -1633,27 +1764,27 @@ export default function StudioPage() {
               </h3>
               <dl className="stat-grid">
                 <div>
-                  <dt>Kills</dt>
+                  <dt><abbr title="Kills">K</abbr></dt>
                   <dd>{roundStats.kills}</dd>
                 </div>
                 <div>
-                  <dt>Deaths</dt>
+                  <dt><abbr title="Deaths">D</abbr></dt>
                   <dd>{roundStats.deaths}</dd>
                 </div>
                 <div>
-                  <dt>Assists</dt>
+                  <dt><abbr title="Assists">A</abbr></dt>
                   <dd>{roundStats.assists}</dd>
                 </div>
                 <div>
-                  <dt>Damage</dt>
+                  <dt><abbr title="Damage">DMG</abbr></dt>
                   <dd>{roundStats.damage}</dd>
                 </div>
                 <div>
-                  <dt>Utility thrown</dt>
+                  <dt><abbr title="Utility thrown">UTIL</abbr></dt>
                   <dd>{roundStats.utilityThrown}</dd>
                 </div>
                 <div>
-                  <dt>Equipment</dt>
+                  <dt><abbr title="Equipment">EQUIP</abbr></dt>
                   <dd>{roundStats.equipValue != null ? `$${roundStats.equipValue}` : "—"}</dd>
                 </div>
               </dl>
@@ -1820,9 +1951,16 @@ export default function StudioPage() {
             language={coachLang}
             t={clock.t}
             knows={knows}
+            context={askContext}
             suggestions={suggestions}
             inputRef={askRef}
-            placeholder={`Ask about round ${activeRound.number} at ${formatClock(clock.t)}`}
+            placeholder={
+              review
+                ? "What should I practise from this match?"
+                : band
+                  ? "Why did this happen?"
+                  : `What decided round ${activeRound.number}?`
+            }
             onAsk={() => setAsking(true)}
             {...coachCites}
           />

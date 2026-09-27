@@ -16,19 +16,20 @@ export function makeRosterLookup(roster: ReplayPlayer[]): RosterLookup {
   };
 }
 
-/** Lanes follow the prototype: coach findings, the followed player, their team, the other team. */
-export type Lane = "coach" | "you" | "team" | "enemy" | "bomb" | "util";
+/**
+ * Lanes (28 Visual direction): coach findings, the fight (players alive per side, kills as ticks),
+ * the bomb and utility. Kills live on one lane so the round reads as a sequence of trades.
+ */
+export type Lane = "coach" | "fight" | "bomb" | "util";
 
 export const LANE_NAMES: Record<Lane, string> = {
   coach: "Coach",
-  you: "You",
-  team: "Team",
-  enemy: "Enemy",
+  fight: "Fight",
   bomb: "Bomb",
   util: "Utility",
 };
 
-export const LANE_ORDER: Lane[] = ["coach", "you", "team", "enemy", "bomb", "util"];
+export const LANE_ORDER: Lane[] = ["coach", "fight", "bomb", "util"];
 
 export function roleOf(
   player: ReplayPlayer | undefined,
@@ -52,7 +53,34 @@ export type LaneMark = {
   detail?: string;
   /** Coach lane: which marker leads when several share a spot (higher first). */
   priority?: number;
+  /** Fight lane: whose player died ("us" = the followed player's team), and whether the followed player took part. */
+  side?: "us" | "them";
+  you?: boolean;
 };
+
+/** Players alive per side after each kill, from the followed player's point of view. */
+export type AliveStep = { t: number; us: number; them: number };
+
+export function aliveSteps(
+  events: ReplayEvent[],
+  roster: ReplayPlayer[],
+  lookup: RosterLookup,
+  focus: ReplayPlayer | undefined,
+): AliveStep[] {
+  const side = focus?.team ?? "CT";
+  let us = roster.filter((p) => p.team === side).length || 5;
+  let them = roster.filter((p) => p.team && p.team !== side).length || 5;
+  const out: AliveStep[] = [{ t: 0, us, them }];
+  for (const e of events) {
+    if (e.type !== "kill") continue;
+    const victim = lookup(e.victimId);
+    if (!victim) continue;
+    if (victim.team === side) us = Math.max(0, us - 1);
+    else them = Math.max(0, them - 1);
+    out.push({ t: e.t, us, them });
+  }
+  return out;
+}
 
 const UTIL_TYPES = new Set(["smoke", "flash", "he", "molotov", "incendiary", "decoy"]);
 
@@ -68,8 +96,16 @@ export function laneMarks(
     if (e.type === "kill") {
       const killer = roleOf(lookup(e.actorId), focus);
       const victim = roleOf(lookup(e.victimId), focus);
-      if (killer) out.push({ key: `${e.id}:k`, eventId: e.id, lane: killer, t: e.t, glyph: "kill", label: e.label });
-      if (victim) out.push({ key: `${e.id}:d`, eventId: e.id, lane: victim, t: e.t, glyph: "death", label: e.label });
+      out.push({
+        key: e.id,
+        eventId: e.id,
+        lane: "fight",
+        t: e.t,
+        glyph: victim === "enemy" ? "kill" : "death",
+        label: e.label,
+        side: victim === "enemy" ? "them" : "us",
+        you: killer === "you" || victim === "you",
+      });
       continue;
     }
     if (e.type === "plant" || e.type === "defuse" || e.type.startsWith("bomb")) {

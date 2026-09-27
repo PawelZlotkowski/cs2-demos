@@ -1,18 +1,22 @@
-/* Analysis Studio — ported from prototype/analysis-studio.html (.studio / .rail / .work / .ctx).
-   Colour carries meaning only: negative = enemy/mistake, positive = you, ink = selection. */
+/* Analysis Studio, Tactical Desk direction (docs/handoff/28-VISUAL-DIRECTION.md).
+   Review path | dark viewer with the stage, timeline dock under it | analyst column.
+   Colour carries meaning only: mistake (orange ▲), good play (blue ●), enemy (red), live (ink outline). */
 
 .studio {
-  --lane-label: 72px;
+  --lane-label: 64px;
+  --path-w: 208px;
+  --ctx-w: 384px;
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-columns: 184px minmax(0, 1fr) 332px;
+  grid-template-columns: var(--path-w) minmax(0, 1fr) var(--ctx-w);
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
+  background: var(--surface-page);
 }
 
 .studio.panel-off {
-  grid-template-columns: 184px minmax(0, 1fr);
+  grid-template-columns: var(--path-w) minmax(0, 1fr);
 }
 
 .studio.panel-off .ctx {
@@ -26,7 +30,140 @@
   text-align: inherit;
 }
 
-/* ---- Round rail (prototype .rail / .mom) ---- */
+kbd {
+  font: 600 10px / 1 var(--ui);
+  color: var(--text-3);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 2px 4px;
+  min-width: 16px;
+  text-align: center;
+}
+
+/* ---- Scorebug (top bar): map, score, rounds, current round. The one place match state lives. ---- */
+
+.sb {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  font-family: var(--display);
+  font-stretch: 74%;
+  line-height: 1;
+}
+
+.sb-map {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.sb-score {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-score i,
+.sb-score .them {
+  color: var(--text-3);
+  font-style: normal;
+}
+
+.sb-score i {
+  font-weight: 500;
+  transform: translateY(-2px);
+}
+
+.sb-rounds {
+  display: flex;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.sb-rounds li.half {
+  margin-inline-start: 5px;
+}
+
+.sb-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 11px;
+  padding: 3px 0 !important;
+}
+
+.sb-box {
+  display: block;
+  width: 8px;
+  height: 16px;
+  border: 1.5px solid var(--text-3);
+  border-radius: 1px;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+.sb-cell[data-won="true"] .sb-box {
+  background: var(--text);
+  border-color: var(--text);
+}
+
+.sb-cell[aria-current="true"]::after {
+  content: "";
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  bottom: -5px;
+  height: 2px;
+  background: var(--text);
+}
+
+.sb-cell .g {
+  position: absolute;
+  bottom: -9px;
+  width: 6px;
+  height: 6px;
+}
+
+.sb-cell[aria-current="true"] .g {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sb-cell:hover .sb-box {
+    border-color: var(--text);
+  }
+}
+
+.sb-round {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.sb-round small {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+
+/* ---- Review path (left): numbered stops on one line, Brief to Debrief ---- */
 
 .rail {
   border-right: 1px solid var(--border);
@@ -40,40 +177,57 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: 10px 12px 4px;
+  padding: 14px 14px 8px;
   font-size: 12px;
   color: var(--text-3);
 }
 
 .rail-h b {
-  color: var(--text-2);
-  font-weight: 600;
-  font-size: 13px;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .rail-empty {
-  margin: 12px;
+  margin: 12px 14px;
   font-size: 13px;
   color: var(--text-3);
   line-height: 1.4;
 }
 
-.moments {
-  list-style: none;
-  margin: 0;
-  padding: 0 6px 8px;
-  overflow: auto;
+.rail-scroll {
   flex: 1;
   min-height: 0;
+  overflow: auto;
+}
+
+.moments {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 8px;
+}
+
+/* The route line the stops sit on. */
+.moments:not(.secondary)::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 14px;
+  bottom: 22px;
+  width: 1px;
+  background: var(--border);
 }
 
 .mom {
   position: relative;
   display: grid;
-  grid-template-columns: 10px 1fr;
+  grid-template-columns: 26px minmax(0, 1fr);
   gap: 1px 8px;
   width: 100%;
-  padding: 7px 6px;
+  padding: 8px 8px 8px 12px;
   border-radius: var(--r-ctl);
   color: var(--text-2);
 }
@@ -88,53 +242,9 @@
   }
 }
 
-.mom > .g,
 .mom > span:not(.rail-ind) {
   position: relative;
   z-index: 1;
-}
-
-.mom .g {
-  margin-top: 4px;
-  width: 9px;
-  height: 9px;
-}
-
-.mom-title {
-  font-weight: 500;
-  line-height: 1.3;
-  font-size: 13px;
-}
-
-.mom-meta {
-  grid-column: 2;
-  font-size: 12px;
-  color: var(--text-3);
-  display: flex;
-  gap: 8px;
-}
-
-.mom-meta .when {
-  white-space: nowrap;
-}
-
-.mom-meta .reason {
-  display: none;
-}
-
-.mom[aria-current="true"] .mom-meta {
-  flex-wrap: wrap;
-  row-gap: 1px;
-}
-
-.mom[aria-current="true"] .reason {
-  display: block;
-  flex-basis: 100%;
-}
-
-.mom-meta .seen {
-  margin-left: auto;
-  color: var(--text-2);
 }
 
 .rail-ind {
@@ -143,10 +253,137 @@
   inset: 0;
   border-radius: var(--r-ctl);
   background: var(--surface-raised);
-  border: 1px solid var(--border);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
-/* Round glyphs: shape as well as colour. T win = triangle, CT win = circle. */
+.mom-n {
+  grid-row: 1 / span 2;
+  font-family: var(--display);
+  font-stretch: 72%;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  padding-top: 1px;
+}
+
+/* Seen stops dim; the open one takes its kind's colour. */
+.mom.is-seen .mom-n {
+  color: var(--text-3);
+}
+
+.mom.k-mistake[aria-current="true"] .mom-n {
+  color: var(--mistake);
+}
+
+.mom.k-strength[aria-current="true"] .mom-n {
+  color: var(--good);
+}
+
+.mom-cap .mom-n {
+  display: flex;
+  align-items: center;
+  height: 18px;
+}
+
+.mom-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  line-height: 1.3;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.mom-title .g {
+  width: 8px;
+  height: 8px;
+}
+
+.mom-meta {
+  grid-column: 2;
+  font-size: 12px;
+  color: var(--text-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mom-meta .when {
+  white-space: nowrap;
+}
+
+.mom-meta .reason {
+  display: none;
+  flex-basis: 100%;
+  color: var(--text-2);
+  line-height: 1.4;
+}
+
+.mom[aria-current="true"] .reason {
+  display: block;
+}
+
+.pov-tag {
+  margin-inline-start: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 0 3px;
+}
+
+.rail-sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 8px 14px 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.rail-sub span {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 12px;
+}
+
+/* Rounds are the secondary list once there are moments: one line each. */
+.moments.secondary .mom {
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: baseline;
+  padding: 5px 8px 5px 12px;
+}
+
+.moments.secondary .mom-n {
+  grid-row: auto;
+  font-size: 15px;
+  color: var(--text-2);
+}
+
+.moments.secondary .mom-title {
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.moments.secondary .mom-meta {
+  grid-column: auto;
+  font-size: 11px;
+}
+
+/* ---- Glyphs: shape and colour carry the meaning (decision 4) ---- */
+
 .g {
   display: inline-block;
   flex: none;
@@ -154,13 +391,23 @@
   height: 10px;
 }
 
-.g-t {
-  background: var(--text-3);
+.g-mistake {
+  background: var(--mistake);
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
 
+.g-strength {
+  background: var(--good);
+  border-radius: 50%;
+}
+
+.g-note {
+  border: 1.5px solid var(--text-3);
+  border-radius: 1px;
+}
+
 .g-ct {
-  background: var(--text-3);
+  background: var(--text-2);
   border-radius: 50%;
 }
 
@@ -169,49 +416,62 @@
   border-radius: 50%;
 }
 
-.g-kill {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-2);
+/* Brief and Debrief: a neutral dash, since triangle and circle mean mistake and good play. */
+.g.g-round {
+  width: 12px;
+  height: 2px;
+  background: var(--text-3);
 }
 
-/* ---- Work column: stage, transport, timeline ---- */
+/* ---- Work column: dark viewer with the stage, timeline dock under it ---- */
 
 .work {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  background: var(--surface-panel);
 }
 
+/* The viewer is dark in both themes: gameplay and analysis are visibly different places. */
 .stage-wrap {
-  flex: none;
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  padding: 8px 8px 0;
+  align-items: center;
+  padding: 12px 12px 0;
+  background: #060809;
 }
 
 .stage {
   position: relative;
   overflow: hidden;
   background: var(--stage);
-  border-radius: var(--r-ctl);
   width: 640px;
   height: 360px;
   color: var(--stage-text-2);
+  box-shadow: 0 0 0 1px #171c20;
 }
 
 .stage:fullscreen {
-  border-radius: 0;
   width: 100% !important;
   height: 100% !important;
+  box-shadow: none;
 }
 
 .stage :focus-visible {
   outline-color: var(--stage-text);
+}
+
+.stage .surface {
+  position: absolute;
+  inset: 0;
+}
+
+.stage .surface.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .radar {
@@ -220,6 +480,18 @@
   width: 100%;
   height: 100%;
   display: block;
+}
+
+/* The map recedes so players and paths carry the contrast. */
+.radar-map {
+  filter: saturate(0.3) brightness(0.72) contrast(1.1);
+}
+
+.radar-name {
+  font-family: var(--display);
+  font-stretch: 80%;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .stage-msg {
@@ -243,15 +515,101 @@
   font-weight: 600;
 }
 
+/* Stage plates: one per corner, solid, no blur, no glow. */
+.chip,
+.zoom,
 .legend {
   position: absolute;
-  left: 10px;
-  bottom: 8px;
+  z-index: 7;
+  background: var(--stage-plate);
+  border: 1px solid var(--stage-line);
+  border-radius: var(--r-ctl);
+}
+
+.chip {
+  left: 12px;
+  top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 9px;
+  max-width: calc(100% - 140px);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--stage-text);
+  pointer-events: none;
+  transition: border-color 120ms ease;
+}
+
+.chip:empty {
+  display: none;
+}
+
+.chip b {
+  font-family: var(--display);
+  font-stretch: 72%;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.chip span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.01em;
+}
+
+.chip .g {
+  width: 9px;
+  height: 9px;
+}
+
+.chip-mistake b {
+  color: var(--stage-neg);
+}
+
+.chip-strength b {
+  color: var(--stage-pos);
+}
+
+.chip .g-mistake {
+  background: var(--stage-neg);
+}
+
+.chip .g-strength {
+  background: var(--stage-pos);
+}
+
+/* Live (decision 11): the same outlined chip the timeline marker and panel header use. */
+.chip.live {
+  border-color: var(--stage-text);
+}
+
+.zoom {
+  right: 12px;
+  top: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--stage-text);
+  padding: 5px 10px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .zoom:hover {
+    border-color: var(--stage-text-2);
+  }
+}
+
+.legend {
+  left: 12px;
+  bottom: 12px;
   display: flex;
   gap: 12px;
+  padding: 4px 9px;
   font-size: 11px;
   color: var(--stage-text-2);
-  z-index: 4;
   pointer-events: none;
 }
 
@@ -268,127 +626,26 @@
   display: inline-block;
 }
 
-.zoom {
-  position: absolute;
-  right: 10px;
-  top: 8px;
-  z-index: 4;
-  font-size: 12px;
-  color: var(--stage-text);
-  border: 1px solid var(--stage-line);
-  background: rgba(10, 12, 14, 0.7);
-  border-radius: var(--r-ctl);
-  padding: 3px 8px;
+.lg-you {
+  background: var(--stage-you);
+  box-shadow: 0 0 0 1.5px #000;
 }
 
-.stage-cap {
-  position: absolute;
-  left: 10px;
-  top: 8px;
-  font-size: 11px;
-  color: var(--stage-text-2);
-  background: rgba(8, 10, 12, 0.6);
-  padding: 1px 6px;
-  border-radius: 2px;
-  z-index: 4;
-  pointer-events: none;
+.lg-team {
+  background: var(--stage-team);
 }
 
-/* Transport */
-
-.transport {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 8px 2px;
-  flex-wrap: wrap;
+.lg-enemy {
+  background: var(--stage-enemy);
 }
 
-.step {
-  width: 28px;
-  height: 28px;
-  display: inline-grid;
-  place-items: center;
-  border-radius: var(--r-ctl);
-  color: var(--text-2);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .step:hover {
-    background: var(--border-soft);
-    color: var(--text);
-  }
-}
-
-.play {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--text);
-  color: var(--surface-panel);
-  display: grid;
-  place-items: center;
-  flex: none;
-  transition: transform 140ms var(--ease-out);
-}
-
-.play:active {
-  transform: scale(0.94);
-}
-
-.seg {
-  position: relative;
-  display: inline-grid;
-  grid-template-columns: 1fr 1fr;
-  background: var(--border-soft);
-  border-radius: var(--r-ctl);
-  padding: 2px;
-  margin-left: auto;
-}
-
-.seg button {
-  position: relative;
-  z-index: 1;
-  padding: 4px 12px;
-  font-weight: 500;
-  font-size: 13px;
-  color: var(--text-2);
-  transition: color 160ms ease;
-}
-
-.seg button[aria-pressed="true"] {
-  color: var(--text);
-}
-
-.seg button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.seg-pill {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  left: 2px;
-  width: calc(50% - 2px);
-  background: var(--surface-raised);
-  border-radius: 3px;
-  border: 1px solid var(--border);
-  transition: transform 200ms var(--ease-out);
-  pointer-events: none;
-}
-
-.seg.is-radar .seg-pill {
-  transform: translateX(100%);
-}
-
-/* Coached player's first-person clip, docked on the Radar stage under the zoom button */
+/* Coached player's first-person clip, docked on the radar under the camera toggle */
 .pov {
   position: absolute;
-  right: 10px;
-  top: 40px;
+  right: 12px;
+  top: 46px;
   z-index: 5;
-  width: 36%;
+  width: 34%;
   margin: 0;
   border: 1px solid var(--stage-line);
   border-radius: var(--r-ctl);
@@ -397,7 +654,6 @@
   /* The Gameplay/Radar swap is a FLIP in JS (lib/motion.ts): no layout transition here. */
 }
 
-/* Gameplay view: the clip fills the stage and the radar moves to the corner */
 .pov.is-main {
   inset: 0;
   width: auto;
@@ -420,10 +676,10 @@
 }
 
 .stage .surface.is-inset {
-  inset: auto 10px auto auto;
-  top: 10px;
-  width: 30%;
-  height: 30%;
+  inset: auto 12px auto auto;
+  top: 12px;
+  width: 28%;
+  height: 28%;
   z-index: 6;
   overflow: hidden;
   border: 1px solid var(--stage-line);
@@ -452,15 +708,15 @@
 .pov figcaption {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
+  gap: 10px;
+  padding: 5px 10px;
   font-size: var(--fs-11);
   color: var(--stage-text-2);
-  background: rgba(10, 12, 14, 0.85);
+  background: var(--stage-plate);
 }
 
 .pov figcaption span {
-  margin-right: auto;
+  margin-inline-end: auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -482,8 +738,10 @@
   white-space: nowrap;
 }
 
-.pov button:hover {
-  text-decoration: underline;
+@media (hover: hover) and (pointer: fine) {
+  .pov button:hover {
+    text-decoration: underline;
+  }
 }
 
 .pov .pov-jump {
@@ -491,10 +749,10 @@
   left: 50%;
   top: calc(50% - 12px);
   transform: translate(-50%, -50%);
-  padding: 4px 8px;
+  padding: 5px 10px;
   border: 1px solid var(--stage-line);
   border-radius: var(--r-ctl);
-  background: rgba(10, 12, 14, 0.85);
+  background: var(--stage-plate);
   font-size: var(--fs-12);
 }
 
@@ -507,47 +765,11 @@
   padding: 6px 10px;
   font-size: var(--fs-12);
   color: var(--stage-text-2);
-  background: rgba(10, 12, 14, 0.85);
+  background: var(--stage-plate);
 }
 
 .pov-note.is-failed span {
   color: var(--stage-neg);
-}
-
-.pov-tag {
-  margin-left: 6px;
-  font-size: var(--fs-11);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--text-2);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pov {
-    transition: none;
-  }
-}
-
-@media (max-width: 720px) {
-  .pov:not(.is-main) {
-    width: 48%;
-  }
-}
-
-.clip-progress {
-  font-size: 12px;
-  color: var(--text-2);
-  white-space: nowrap;
-}
-
-.stage .surface {
-  position: absolute;
-  inset: 0;
-}
-
-.stage .surface.is-hidden {
-  visibility: hidden;
-  pointer-events: none;
 }
 
 .gameplay-surface {
@@ -569,22 +791,99 @@
   padding: 24px;
 }
 
+/* ---- Dock: transport on the timeline's top edge ---- */
+
+.dock {
+  flex: none;
+  border-top: 1px solid var(--border);
+  background: var(--surface-panel);
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 6px;
+  flex-wrap: wrap;
+}
+
+.play {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-ctl);
+  background: var(--text);
+  color: var(--surface-panel);
+  display: grid;
+  place-items: center;
+  flex: none;
+  margin-inline-end: 2px;
+}
+
+.step {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--r-ctl);
+  color: var(--text-2);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .step:hover {
+    background: var(--border-soft);
+    color: var(--text);
+  }
+}
+
 .clock {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  min-width: 120px;
+  gap: 5px;
+  margin: 0 10px 0 8px;
+  font-family: var(--display);
+  font-stretch: 72%;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .clock b {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  min-width: 3.6ch;
 }
 
 .clock span {
-  font-size: 12px;
+  font-size: 15px;
+  font-weight: 500;
   color: var(--text-3);
-  white-space: nowrap;
+}
+
+/* Man advantage, the number every CS player reads first. */
+.adv {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  font-family: var(--display);
+  font-stretch: 72%;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.adv i {
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.adv b:last-child {
+  color: var(--text-3);
 }
 
 .now {
@@ -592,29 +891,80 @@
   color: var(--text-2);
   min-width: 0;
   flex: 1;
+  margin-inline-start: 8px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.t-opt {
-  font-size: 12px;
-  color: var(--text-2);
-  height: 28px;
-  padding: 0 8px;
+.seg {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--surface-sunk);
   border-radius: var(--r-ctl);
-  border: 1px solid transparent;
+  padding: 2px;
+  margin-inline-start: auto;
 }
 
-.t-opt[aria-pressed="true"] {
-  border-color: var(--border);
-  background: var(--surface-raised);
+.seg button {
+  position: relative;
+  z-index: 1;
+  padding: 5px 12px;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+  transition: color 160ms ease;
+}
+
+.seg button[aria-pressed="true"] {
   color: var(--text);
+}
+
+.seg button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.seg-pill {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  background: var(--surface-raised);
+  border-radius: 1px;
+  box-shadow: 0 0 0 1px var(--border);
+  transition: transform 200ms var(--ease-out);
+  pointer-events: none;
+}
+
+.seg.is-radar .seg-pill {
+  transform: translateX(100%);
+}
+
+.clip-progress {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.t-opt {
+  font: 700 15px / 1 var(--display);
+  font-stretch: 72%;
+  color: var(--text-2);
+  height: 32px;
+  min-width: 36px;
+  padding: 0 8px;
+  border-radius: var(--r-ctl);
+  text-align: center !important;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .t-opt:hover {
-    border-color: var(--border);
+    background: var(--border-soft);
+    color: var(--text);
   }
 }
 
@@ -644,10 +994,10 @@
   display: none !important;
 }
 
-/* Timeline (prototype .tl) */
+/* ---- Timeline: moment band, Coach, Fight, Bomb, Utility under one playhead ---- */
 
 .tl {
-  padding: 0 8px 10px;
+  padding: 0 12px 8px;
   user-select: none;
 }
 
@@ -657,60 +1007,23 @@
   align-items: center;
 }
 
-.row-n {
-  font-size: 12px;
-  color: var(--text-3);
-}
-
-.rounds {
-  display: grid;
-  gap: 2px;
-  position: relative;
-  height: 20px;
-  align-items: end;
-}
-
-.rcell {
-  height: 6px;
-  padding: 0;
-  border-radius: 1px;
-  background: var(--border);
-  position: relative;
-}
-
-.rcell.won {
-  background: color-mix(in oklab, var(--text) 38%, var(--border));
-}
-
-.rcell.cur {
-  outline: 1.5px solid var(--text);
-  outline-offset: 1px;
-}
-
-.rcell::before {
-  /* taller hit area than the 6px bar */
-  content: "";
-  position: absolute;
-  left: -1px;
-  right: -1px;
-  bottom: -4px;
-  height: 18px;
-}
-
 .lanes {
   position: relative;
   display: grid;
   grid-template-columns: var(--lane-label) minmax(0, 1fr);
-  border-top: 1px solid var(--border-soft);
-  border-bottom: 1px solid var(--border-soft);
-  margin-top: 6px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin-top: 22px;
 }
 
 .lane-n {
   height: var(--lane-h);
   display: flex;
   align-items: center;
-  font-size: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-3);
 }
 
@@ -719,14 +1032,109 @@
   position: relative;
 }
 
+.lane-n + .lane-t ~ .lane-n,
+.lane-t + .lane-n ~ .lane-t {
+  border-top: 1px solid var(--border-soft);
+}
+
+.lane-n.l-coach,
+.lane-t.l-coach {
+  height: calc(var(--lane-h) + 8px);
+}
+
+.lane-n.l-coach {
+  color: var(--text-2);
+}
+
+.lane-n.l-fight,
+.lane-t.l-fight {
+  height: calc(var(--lane-h) * 2);
+}
+
 .lane-t .mk .d {
-  opacity: 0.5;
+  opacity: 0.55;
   transition: opacity 120ms ease;
 }
 
 .lane-t .mk.now .d,
 .lane-t .mk.sel .d {
   opacity: 1;
+}
+
+/* The picked moment: a band in its kind's colour across every lane, labelled above them. */
+.band {
+  position: absolute;
+  top: -21px;
+  bottom: 0;
+  left: calc(var(--lane-label) + (100% - var(--lane-label)) * var(--b0, 0));
+  width: calc((100% - var(--lane-label)) * (var(--b1, 0) - var(--b0, 0)));
+  min-width: 2px;
+  pointer-events: none;
+  z-index: 0;
+  --band: var(--text-3);
+  background: linear-gradient(color-mix(in oklab, var(--band) 11%, transparent), color-mix(in oklab, var(--band) 11%, transparent)) 0 21px / 100% 100% no-repeat;
+  box-shadow:
+    inset 1px 0 0 color-mix(in oklab, var(--band) 55%, transparent),
+    inset -1px 0 0 color-mix(in oklab, var(--band) 55%, transparent);
+}
+
+.band-mistake {
+  --band: var(--mistake);
+}
+
+.band-strength {
+  --band: var(--good);
+}
+
+.band span {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--band);
+  background: color-mix(in oklab, var(--band) 14%, var(--surface-panel));
+}
+
+.band span b {
+  font-family: var(--display);
+  font-stretch: 72%;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+/* Fight lane: players alive per side, yours above the axis. */
+.fight {
+  position: absolute;
+  inset: 3px 0;
+  width: 100%;
+  height: calc(100% - 6px);
+  pointer-events: none;
+}
+
+.fight-us {
+  fill: color-mix(in oklab, var(--text) 9%, transparent);
+  stroke: color-mix(in oklab, var(--text) 45%, transparent);
+  stroke-width: 1;
+}
+
+.fight-them {
+  fill: color-mix(in oklab, var(--enemy) 12%, transparent);
+  stroke: color-mix(in oklab, var(--enemy) 60%, transparent);
+  stroke-width: 1;
+}
+
+.fight-axis {
+  stroke: var(--border);
+  stroke-width: 1;
 }
 
 .hit {
@@ -745,11 +1153,11 @@
 
 .playhead {
   position: absolute;
-  top: -4px;
+  top: -22px;
   bottom: 0;
   left: calc(var(--lane-label) + (100% - var(--lane-label)) * var(--p, 0));
   width: 2px;
-  margin-left: -1px;
+  margin-inline-start: -1px;
   background: var(--text);
   z-index: 3;
   pointer-events: none;
@@ -761,7 +1169,7 @@
   top: 0;
   left: -4px;
   width: 10px;
-  height: 6px;
+  height: 7px;
   background: var(--text);
   clip-path: polygon(0 0, 100% 0, 50% 100%);
 }
@@ -788,7 +1196,7 @@
   display: grid;
   place-items: center;
   z-index: 2;
-  border-radius: 3px;
+  border-radius: var(--r-ctl);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -811,6 +1219,84 @@
 
 .mk.sel {
   box-shadow: inset 0 0 0 1.5px var(--text);
+}
+
+/* Kill ticks sit on the side that lost the player; the followed player's own are full ink. */
+.mk.k-us {
+  top: 28%;
+}
+
+.mk.k-them {
+  top: 72%;
+}
+
+.k {
+  display: block;
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: var(--text-3);
+}
+
+.mk.k-them .k {
+  background: var(--enemy);
+}
+
+.mk.k-you .k {
+  width: 3px;
+  height: 16px;
+  background: var(--text);
+}
+
+.mk.k-you.k-us .k {
+  /* your own death: a cross, as on the radar */
+  width: 12px;
+  height: 12px;
+  background: none;
+  position: relative;
+}
+
+.mk.k-you.k-us .k::before,
+.mk.k-you.k-us .k::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: -1px;
+  width: 2px;
+  height: 14px;
+  background: var(--text);
+  transform: rotate(45deg);
+}
+
+.mk.k-you.k-us .k::after {
+  transform: rotate(-45deg);
+}
+
+.cluster.k-us {
+  top: 28%;
+}
+
+.cluster.k-them {
+  top: 72%;
+  border-color: var(--enemy);
+}
+
+.cluster {
+  position: absolute;
+  top: 50%;
+  height: 18px;
+  min-width: 20px;
+  margin-top: -9px;
+  transform: translateX(-50%);
+  border-radius: var(--r-ctl);
+  border: 1px solid var(--text-3);
+  background: var(--surface-raised);
+  font: 700 13px / 1 var(--display);
+  font-stretch: 72%;
+  display: grid;
+  place-items: center;
+  padding: 0 5px;
+  z-index: 2;
 }
 
 .d {
@@ -896,30 +1382,40 @@
   border-radius: 1px;
 }
 
-.cluster {
-  position: absolute;
-  top: 50%;
-  height: 18px;
-  min-width: 20px;
-  margin-top: -9px;
-  transform: translateX(-50%);
-  border-radius: 3px;
-  border: 1px solid var(--text-2);
-  background: var(--surface-raised);
-  font-size: 11px;
+.mk-ins {
+  width: auto;
+  height: 22px;
+  margin: -11px 0 0 -9px;
+  padding: 0 7px 0 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
   font-weight: 600;
-  display: grid;
-  place-items: center;
-  padding: 0 5px;
-  z-index: 2;
+  color: var(--text);
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.mk-ins .g {
+  width: 9px;
+  height: 9px;
+}
+
+.mk-ins.live {
+  border-color: var(--text);
+  background: var(--surface-raised);
+  z-index: 3;
 }
 
 .scale-t {
   position: relative;
   height: 16px;
-  font-size: 11px;
+  font: 500 12px / 16px var(--display);
+  font-stretch: 80%;
   color: var(--text-3);
   margin-top: 3px;
+  font-variant-numeric: tabular-nums;
 }
 
 .scale-t span {
@@ -943,7 +1439,7 @@
   color: var(--surface-panel);
   font-size: 12px;
   padding: 5px 8px;
-  border-radius: 3px;
+  border-radius: var(--r-ctl);
   pointer-events: none;
   opacity: 0;
   transform: translate(-50%, -100%) translateY(-6px);
@@ -967,7 +1463,7 @@
   opacity: 0.75;
 }
 
-/* ---- Context panel (prototype .ctx / .p-head / .insight) ---- */
+/* ---- Analyst column: the verdict, the coach's read, evidence, numbers; ask bar pinned below ---- */
 
 .ctx {
   border-left: 1px solid var(--border);
@@ -979,55 +1475,110 @@
 
 .p-head {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 8px 8px 16px;
-  border-bottom: 1px solid var(--border-soft);
+  align-items: stretch;
+  gap: 4px;
+  padding: 0 8px 0 20px;
+  border-bottom: 1px solid var(--border);
+  min-height: 44px;
   font-size: 12px;
   color: var(--text-3);
-  min-height: 40px;
 }
 
 .p-head > * {
   white-space: nowrap;
   flex: none;
+  align-self: center;
 }
 
-.p-head .lab {
-  font-weight: 600;
-  color: var(--text);
-  font-size: 13px;
-  border: 1px solid transparent;
-  border-radius: 3px;
-  padding: 1px 5px;
-  margin-left: -6px;
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.p-head.live .lab {
-  border-color: var(--text);
-  background: var(--surface-raised);
+.p-head .lab,
+.p-head > i,
+.p-head > span:not(.sp):not(.lab) {
+  display: none;
 }
 
 .p-head .sp {
   flex: 1 1 0;
 }
 
+.ctx-tabs {
+  display: flex;
+  gap: 16px;
+  align-self: stretch !important;
+  order: -1;
+}
+
+.ctx-tabs button {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-3);
+  box-shadow: inset 0 -2px 0 transparent;
+  transition:
+    color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.ctx-tabs button[aria-selected="true"] {
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--text);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ctx-tabs button:hover {
+    color: var(--text);
+  }
+}
+
 .insight {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 14px 16px 8px;
+  padding: 20px 20px 12px;
+}
+
+.ins-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.ins-meta b {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+}
+
+.ins-meta.k-mistake b {
+  color: var(--mistake);
+}
+
+.ins-meta.k-strength b {
+  color: var(--good);
+}
+
+.ins-meta .g {
+  width: 9px;
+  height: 9px;
+}
+
+.ins-meta span + span::before,
+.ins-meta b + span::before {
+  content: "·";
+  margin-inline-end: 8px;
+  color: var(--text-3);
 }
 
 .ins-head {
-  font-size: 20px;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
-  margin: 0 0 4px;
+  font-size: 21px;
+  line-height: 1.28;
+  letter-spacing: -0.015em;
+  margin: 0 0 6px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -1035,19 +1586,277 @@
 .picked {
   font-size: 12px;
   color: var(--text-3);
-  margin: 0 0 12px;
+  margin: 0 0 16px;
 }
 
 .layer {
-  padding: 12px 0;
-  border-top: 1px solid var(--border-soft);
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
 }
 
 .layer h3 {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-3);
-  margin: 0 0 4px;
+  margin: 0 0 8px;
+}
+
+/* The coach's read: Newsreader, the Coach's voice only. */
+.coach-expl-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.coach-expl .expl {
+  font-family: var(--serif);
+  font-size: 16.5px;
+  line-height: 1.55;
+  margin: 0 0 6px;
+  color: var(--text);
+}
+
+.coach-expl .err {
+  color: var(--negative);
+}
+
+.expl-note,
+.qa .aa-note {
+  font-size: 12px;
+  color: var(--text-3);
+  margin: 2px 0 0;
+}
+
+.lang-pick select {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-2);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  padding: 2px 4px;
+}
+
+.lang-pick select:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 0;
+}
+
+.thinking {
+  font-family: var(--ui);
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.cite {
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  padding: 0 1px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button.cite:hover {
+    color: var(--text);
+  }
+}
+
+.k-passage {
+  display: block;
+  margin: 6px 0;
+  padding: 6px 10px;
+  border-left: 2px solid var(--border);
+  font-family: var(--ui);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.k-passage b {
+  display: block;
+  color: var(--text);
+}
+
+.k-passage .k-text {
+  display: block;
+  white-space: pre-line;
+}
+
+.k-passage .k-src {
+  display: block;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+/* Next moment: the review's one forward action, with its number and key. */
+.moment-step {
+  padding: 4px 0 16px;
+}
+
+.next-btn {
+  display: grid !important;
+  grid-template-columns: auto auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-panel);
+  background: var(--surface-raised) !important;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.next-btn.is-last {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  background: var(--text) !important;
+  color: var(--surface-panel);
+  border-color: var(--text) !important;
+}
+
+.next-btn .next-k {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.next-btn.is-last .next-k,
+.next-btn.is-last kbd {
+  color: inherit;
+  border-color: currentColor;
+  opacity: 0.7;
+}
+
+.next-btn b {
+  font-family: var(--display);
+  font-stretch: 72%;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.next-btn .next-t {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.next-btn .g {
+  width: 8px;
+  height: 8px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .next-btn:not(.is-last):hover {
+    border-color: var(--text-3) !important;
+  }
+}
+
+.find-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+}
+
+.find-row {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 8px 6px;
+  border-top: 1px solid var(--border-soft);
+  align-items: start;
+  border-radius: var(--r-ctl);
+}
+
+.find-list li:first-child .find-row {
+  border-top: 0;
+}
+
+.find-row .g {
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+}
+
+.find-row b {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.find-row p {
+  grid-column: 2 / -1;
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.4;
+}
+
+.find-row.linked {
+  background: var(--border-soft);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .find-row:hover {
+    background: var(--border-soft);
+  }
+}
+
+/* Round numbers as one row of condensed figures: the stat line a player already reads. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+}
+
+.stat-grid div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 4px;
+  padding: 8px 8px 7px;
+  border-left: 1px solid var(--border-soft);
+  min-width: 0;
+}
+
+.stat-grid div:first-child {
+  border-left: 0;
+}
+
+.stat-grid dt {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat-grid abbr {
+  text-decoration: none;
+}
+
+.stat-grid dd {
+  margin: 0;
+  font-family: var(--display);
+  font-stretch: 72%;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .facts {
@@ -1074,12 +1883,12 @@
 }
 
 .more details {
-  border-top: 1px solid var(--border-soft);
-  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  padding: 4px 0;
 }
 
 .more details:last-child {
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border);
 }
 
 .more summary {
@@ -1088,10 +1897,12 @@
   display: flex;
   gap: 8px;
   align-items: center;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-2);
-  min-height: 28px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  min-height: 32px;
 }
 
 .more summary::-webkit-details-marker {
@@ -1099,10 +1910,12 @@
 }
 
 .more summary .aside {
-  margin-left: auto;
+  margin-inline-start: auto;
   font-size: 12px;
   color: var(--text-3);
   font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -1135,7 +1948,7 @@
   gap: 0 8px;
   width: 100%;
   padding: 6px 4px;
-  border-radius: 2px;
+  border-radius: var(--r-ctl);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -1168,6 +1981,8 @@
   font-weight: 600;
   text-align: right;
   font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
 }
 
 .ev-row.dead .ev-l {
@@ -1179,18 +1994,19 @@
 .ev-team {
   grid-column: 1 / -1;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   color: var(--text-3);
-  padding: 8px 4px 2px;
+  padding: 10px 4px 2px;
 }
 
 .next-row {
-  padding: 10px 0 6px;
+  padding: 12px 0 6px;
 }
 
 .link {
   color: var(--text);
-  font-weight: 500;
+  font-weight: 600;
   text-decoration: underline;
   text-decoration-color: var(--border);
   text-underline-offset: 3px;
@@ -1230,193 +2046,368 @@
   line-height: 1.45;
 }
 
-/* ---- Tablet: panel becomes a drawer, rounds go horizontal ---- */
-/* ---- Coach analysis: moment glyphs, rail sections, Coach lane, findings (T42-T44) ----
-   Decision 4: orange triangle = mistake, blue circle = good play; shape carries it as well as colour. */
+/* ---- Coach: the ask bar is always under the analysis; asking gives answers the column ---- */
 
-.g-mistake {
-  background: var(--negative);
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+.coach {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface-panel);
 }
 
-.g-strength {
-  background: var(--positive);
-  border-radius: 50%;
-}
-
-.g-note {
-  border: 1.5px solid var(--text-3);
-  border-radius: 1px;
-}
-
-.rail-scroll {
+.thread {
+  display: none;
   flex: 1;
   min-height: 0;
   overflow: auto;
+  padding: 20px 20px 12px;
 }
 
-.rail-scroll .moments {
-  flex: none;
-  overflow: visible;
+.ctx.asking .insight {
+  display: none;
 }
 
-.rail-sub {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin: 6px 12px 2px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-soft);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-3);
+.ctx.asking .coach {
+  flex: 1;
+  border-top: 0;
 }
 
-.rail-sub span {
-  font-weight: 400;
+.ctx.asking .thread {
+  display: block;
 }
 
-/* Rounds are the secondary list once there are moments: one line each. */
-.moments.secondary .mom {
-  padding: 4px 6px;
+.ctx:not(.asking) .qs {
+  display: none;
 }
 
-.moments.secondary .mom-title {
-  font-weight: 400;
-}
-
-.moments.secondary .mom .g {
-  width: 7px;
-  height: 7px;
-  margin-top: 5px;
-}
-
-.rcell .rmark {
-  position: absolute;
-  left: 50%;
-  bottom: 9px;
-  width: 7px;
-  height: 7px;
-  margin-left: -3.5px;
-}
-
-.lane-n.l-coach,
-.lane-t.l-coach {
-  height: calc(var(--lane-h) + 8px);
-  border-bottom: 1px solid var(--border);
-}
-
-.lane-n.l-coach {
-  color: var(--text-2);
-  font-weight: 600;
-}
-
-.mk-ins {
-  width: auto;
-  height: 22px;
-  margin: -11px 0 0 -9px;
-  padding: 0 7px 0 3px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  border: 1px solid transparent;
-}
-
-.mk-ins .g {
-  width: 9px;
-  height: 9px;
-}
-
-.mk-ins.live {
-  border-color: var(--text);
-  background: var(--surface-raised);
-  z-index: 3;
-}
-
-.find-list {
-  list-style: none;
+.thread-empty {
   margin: 0;
-  padding: 0;
   font-size: 13px;
+  color: var(--text-3);
+  max-width: 40ch;
 }
 
-.find-row {
-  display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) auto;
-  gap: 2px 8px;
+.qa {
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+
+.qa:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.qa .qq {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.qa .aa {
+  font-family: var(--serif);
+  font-size: 16.5px;
+  line-height: 1.55;
+}
+
+.qa .aa.err {
+  font-family: var(--ui);
+  font-size: 13px;
+  color: var(--negative);
+}
+
+.coach-body {
+  padding: 12px 16px 14px;
+}
+
+.qs {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.q {
+  display: block;
   width: 100%;
   padding: 7px 4px;
-  border-top: 1px solid var(--border-soft);
-  align-items: start;
-}
-
-.find-row .g {
-  width: 9px;
-  height: 9px;
-  margin-top: 4px;
-}
-
-.find-row b {
-  font-weight: 600;
-  color: var(--text);
-}
-
-.find-row .ev-v {
   color: var(--text-2);
-}
-
-.find-row p {
-  grid-column: 2 / -1;
-  margin: 0;
-  color: var(--text-2);
-  line-height: 1.4;
-}
-
-.find-row.linked {
-  background: var(--border-soft);
+  font-size: 13px;
+  border-bottom: 1px solid var(--border-soft) !important;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .find-row:hover {
+  .q:hover {
+    color: var(--text);
     background: var(--border-soft);
   }
 }
 
-.cite {
-  font-weight: 600;
-  color: var(--text);
-  text-decoration: underline;
-  text-decoration-color: var(--border);
-  text-underline-offset: 2px;
-}
-
-.stat-grid {
+.ask-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px 12px;
-  margin: 6px 0 0;
+  gap: 6px;
 }
 
-.stat-grid div {
+/* What the coach is looking at, as tactical metadata rather than a greeting. */
+.ask-ctx {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 0;
+  margin: 0;
+  font-family: var(--display);
+  font-stretch: 78%;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.ask-ctx span[aria-hidden] + span[aria-hidden]::before {
+  content: "/";
+  margin: 0 6px;
+  color: var(--border);
+}
+
+.ask-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface-raised);
+  transition: border-color 120ms ease;
+}
+
+.ask-field:focus-within {
+  border-color: var(--text-3);
+}
+
+.field {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  border: 0;
+  background: transparent;
+  padding: 0 12px;
+  outline: none;
+}
+
+.ask-field:has(.field:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.mk::before {
+  /* 24px hit area (WCAG 2.5.8) around the 22px mark. */
+  content: "";
+  position: absolute;
+  inset: -1px;
+}
+
+@media (max-width: 720px) {
+  /* 16px stops iOS Safari zooming the page when the ask field is focused. */
+  .field {
+    font-size: 16px;
+  }
+}
+
+.ask-field kbd {
+  margin-inline-end: 6px;
+}
+
+.ask-send {
+  height: 30px;
+  margin-inline-end: 5px;
+  padding: 0 12px !important;
+  border-radius: var(--r-ctl);
+  background: var(--text) !important;
+  color: var(--surface-panel);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ask-send:disabled {
+  background: var(--border-soft) !important;
+  color: var(--text-3);
+  cursor: default;
+}
+
+.proto-note {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 8px;
+}
+
+/* ---- Review overview (brief) and wrap-up (debrief) ---- */
+
+.review-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.round-strip {
+  display: grid;
+  grid-template-columns: repeat(var(--rounds), minmax(0, 1fr));
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  max-width: calc(var(--rounds) * 18px);
+}
+
+.round-strip li.half {
+  margin-inline-start: 4px;
+}
+
+.rs-cell {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 2px 0;
+  border-radius: 2px;
 }
 
-.stat-grid dt {
-  font-size: 11px;
+.rs-box {
+  display: block;
+  width: 100%;
+  height: 16px;
+  border: 1.5px solid var(--text-3);
+  border-radius: 1px;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+.rs-cell[data-won="true"] .rs-box {
+  background: var(--text);
+  border-color: var(--text);
+}
+
+.rs-cell[aria-current="true"] .rs-box {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.rs-cell .g,
+.rs-none {
+  width: 7px;
+  height: 7px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .rs-cell:hover .rs-box {
+    border-color: var(--text);
+  }
+}
+
+.review-start {
+  padding: 14px 0 4px;
+}
+
+.btn.btn-wrap {
+  white-space: normal;
+  height: auto;
+  min-height: 36px;
+  padding: 8px 12px;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.drills {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 14px;
+  counter-reset: drill;
+}
+
+.drills li {
+  counter-increment: drill;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+}
+
+.drills li::before {
+  content: counter(drill, decimal-leading-zero);
+  grid-row: 1 / span 3;
+  font: 700 18px / 1.1 var(--display);
+  font-stretch: 72%;
   color: var(--text-3);
 }
 
-.stat-grid dd {
-  margin: 0;
-  font-size: 15px;
+.drills b {
+  font-size: 13px;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
+
+.drills p {
+  margin: 2px 0 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.drills .meta {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.review-actions {
+  padding: 14px 0 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---- Press feedback (11 Motion, Emil Kowalski): fast, deliberate, transform only ---- */
+
+.mom,
+.sb-cell,
+.rs-cell,
+.icon-btn,
+.step,
+.play,
+.t-opt,
+.seg button,
+.next-btn,
+.ask-send,
+.sheet-grab {
+  transition:
+    transform 120ms var(--ease-out),
+    background-color 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.mom:active,
+.sb-cell:active,
+.rs-cell:active,
+.icon-btn:active,
+.step:active,
+.t-opt:active,
+.next-btn:active,
+.ask-send:not(:disabled):active,
+.seg button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.play:active {
+  transform: scale(0.94);
+}
+
+.sheet-grab:active span {
+  background: var(--text-3);
+}
+
+/* ---- Tablet: the path becomes a strip, the analyst a drawer ---- */
 
 @media (max-width: 1180px) {
   .studio,
@@ -1453,8 +2444,42 @@
     scrollbar-width: none;
   }
 
-  .rail-scroll .moments {
-    overflow: visible;
+  .rail-scroll > * {
+    flex: none;
+  }
+
+  .moments {
+    display: flex;
+    padding: 6px;
+    gap: 2px;
+  }
+
+  .moments:not(.secondary)::before {
+    display: none;
+  }
+
+  .moments li {
+    flex: none;
+    max-width: 220px;
+  }
+
+  .mom {
+    padding: 6px 10px 6px 8px;
+    overflow: hidden;
+  }
+
+  .mom-n {
+    font-size: 20px;
+  }
+
+  .mom-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mom[aria-current="true"] .reason {
+    display: none;
   }
 
   .rail-sub {
@@ -1471,32 +2496,13 @@
     display: none;
   }
 
-  .moments {
-    display: flex;
-    overflow-x: auto;
-    padding: 6px;
-    gap: 2px;
-    scrollbar-width: none;
-  }
-
-  .moments li {
-    flex: none;
-    width: auto;
-    max-width: 200px;
-  }
-
-  .mom-title {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .mom[aria-current="true"] .reason {
-    display: none;
-  }
-
   .ctx-toggle {
     display: inline-flex !important;
+    align-items: center;
+    height: 32px;
+    border-radius: var(--r-ctl);
+    font-weight: 600;
+    font-size: 13px;
   }
 
   .ctx {
@@ -1504,14 +2510,14 @@
     top: var(--bar);
     right: 0;
     bottom: 0;
-    width: min(392px, 92vw);
+    width: min(400px, 92vw);
     z-index: 30;
     transform: translateX(100%);
     visibility: hidden;
     transition:
       transform 260ms var(--ease-drawer),
       visibility 0s 260ms;
-    box-shadow: -10px 0 28px rgba(0, 0, 0, 0.1);
+    box-shadow: -1px 0 0 var(--border), -16px 0 32px rgba(0, 0, 0, 0.18);
   }
 
   .ctx.open {
@@ -1519,16 +2525,21 @@
     visibility: visible;
     transition: transform 260ms var(--ease-drawer);
   }
+
+  .sb-rounds {
+    max-width: 30vw;
+  }
 }
 
 .sheet-grab {
   display: none;
 }
 
-/* ---- Mobile: stage on top, panel slides up from the bottom ---- */
+/* ---- Phone: stage on top, path as a strip, the analyst as a bottom sheet ---- */
+
 @media (max-width: 720px) {
   .studio {
-    --lane-label: 52px;
+    --lane-label: 48px;
     height: auto;
     min-height: 100%;
     overflow: visible;
@@ -1538,44 +2549,70 @@
     overflow: auto;
   }
 
+  .sb {
+    gap: 10px;
+  }
+
+  .sb-rounds,
+  .sb-round small {
+    display: none;
+  }
+
+  .sb-map {
+    font-size: 15px;
+  }
+
+  .sb-score {
+    font-size: 20px;
+  }
+
   .moments li {
-    width: auto;
-    max-width: 150px;
+    max-width: 170px;
+  }
+
+  .mom-meta .when {
+    font-size: 11px;
   }
 
   .stage-wrap {
     padding: 0;
+    flex: none;
   }
 
-  .stage {
-    border-radius: 0;
-  }
-
-  .legend,
-  .stage-cap {
+  .legend {
     display: none;
+  }
+
+  .chip {
+    left: 8px;
+    top: 8px;
+    max-width: calc(100% - 110px);
+  }
+
+  .zoom {
+    right: 8px;
+    top: 8px;
   }
 
   .transport {
     padding: 8px 12px 2px;
-    gap: 8px;
+    flex-wrap: nowrap;
+    gap: 2px;
   }
 
   .now,
   .fs-btn,
-  .clock span {
+  .clock span,
+  .step {
     display: none;
   }
 
-  /* Keeps the Gameplay/Radar switch on the transport row at 390 (U15). */
-  .transport {
-    flex-wrap: nowrap;
-    gap: 4px;
+  .clock {
+    margin: 0 6px;
   }
 
-  .clock {
-    min-width: 0;
-    margin-inline: 4px;
+  .clock b {
+    font-size: 24px;
   }
 
   .seg {
@@ -1586,23 +2623,18 @@
     padding-inline: 8px;
   }
 
-  .ctx:not(.open) .picked {
-    visibility: hidden;
-  }
-
   .tl {
     padding: 0 12px 8px;
   }
 
-  .lane-n,
-  .lane-t {
-    min-height: 30px;
+  .lane-n.l-bomb,
+  .lane-t.l-bomb {
+    display: none;
   }
 
-  /* Bottom sheet (14 Responsive, U15): collapsed it still shows the moment's label and
-     key finding; the handle or a drag up opens it for the explanation. */
+  /* Bottom sheet (14 Responsive): collapsed it still shows the moment's label and verdict. */
   .studio {
-    --peek: 132px;
+    --peek: 140px;
     padding-bottom: var(--peek);
   }
 
@@ -1614,18 +2646,22 @@
     top: auto;
     left: 0;
     width: auto;
-    height: 72vh;
+    height: 74vh;
     border-left: 0;
     border-top: 1px solid var(--border);
-    border-radius: 6px 6px 0 0;
+    border-radius: var(--r-panel) var(--r-panel) 0 0;
     transform: translateY(calc(100% - var(--peek)));
     visibility: visible;
     transition: transform 260ms var(--ease-drawer);
-    box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 -12px 28px rgba(0, 0, 0, 0.16);
   }
 
   .ctx:not(.open) {
     overflow: hidden;
+  }
+
+  .ctx:not(.open) .picked {
+    visibility: hidden;
   }
 
   .ctx:not(.open) .ins-head {
@@ -1638,6 +2674,31 @@
   .ctx .ins-head {
     font-size: var(--fs-16);
     line-height: 1.35;
+  }
+
+  .p-head {
+    min-height: 36px;
+    padding-inline-start: 16px;
+  }
+
+  .insight {
+    padding: 12px 16px;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .stat-grid div:nth-child(4) {
+    border-left: 0;
+  }
+
+  .stat-grid div:nth-child(n + 4) {
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .field {
+    font-size: 16px;
   }
 
   .sheet-grab {
@@ -1660,502 +2721,16 @@
     border-radius: 2px;
     background: var(--border);
   }
+
+  .pov:not(.is-main) {
+    width: 46%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ctx,
-  .ctx.open {
+  .ctx.open,
+  .pov {
     transition: none;
   }
-}
-
-/* ---- Ask tab (prototype .coach): the coach sits under the analysis; asking gives it the panel ---- */
-
-.ctx-tabs {
-  display: flex;
-  gap: 2px;
-}
-
-.ctx-tabs button {
-  padding: 4px 9px;
-  border-radius: var(--r-ctl);
-  font-weight: 500;
-  font-size: 13px;
-  color: var(--text-3);
-}
-
-.ctx-tabs button[aria-selected="true"] {
-  background: var(--border-soft);
-  color: var(--text);
-}
-
-.coach {
-  border-top: 1px solid var(--border);
-  background: var(--surface-raised);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.thread {
-  display: none;
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 12px 16px;
-}
-
-.ctx.asking .insight {
-  display: none;
-}
-
-.ctx.asking .coach {
-  flex: 1;
-}
-
-.ctx.asking .thread {
-  display: block;
-}
-
-/* The Ask block lives only in the Ask tab, so the analysis keeps the full panel height */
-.ctx:not(.asking) .coach {
-  display: none;
-}
-
-/* Before the first question the prompts sit at the top instead of under an empty thread */
-.ctx.asking .thread:empty {
-  display: none;
-}
-
-.ctx.asking .coach {
-  border-top: 0;
-}
-
-.qa {
-  padding: 10px 0;
-  border-top: 1px solid var(--border-soft);
-}
-
-.qa:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.qa .qq {
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-/* Newsreader is reserved for the Coach's voice. */
-.qa .aa {
-  font-family: var(--serif);
-  font-size: 16px;
-  line-height: 1.55;
-}
-
-.qa .aa.err {
-  font-family: var(--ui);
-  font-size: 13px;
-  color: var(--negative);
-}
-
-.thinking {
-  font-family: var(--ui);
-  font-size: 13px;
-  color: var(--text-3);
-}
-
-.cite {
-  font-family: var(--ui);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-2);
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
-  padding: 0 1px;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  button.cite:hover {
-    color: var(--text);
-  }
-}
-
-.coach-body {
-  padding: 10px 16px 12px;
-}
-
-.coach-h {
-  font-size: 13px;
-  font-weight: 600;
-  margin: 0 0 2px;
-}
-
-.knows {
-  font-size: 12px;
-  color: var(--text-3);
-  margin: 0 0 6px;
-}
-
-.qs {
-  list-style: none;
-  margin: 0 0 8px;
-  padding: 0;
-}
-
-.q {
-  display: block;
-  width: 100%;
-  padding: 4px 0;
-  color: var(--text-2);
-  font-size: 13px;
-  text-decoration: underline;
-  text-decoration-color: var(--border);
-  text-underline-offset: 3px;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .q:hover {
-    color: var(--text);
-    text-decoration-color: var(--text-3);
-  }
-}
-
-.ask-row {
-  display: flex;
-  gap: 8px;
-}
-
-.field {
-  flex: 1;
-  min-width: 0;
-  height: 34px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-ctl);
-  background: var(--surface-raised);
-  padding: 0 10px;
-}
-
-.field:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 0;
-}
-
-.ask-row .btn:disabled {
-  color: var(--text-3);
-  cursor: default;
-}
-
-.proto-note {
-  font-size: 12px;
-  color: var(--text-3);
-  margin-top: 6px;
-}
-
-@media (max-width: 720px) {
-  .field {
-    font-size: 16px;
-  }
-}
-
-/* Coach explanation in the Analysis tab (T43): the Coach's voice, so Newsreader. */
-.coach-expl-h {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.lang-pick select,
-.lang-row select {
-  font: inherit;
-  font-size: 12px;
-  color: var(--text-2);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--r-ctl);
-  padding: 1px 4px;
-}
-
-.lang-pick select:focus-visible,
-.lang-row select:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 0;
-}
-
-.coach-expl .expl {
-  font-family: var(--serif);
-  font-size: 15px;
-  line-height: 1.55;
-  margin: 2px 0 4px;
-}
-
-.coach-expl .err {
-  color: var(--negative);
-}
-
-.expl-note,
-.qa .aa-note {
-  font-size: 12px;
-  color: var(--text-3);
-  margin-top: 2px;
-}
-
-/* A [K7] citation opens the passage it came from. */
-.k-passage {
-  display: block;
-  margin: 6px 0;
-  padding: 6px 10px;
-  border-left: 2px solid var(--border);
-  font-family: var(--ui);
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--text-2);
-}
-
-.k-passage b {
-  display: block;
-  color: var(--text);
-}
-
-.k-passage .k-text {
-  display: block;
-  white-space: pre-line;
-}
-
-.k-passage .k-src {
-  display: block;
-  color: var(--text-3);
-  margin-top: 2px;
-}
-
-/* Round rows: a neutral dash, since triangle and circle mean mistake and good play */
-.moments .mom .g.g-round {
-  height: 2px;
-  margin-top: 8px;
-  background: var(--text-3);
-}
-
-/* ---- Review overview and wrap-up (design plan items 2 and 3) ---- */
-
-.review-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 12px;
-  margin: 0 0 12px;
-  font-size: 13px;
-  color: var(--text-2);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Round strip: filled ink = won, outline = lost; the glyph under a round marks its moment. */
-.round-strip {
-  display: grid;
-  grid-template-columns: repeat(var(--rounds), minmax(0, 1fr));
-  gap: 2px;
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-  max-width: calc(var(--rounds) * 18px);
-}
-
-.round-strip li.half {
-  margin-left: 4px;
-}
-
-.rs-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  width: 100%;
-  padding: 2px 0;
-  border-radius: 2px;
-}
-
-.rs-box {
-  display: block;
-  width: 100%;
-  height: 14px;
-  border: 1.5px solid var(--text-3);
-  border-radius: 2px;
-}
-
-.rs-cell[data-won="true"] .rs-box {
-  background: var(--text);
-  border-color: var(--text);
-}
-
-.rs-cell[aria-current="true"] .rs-box {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
-}
-
-.rs-cell .g,
-.rs-none {
-  width: 7px;
-  height: 7px;
-}
-
-.rs-cell:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .rs-cell:hover .rs-box {
-    border-color: var(--text);
-  }
-}
-
-.review-start {
-  padding: 12px 0 4px;
-}
-
-/* A long label ("Review moment 1: Shot while moving in Mid") wraps instead of overflowing. */
-.btn.btn-wrap {
-  white-space: normal;
-  height: auto;
-  min-height: 32px;
-  padding: 6px 12px;
-  text-align: left;
-  justify-content: flex-start;
-}
-
-.moment-step {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 0 12px;
-  border-top: 1px solid var(--border-soft);
-}
-
-.moment-step .meta {
-  font-size: 12px;
-  color: var(--text-3);
-  font-variant-numeric: tabular-nums;
-}
-
-.drills {
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 12px;
-}
-
-.drills b {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.drills p {
-  margin: 2px 0 4px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-2);
-}
-
-.drills .meta {
-  font-size: 12px;
-  color: var(--text-3);
-}
-
-.review-actions {
-  padding: 12px 0 8px;
-  border-top: 1px solid var(--border-soft);
-}
-
-/* ---- Motion polish (11 Motion system, Emil Kowalski's rules) ----
-   Press feedback on everything pressable, hover colour with a short ease, one-shot
-   entrances only for rare states (overview, wrap-up), transforms and opacity only. */
-
-.mom,
-.rs-cell,
-.icon-btn,
-.step,
-.t-opt,
-.seg button,
-.sheet-grab {
-  transition:
-    transform 140ms var(--ease-out),
-    background-color 120ms ease,
-    color 120ms ease;
-}
-
-.mom:active,
-.rs-cell:active,
-.icon-btn:active,
-.step:active,
-.t-opt:active,
-.seg button:not(:disabled):active {
-  transform: scale(0.97);
-}
-
-.rs-box {
-  transition:
-    background-color 120ms ease,
-    border-color 120ms ease;
-}
-
-/* Rare states get a short rise, staggered 40 ms so the eye reads top to bottom.
-   Stagger never blocks input: everything is clickable from the first frame. */
-@keyframes rr-rise {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-
-.insight[data-review] > *,
-.insight[data-review] .drills > li {
-  animation: rr-rise 240ms var(--ease-out) both;
-}
-
-.insight[data-review] > :nth-child(2) {
-  animation-delay: 40ms;
-}
-
-.insight[data-review] > :nth-child(3) {
-  animation-delay: 80ms;
-}
-
-.insight[data-review] > :nth-child(4) {
-  animation-delay: 120ms;
-}
-
-.insight[data-review] > :nth-child(n + 5) {
-  animation-delay: 160ms;
-}
-
-/* Reached with the N key: keyboard actions are instant. */
-.insight[data-instant] > *,
-.insight[data-instant] .drills > li {
-  animation: none;
-}
-
-.insight[data-review] .drills > li:nth-child(2) {
-  animation-delay: 60ms;
-}
-
-.insight[data-review] .drills > li:nth-child(3) {
-  animation-delay: 120ms;
-}
-
-.insight[data-review] .drills > li:nth-child(n + 4) {
-  animation-delay: 180ms;
-}
-
-/* Round strip: the cell under the pointer lifts its outline, nothing moves. */
-@media (hover: hover) and (pointer: fine) {
-  .rs-cell:hover .rs-box {
-    border-color: var(--text);
-  }
-}
-
-/* The sheet handle darkens while held, so a drag feels grabbed. */
-.sheet-grab:active span {
-  background: var(--text-3);
 }

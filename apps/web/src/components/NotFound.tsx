@@ -8,7 +8,7 @@ export function NotFound({ title, detail }: { title: string; detail: string }) {
       <p className="lede">{detail}</p>
       <p className="row-actions">
         <Link className="btn btn-fill" href="/upload">
-          Add demo
+          Add match
         </Link>
         <Link className="btn btn-line" href="/">
           Home
