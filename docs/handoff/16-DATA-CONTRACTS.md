@@ -131,6 +131,15 @@ Pydantic only in `contracts.py`; the TypeScript mirror is left for the UI tasks 
 - **Storage:** SQLite `explanations` (match, player, target, lang). The agent's picks replace the ranker's rows in `moments` (`source: agent`) and clear the moment explanations.
 - **Routes:** `GET /matches/{id}/players/{pid}/moments/{mid}/explanation?lang=`, `POST …/rounds/{n}/explain` (`?refresh=true` to rewrite), `POST …/ask` (server-sent events: `step` per tool call, then one `answer` `{answer, citations, source, verified}`; `error` on failure). The legacy mocked `POST /matches/{id}/coach` is unchanged.
 
+### Migration note (doc 29: R01, R03, R05, 27 Sep 2026)
+
+Pydantic only in `contracts.py`; the TypeScript mirror comes with the Coach, Lab and Settings pages, which belong to the web thread.
+
+- **New:** `SystemStatus` (`ok`, `llmModel`, `servedModels`, `mcpTools`, `checks`) with `SystemCheck` (`name` = `llm` | `mcp` | `csdm` | `knowledge` | `traces`, `state` = `ok` | `off` | `problem`, `detail`). `TracePage` (`items`, `total`) of `TraceSummary` (`id` = `<date>:<line>`, `ts`, `job`, `matchId`, `playerId`, `lang`, `model`, `source`, `verifierOk`, `repaired`, `latencyS`, `toolCalls`); `TraceDetail` adds `steps` (`tool`, `args`, `resultBytes`, `ms`, `error`), `knowledgeIds`, `verifierErrors`, `output`, `fallback` and the raw `record`. `CoachAskRequest` (`question`, `language`).
+- **Citations:** a finding from another match is cited as `M2:F3`: the match ref from `list_matches` (`M1` is the player's oldest analysed match) and the finding id in that match.
+- **Routes:** `GET /system`; `GET /lab/traces?job=&matchId=&source=&limit=&offset=` and `GET /lab/traces/{id}` (404 unless `RR_LAB_ENABLED`); `POST /players/{pid}/ask` (same events as the Ask tab; the `answer` event adds `matches`, cited ref to match id).
+- **MCP tools:** `list_matches(player_id, map?)` and `find_moments(player_id, detector?, kind?, zone?, map?, limit?)`.
+
 According to project history, `cs2coach` detectors emit evidence-linked findings with IDs such as `F12` in `report.json`. Their exact schema is **unknown** (not inspected). Minimum needs of this UI:
 
 ```ts

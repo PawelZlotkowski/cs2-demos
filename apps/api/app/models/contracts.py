@@ -582,6 +582,13 @@ class AskRequest(CamelModel):
     view: StageView | None = None
 
 
+class CoachAskRequest(CamelModel):
+    """Coach page question across all the player's matches (doc 29 R05)."""
+
+    question: str = Field(min_length=1, max_length=500)
+    language: CoachLanguage = "en"
+
+
 class PlayerAnalysis(CamelModel):
     """Everything the analysis layer produced for one player in one match."""
 
@@ -716,4 +723,69 @@ class RoundReplay(CamelModel):
 class EventsPage(CamelModel):
     match_id: str = Field(alias="matchId")
     events: list[ReplayEvent]
+    total: int
+
+
+# --- System status (roadmap R01) ---
+
+
+class SystemCheck(CamelModel):
+    """One part of the local setup. ``state`` is ``off`` when the part is disabled
+    in ``.env``, ``problem`` when it is on but not working."""
+
+    name: Literal["llm", "mcp", "csdm", "knowledge", "traces"]
+    state: Literal["ok", "off", "problem"]
+    detail: str
+
+
+class SystemStatus(CamelModel):
+    ok: bool
+    llm_model: str = Field(alias="llmModel")  # RR_LLM_MODEL
+    served_models: list[str] = Field(default_factory=list, alias="servedModels")  # from /v1/models
+    mcp_tools: list[str] = Field(default_factory=list, alias="mcpTools")
+    checks: list[SystemCheck]
+
+
+# --- Lab, Runs (roadmap R03) ---
+
+
+class TraceToolStep(CamelModel):
+    tool: str
+    args: dict[str, Any] = Field(default_factory=dict)
+    result_bytes: int = Field(0, alias="resultBytes")
+    ms: float = 0.0
+    error: str | None = None
+
+
+class TraceSummary(CamelModel):
+    """One coach job as written to ``data/traces/<date>.jsonl``.
+
+    ``id`` is ``<date>:<line>`` (1-based) and stays stable because the files are
+    append-only."""
+
+    id: str
+    ts: str
+    job: str
+    match_id: str | None = Field(None, alias="matchId")
+    player_id: str | None = Field(None, alias="playerId")
+    lang: str | None = None
+    model: str | None = None
+    source: str | None = None  # agent | template
+    verifier_ok: bool | None = Field(None, alias="verifierOk")
+    repaired: bool = False
+    latency_s: float | None = Field(None, alias="latencyS")
+    tool_calls: int = Field(0, alias="toolCalls")
+
+
+class TraceDetail(TraceSummary):
+    steps: list[TraceToolStep] = Field(default_factory=list)
+    knowledge_ids: list[str] = Field(default_factory=list, alias="knowledgeIds")
+    verifier_errors: list[str] = Field(default_factory=list, alias="verifierErrors")
+    output: str | None = None
+    fallback: str | None = None
+    record: dict[str, Any] = Field(default_factory=dict)  # the raw JSONL line
+
+
+class TracePage(CamelModel):
+    items: list[TraceSummary]
     total: int

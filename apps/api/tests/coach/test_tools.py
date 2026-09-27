@@ -30,6 +30,8 @@ def test_registry_has_the_plan_tools():
         "select_moments",
         "search_knowledge",
         "request_clip",
+        "list_matches",
+        "find_moments",
     }
     for fn in TOOLS.values():
         assert len((fn.__doc__ or "").strip()) > 40, "docstrings are what the model reads"

@@ -63,6 +63,14 @@ Still in `prototype/analysis-studio.html` (reference): moment rail, Coach panel,
 
 - **Knowledge base (T30):** `data/knowledge/` with Mirage (58 sections) and Anubis (49) notes on callouts, T and CT play, utility and rotations, plus 25 fundamentals sections tied to the detectors. One chunk per `##` section, frontmatter `map/side/topic/source/license/lang/review`, `Zones:` and `Detectors:` lines. First draft from general CS2 knowledge, not checked in-game. Liquipedia pages come from `data/knowledge/fetch_liquipedia.py` run locally (the cloud sessions cannot reach the site). Content test: `pytest tests/knowledge`. The index and `search_knowledge` (T31, T32) are built in the phase 2 PR.
 
+## Implemented (doc 29 roadmap, backend, in review)
+
+- **R00:** the verifier rejects tool names and tool-call markup written into the text (the leaked `search_knowledge "practice drill dry peek"` wrap-up), so the job repairs once, then falls back to templates.
+- **R01:** `GET /system` checks llama-server and whether it serves `RR_LLM_MODEL`, the MCP tool list, CS Demo Manager, the knowledge index and the traces folder.
+- **R03:** `GET /lab/traces` and `/lab/traces/{id}` read `data/traces/*.jsonl` for the Lab's Runs tab, behind `RR_LAB_ENABLED`.
+- **R05:** MCP tools `list_matches` and `find_moments`, the `answer_across.v1` prompt and `POST /players/{pid}/ask` for the Coach page, with `[M2:F3]` citations checked by the verifier.
+- The web pages (Coach, Lab, Settings System) are not built yet.
+
 ## Planned next (AI Coach milestone, kicked off 26 Sep 2026)
 
 Plan: [docs/coach/AI-COACH-PLAN.md](../coach/AI-COACH-PLAN.md). Tasks and status: [docs/coach/TASKS.md](../coach/TASKS.md).

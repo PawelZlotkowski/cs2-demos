@@ -31,6 +31,8 @@ def sample_args(mid: str, pid: str) -> dict[str, dict]:
         "select_moments": {"match_id": mid, "player_id": pid, "moments": []},
         "search_knowledge": {"query": "trading a teammate", "k": 2},
         "request_clip": {"match_id": mid, "player_id": pid, "round": 1, "t0": 10.0, "t1": 18.0},
+        "list_matches": {"player_id": pid},
+        "find_moments": {"player_id": pid, "kind": "mistake", "limit": 5},
     }
 
 

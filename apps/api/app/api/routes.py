@@ -10,6 +10,7 @@ from app.core.validation import UPLOAD_REJECT_MESSAGE, is_allowed_demo_filename
 from app.models.contracts import (
     REPLAY_READY_STATUSES,
     AskRequest,
+    CoachAskRequest,
     CoachLanguage,
     ClipManifest,
     CoachRequest,
@@ -38,6 +39,7 @@ from app.processing import pipeline as pipeline_module
 from app.processing.pipeline import PlayerSelectionError, pipeline
 from app.processing.moment_clips import list_moment_clips, moment_clip_file, moment_recorder
 from app.processing.video_clips import clip_file, find_clip, get_or_init_manifest
+from app.coach.tools import player_match_refs
 from app.repositories.matches import repo
 from app.services.coach import coach_service
 from app.services.patterns import patterns_from_record
@@ -390,6 +392,36 @@ async def ask_coach(match_id: str, player_id: str, body: AskRequest) -> Streamin
     fallback, ``source: "template"``). Unverified text is never streamed.
     """
     _require_analysis(match_id, player_id)
+    return _ask_stream(
+        lambda on_step: pipeline_module.coach_jobs(repo).ask(match_id, player_id, body, on_step=on_step),
+        f"{match_id} / {player_id}",
+    )
+
+
+@router.post("/players/{player_id}/ask")
+async def ask_coach_across(player_id: str, body: CoachAskRequest) -> StreamingResponse:
+    """Coach page Ask across all the player's analysed matches (doc 29 R05).
+
+    Same events as the Ask tab. Findings are cited as ``M2:F3``; the answer
+    event's ``matches`` maps each ref it cites to its match id, so the page can
+    open that match in the Studio.
+    """
+    refs = player_match_refs(player_id)
+    if not refs:
+        raise HTTPException(status_code=404, detail="This player has no analysed matches yet.")
+
+    def extra(outcome) -> dict:
+        cited = {c.split(":", 1)[0] for c in outcome.citations if ":F" in c}
+        return {"matches": {ref: refs[ref] for ref in sorted(cited) if ref in refs}}
+
+    return _ask_stream(
+        lambda on_step: pipeline_module.coach_jobs(repo).ask_across(player_id, body, on_step=on_step),
+        player_id,
+        extra,
+    )
+
+
+def _ask_stream(run, label: str, extra=None) -> StreamingResponse:
     queue: asyncio.Queue[str | None] = asyncio.Queue()
 
     async def on_step(step: dict) -> None:
@@ -397,7 +429,7 @@ async def ask_coach(match_id: str, player_id: str, body: AskRequest) -> Streamin
 
     async def work() -> None:
         try:
-            outcome = await pipeline_module.coach_jobs(repo).ask(match_id, player_id, body, on_step=on_step)
+            outcome = await run(on_step)
             await queue.put(
                 _sse(
                     "answer",
@@ -406,13 +438,14 @@ async def ask_coach(match_id: str, player_id: str, body: AskRequest) -> Streamin
                         "citations": outcome.citations,
                         "source": outcome.source,
                         "verified": outcome.source == "agent",
+                        **(extra(outcome) if extra else {}),
                     },
                 )
             )
         except Exception:  # pragma: no cover - logged, reported to the client
             import logging
 
-            logging.getLogger(__name__).exception("Ask failed for %s / %s", match_id, player_id)
+            logging.getLogger(__name__).exception("Ask failed for %s", label)
             await queue.put(_sse("error", {"detail": "The coach could not answer. Check the server log."}))
         finally:
             await queue.put(None)

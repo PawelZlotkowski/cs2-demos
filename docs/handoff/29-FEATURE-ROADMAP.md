@@ -148,6 +148,10 @@ Same format as [TASKS](../coach/TASKS.md). Pawel assigns them.
 | R17 | Progress, Zones list per map | A11 | `app/progress/` | list with counts links to moments | S | H | – |
 | R18 | Review-ready notification | – | web | fires once per match | S | L | – |
 
+### Progress
+
+- **27 Sep 2026:** R00, and the API halves of R01, R03 and R05, are built (see [18](./18-CURRENT-STATE.md) and the [16](./16-DATA-CONTRACTS.md) migration note). Their pages, and R02, wait for the web work agreed with the thread that owns `apps/web`.
+
 ## 7. Suggested order
 
 | Before | Tasks | Why |
