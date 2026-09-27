@@ -1,6 +1,6 @@
 # Coach model options other than Qwen (research, 27 Sep 2026)
 
-Research only; nothing in the code changes. Question: which open-weight models could replace or be compared with Qwen3-14B for the coach, on the RTX 5080 (16 GB) now and the RTX Pro 6000 (96 GB) later?
+Research first; the per-model sampling and the comparison script came after (see the last two sections). Question: which open-weight models could replace or be compared with Qwen3-14B for the coach, on the RTX 5080 (16 GB) now and the RTX Pro 6000 (96 GB) later?
 
 What the coach needs, in order: reliable OpenAI-style tool calling through llama.cpp `--jinja`, JSON-schema output, staying grounded in finding IDs, good Polish and Dutch prose, a licence that allows use in the EU, and an easy QLoRA path back to GGUF.
 
@@ -53,16 +53,44 @@ Newer Qwen models (Qwen3.5-9B, BFCL v4 66.1; Qwen3.6/3.8-27B for the Pro 6000) r
 `apps/api/app/coach/llm_client.py` is already OpenAI-compatible and chosen by `RR_LLM_BASE_URL` / `RR_LLM_MODEL`.
 
 - Gemma 4 uses the same `chat_template_kwargs.enable_thinking` switch in llama.cpp, so thinking on/off works unchanged.
-- Sampling is hard-coded to Qwen3's values (lines 151–154). Gemma wants temperature 1.0, top_p 0.95, top_k 64; Ministral wants temperature below 0.1. Make sampling a per-model setting before comparing models, or the comparison is unfair.
+- Sampling is per model family now (`SAMPLING_PROFILES` in `llm_client.py`): the profile follows `RR_LLM_MODEL` (`qwen3`, `gemma` at 1.0 / 0.95 / top_k 64, `ministral` at 0.05, `gpt-oss` at 1.0 / 1.0), or set `RR_LLM_SAMPLING`. `RR_LLM_TEMPERATURE`, `RR_LLM_TOP_P`, `RR_LLM_TOP_K` and `RR_LLM_MIN_P` override single values. Qwen3 keeps the values the 26 Sep baseline used.
 - gpt-oss and Mistral Small 4 use `reasoning_effort` rather than `enable_thinking`, and gpt-oss returns reasoning in `reasoning_content`, which `split_thinking` already accepts.
 - Serve Gemma 4 with a recent llama.cpp build (Gemma 4 chat template) and `--jinja`. One local test found the quant source mattered a lot (Unsloth quants did far better than others on structured output), so use Unsloth GGUFs.
 - The fine-tune data (T50) is written in Qwen3's chat template. Store it as plain messages plus tool calls and render it with each model's own template, as Unsloth requires the correct Gemma 4 template.
 
-## Suggested first test on the 5080
+## Running the comparison on the 5080
 
-1. `llama-server -hf unsloth/gemma-4-12b-it-GGUF:Q6_K --jinja -c 32768 -ctk q8_0 -ctv q8_0 -ngl 99 --port 8080`
-2. Point `RR_LLM_MODEL` at it, set Gemma sampling, and rerun the Mirage demo from 26 Sep.
-3. Compare with Qwen3-14B: verifier pass rate for explanations and Ask, fallbacks, moment-selection time, VRAM, and a native read of the Polish and Dutch answers.
+`eval/compare_models.py` runs moment selection, an explanation per moment and language, and three Ask questions per language on one processed match, then puts the stored moments back so each model explains the same moments. Results go to `eval/results/` (git-ignored).
+
+```bash
+# From the repo root, API venv active, the match already processed with a player picked.
+# 1. Qwen3-14B baseline (llama-server as in AGENTS.md)
+RR_LLM_MODEL=qwen3-14b-q4_k_m python -m eval.compare_models run --match-id <id> --label qwen3-14b
+
+# 2. Stop it, then serve Gemma 4 12B (recent llama.cpp build, Unsloth quant)
+llama-server -hf unsloth/gemma-4-12b-it-GGUF:Q6_K --jinja -c 32768 -ctk q8_0 -ctv q8_0 -ngl 99 --port 8080
+RR_LLM_MODEL=gemma-4-12b-it-q6_k python -m eval.compare_models run --match-id <id> --label gemma-4-12b
+
+# 3. Table and every text side by side
+python -m eval.compare_models report eval/results/qwen3-14b.json eval/results/gemma-4-12b.json
+```
+
+The table covers verified explanations (per language) and Ask answers, repairs, citations the verifier had to add, runs that hit the tool-step limit, tool calls without error, median latency and peak VRAM (from `nvidia-smi`). Gemma samples at temperature 1.0, so add `--repeat 3` before drawing conclusions from a gap of one or two answers. Polish and Dutch quality still needs a native read of the texts in `comparison.md`.
+
+## First results (27 Sep 2026, RTX 5080)
+
+Both of Pawel's matches, coaching pawcio_, `--repeat 2`, EN/PL/NL; Gemma 4 12B Q6_K from Unsloth on llama.cpp b11205 (no template changes needed).
+
+| | Qwen3-14B Q4_K_M | Gemma 4 12B Q6_K |
+|---|---|---|
+| Explanations verified (Mirage + Anubis) | 66/72 (pl 21/24) | 71/72 (pl 24/24) |
+| Ask answers verified | 36/36 | 36/36 |
+| Tool calls without error | 66/66 | 34/35 |
+| Moment selection time (Mirage / Anubis) | 38 s / 24 s | 108 s / 131 s |
+| Explanation median time | 2.1–2.2 s | 2.0 s |
+| Peak VRAM | 12.7 GB | 12.2 GB |
+
+Qwen's failures were Cyrillic letters in PL/NL (3), invented knowledge ids (2) and one number not in the findings. Gemma's one fallback was an uncited closing sentence, and its one tool error was an invalid `kind` it recovered from. Gemma calls about half as many tools. Its moment selection (thinking on) is 3–5× slower. The Polish and Dutch texts still need a native read before calling the language quality.
 
 ## Sources
 

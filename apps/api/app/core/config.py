@@ -3,6 +3,9 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+BUNDLED_FIXTURE = Path(__file__).resolve().parents[2] / "data" / "fixtures" / "sample-match.json"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="RR_", env_file=".env", extra="ignore")
 
@@ -29,6 +32,14 @@ class Settings(BaseSettings):
     llm_base_url: str = "http://127.0.0.1:8080/v1"
     llm_model: str = "qwen3-14b-q4_k_m"
     llm_timeout_seconds: float = 180.0
+    # Sampling profile: "auto" picks one from RR_LLM_MODEL (qwen3, gemma,
+    # ministral, gpt-oss); see SAMPLING_PROFILES in coach/llm_client.py.
+    # The four overrides beat the profile for both thinking and non-thinking.
+    llm_sampling: str = "auto"
+    llm_temperature: float | None = None
+    llm_top_p: float | None = None
+    llm_top_k: int | None = None
+    llm_min_p: float | None = None
     # How the agent reaches the tools: "mcp" (cs2-demo server in-process over
     # the MCP protocol, or RR_MCP_URL / RR_MCP_COMMAND) or "inprocess"
     coach_tools: str = "mcp"
@@ -79,7 +90,11 @@ class Settings(BaseSettings):
         return path
 
     def resolved_fixture_path(self) -> Path:
-        return self.fixture_path or (self.data_dir / "fixtures" / "sample-match.json")
+        if self.fixture_path:
+            return self.fixture_path
+        path = self.data_dir / "fixtures" / "sample-match.json"
+        # A fresh RR_DATA_DIR has no fixtures folder: use the one in the repo
+        return path if path.exists() else BUNDLED_FIXTURE
 
 
 settings = Settings()

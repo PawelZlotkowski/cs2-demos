@@ -12,7 +12,7 @@ import os
 import httpx
 import pytest
 
-from app.coach.llm_client import LLMClient, LLMError, json_schema_format, split_thinking
+from app.coach.llm_client import LLMClient, LLMError, json_schema_format, sampling_profile, split_thinking
 
 
 def fake_server(handler):
@@ -49,6 +49,38 @@ def test_chat_sends_tools_schema_and_thinking_switch():
     client.chat([{"role": "user", "content": "hi"}], thinking=True)
     assert seen[1]["body"]["chat_template_kwargs"] == {"enable_thinking": True}
     assert "tools" not in seen[1]["body"] and seen[1]["body"]["temperature"] == 0.6
+
+
+def test_sampling_follows_the_model_family():
+    seen, transport = fake_server(lambda req, body: completion({"role": "assistant", "content": "ok"}))
+    gemma = LLMClient(base_url="http://llm/v1", model="gemma-4-12b-it-Q6_K", transport=transport, sampling_overrides={})
+    assert gemma.sampling == "gemma"
+    gemma.chat([{"role": "user", "content": "hi"}])
+    body = seen[0]["body"]
+    assert (body["temperature"], body["top_p"], body["top_k"]) == (1.0, 0.95, 64)
+
+    qwen = LLMClient(base_url="http://llm/v1", model="qwen3-14b-q4_k_m", transport=transport, sampling_overrides={})
+    assert qwen.sampling == "qwen3"
+    qwen.chat([{"role": "user", "content": "hi"}])
+    assert "top_k" not in seen[1]["body"] and seen[1]["body"]["top_p"] == 0.8
+
+    assert sampling_profile("Ministral-3-14B-Instruct") == "ministral"
+    assert sampling_profile("anything", "gemma") == "gemma"
+    with pytest.raises(ValueError):
+        sampling_profile("x", "nope")
+
+
+def test_sampling_overrides_and_explicit_temperature_win():
+    seen, transport = fake_server(lambda req, body: completion({"role": "assistant", "content": "ok"}))
+    client = LLMClient(
+        base_url="http://llm/v1", model="gemma-4-12b", transport=transport,
+        sampling_overrides={"temperature": 0.3, "min_p": 0.05, "top_k": None},
+    )
+    client.chat([{"role": "user", "content": "hi"}], thinking=True)
+    body = seen[0]["body"]
+    assert (body["temperature"], body["min_p"], body["top_k"]) == (0.3, 0.05, 64)
+    client.chat([{"role": "user", "content": "hi"}], temperature=0.0)
+    assert seen[1]["body"]["temperature"] == 0.0
 
 
 def test_tool_calls_and_reasoning_are_parsed():
