@@ -61,12 +61,32 @@ write the explanations, so the whole flow works without a GPU.
 ```powershell
 cd C:\Users\pawel\Documents\cs2-demos-local\apps\web
 npm install
-Set-Content -Encoding ascii .env.local 'NEXT_PUBLIC_API_URL=http://127.0.0.1:8003'
+Set-Content -Encoding ascii .env.local 'API_INTERNAL_URL=http://127.0.0.1:8003'
 npm run dev -- -p 3003
 ```
 
+The browser calls `/api` on the web app and Next forwards it to that address, so the session
+cookie, clips and the Ask stream stay on one origin. An older `.env.local` with
+`NEXT_PUBLIC_API_URL=http://127.0.0.1:8003` still works; restart `npm run dev` after changing it.
+
 Open http://localhost:3003, upload a `.dem.zst` or `.dem` (Mirage or Anubis), pick a player and
 the Studio opens.
+
+### Accounts and the admin panel (optional)
+
+Without accounts the app is one person who is also the admin: the account menu (top right) opens
+Settings and the admin panel at http://localhost:3003/admin. To add sign-in, put these in
+`apps/api/.env` and restart the API:
+
+```text
+RR_AUTH_ENABLED=true
+RR_PUBLIC_URL=http://localhost:3003
+```
+
+The first account you create becomes the admin and takes over the matches already on the PC.
+Others need an invite code from Admin, Invites (`RR_SIGNUP=open` lets anyone sign up). Sign in
+with Steam works without a key; `RR_STEAM_API_KEY` only adds names and avatars. Doc 30 lists
+every setting.
 
 ## 4. Coach model (third terminal, optional)
 
@@ -190,6 +210,11 @@ npx @modelcontextprotocol/inspector python -m cs2_demo_mcp
 
 ## Troubleshooting
 
+- **`ModuleNotFoundError: No module named 'argon2'` after pulling:** accounts added a dependency.
+  Run `pip install -e ".[dev]"` again in `apps\api` with the venv active.
+- **Every page sends you to Sign in:** accounts are on (`RR_AUTH_ENABLED=true`). Create the first
+  account there, or set it to `false` and restart the API.
+
 - **"picked by code (coach model unavailable)" and no requests in the llama-server window:** the API
   read `.env` before `RR_LLM_ENABLED=true` was in it, or was started from another folder. Restart it
   from `apps\api` and check what it loads:
@@ -206,5 +231,6 @@ npx @modelcontextprotocol/inspector python -m cs2_demo_mcp
 ## Docker instead
 
 `docker compose up --build` from the repo root runs the API on 8000 and the web on 3000, with the
-model and clips off. It clashes with the Docker app in `cs2-demos`, so stop that one first
+model and clips off. Both ports are open to this PC only (127.0.0.1); `RR_AUTH_ENABLED=true` in
+the shell turns accounts on. It clashes with the Docker app in `cs2-demos`, so stop that one first
 (`docker compose down` there).

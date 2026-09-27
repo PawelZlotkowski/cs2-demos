@@ -582,6 +582,22 @@ class AskRequest(CamelModel):
     view: StageView | None = None
 
 
+class CoachedPlayer(CamelModel):
+    """A player someone picked for review in at least one match (Coach page)."""
+
+    id: str
+    name: str
+    matches: int
+    maps: list[str]
+
+
+class CoachAskRequest(CamelModel):
+    """Coach page question across all the player's matches (doc 29 R05)."""
+
+    question: str = Field(min_length=1, max_length=500)
+    language: CoachLanguage = "en"
+
+
 class PlayerAnalysis(CamelModel):
     """Everything the analysis layer produced for one player in one match."""
 
@@ -717,3 +733,442 @@ class EventsPage(CamelModel):
     match_id: str = Field(alias="matchId")
     events: list[ReplayEvent]
     total: int
+
+
+# --- System status (roadmap R01) ---
+
+
+class SystemCheck(CamelModel):
+    """One part of the local setup. ``state`` is ``off`` when the part is disabled
+    in ``.env``, ``problem`` when it is on but not working."""
+
+    name: Literal["llm", "mcp", "csdm", "knowledge", "traces"]
+    state: Literal["ok", "off", "problem"]
+    detail: str
+
+
+class SystemStatus(CamelModel):
+    ok: bool
+    llm_model: str = Field(alias="llmModel")  # RR_LLM_MODEL
+    served_models: list[str] = Field(default_factory=list, alias="servedModels")  # from /v1/models
+    mcp_tools: list[str] = Field(default_factory=list, alias="mcpTools")
+    checks: list[SystemCheck]
+
+
+# --- Lab, Runs (roadmap R03) ---
+
+
+class TraceToolStep(CamelModel):
+    tool: str
+    args: dict[str, Any] = Field(default_factory=dict)
+    result_bytes: int = Field(0, alias="resultBytes")
+    ms: float = 0.0
+    error: str | None = None
+
+
+class TraceSummary(CamelModel):
+    """One coach job as written to ``data/traces/<date>.jsonl``.
+
+    ``id`` is ``<date>:<line>`` (1-based) and stays stable because the files are
+    append-only."""
+
+    id: str
+    ts: str
+    job: str
+    match_id: str | None = Field(None, alias="matchId")
+    player_id: str | None = Field(None, alias="playerId")
+    lang: str | None = None
+    model: str | None = None
+    source: str | None = None  # agent | template
+    verifier_ok: bool | None = Field(None, alias="verifierOk")
+    repaired: bool = False
+    latency_s: float | None = Field(None, alias="latencyS")
+    tool_calls: int = Field(0, alias="toolCalls")
+
+
+class TraceDetail(TraceSummary):
+    steps: list[TraceToolStep] = Field(default_factory=list)
+    knowledge_ids: list[str] = Field(default_factory=list, alias="knowledgeIds")
+    verifier_errors: list[str] = Field(default_factory=list, alias="verifierErrors")
+    output: str | None = None
+    fallback: str | None = None
+    record: dict[str, Any] = Field(default_factory=dict)  # the raw JSONL line
+
+
+class TracePage(CamelModel):
+    items: list[TraceSummary]
+    total: int
+
+
+# --- Studio Notes (A10, roadmap R08) ---
+
+
+class Bookmark(CamelModel):
+    id: str  # "b3"
+    round: int
+    t: float
+    note: str
+    created_at: str = Field(alias="createdAt")
+
+
+class BookmarkRequest(CamelModel):
+    round: int = Field(ge=1)
+    t: float = Field(ge=0)
+    note: str = Field(min_length=1, max_length=500)
+
+
+# --- Coach page Plan (roadmap R09) ---
+
+
+class PlanItem(CamelModel):
+    """One thing to practise: a detector that keeps firing, its evidence and a drill."""
+
+    detector: str
+    label: str
+    matches_with: int = Field(alias="matchesWith")  # matches where it happened
+    matches_total: int = Field(alias="matchesTotal")
+    per10_recent: float | None = Field(None, alias="per10Recent")  # per 10 rounds, last 3 matches
+    per10_before: float | None = Field(None, alias="per10Before")  # per 10 rounds, the matches before
+    example: str | None = None  # "M2:F3"
+    drill_id: str | None = Field(None, alias="drillId")  # "K12"
+    drill_title: str | None = Field(None, alias="drillTitle")
+    drill_text: str | None = Field(None, alias="drillText")
+    done: bool = False
+    done_at: str | None = Field(None, alias="doneAt")
+
+
+class PracticePlan(CamelModel):
+    player_id: str = Field(alias="playerId")
+    lang: CoachLanguage
+    text: str  # the coach's note, with [M2:F3] and [K..] citations
+    citations: list[str]
+    source: Literal["agent", "template"]
+    matches: dict[str, str] = Field(default_factory=dict)  # "M2" -> match id
+    items: list[PlanItem]
+    created_at: str = Field(alias="createdAt")
+
+
+class PlanTickRequest(CamelModel):
+    done: bool
+
+
+# --- Coach page Knowledge (roadmap R12) ---
+
+
+class MapZone(CamelModel):
+    name: str
+    polygons: list[list[list[float]]]  # radar pixel space, 1024 x 1024
+
+
+class KnowledgeRow(CamelModel):
+    id: str
+    title: str
+    map: str
+    side: str
+    topic: str
+    source: str
+    text: str
+    zones: list[str]
+    cited: int  # explanations that cite it
+    flags: list[str] = Field(default_factory=list)
+
+
+class KnowledgeFlagRequest(CamelModel):
+    note: str = Field(min_length=1, max_length=500)
+
+
+class KnowledgeNoteRequest(CamelModel):
+    map: Literal["de_mirage", "de_anubis"]
+    title: str = Field(min_length=3, max_length=120)
+    zones: list[str] = Field(default_factory=list)
+    text: str = Field(min_length=20, max_length=3000)
+
+
+# --- Lab Labels (roadmap R07, T17 / T62 formats) ---
+
+
+class LabelVerdict(CamelModel):
+    finding_id: str = Field(alias="findingId")
+    detector: str
+    t: float
+    verdict: Literal["correct", "wrong", "unsure"]
+    note: str | None = None
+
+
+class MissedEvent(CamelModel):
+    detector: str
+    t: float
+    note: str | None = None
+
+
+class RoundLabel(CamelModel):
+    """One labelled round, exactly the data/labels JSONL line."""
+
+    match_id: str = Field(alias="matchId")
+    map: str
+    player_id: str = Field(alias="playerId")
+    round: int
+    labeller: str
+    labelled_at: str | None = Field(None, alias="labelledAt")
+    findings: list[LabelVerdict]
+    missed: list[MissedEvent] = Field(default_factory=list)
+
+
+class MomentPickRow(CamelModel):
+    round: int
+    t0: float
+    t1: float
+    kind: Literal["mistake", "good"]
+
+
+class MomentPicks(CamelModel):
+    match_id: str = Field(alias="matchId")
+    player_id: str = Field(alias="playerId")
+    labeller: str
+    picks: list[MomentPickRow] = Field(max_length=6)
+
+
+# --- Lab Dataset (roadmap R11, T50 / T51) ---
+
+
+class DatasetExample(CamelModel):
+    id: str
+    job: str
+    lang: str | None = None
+    match_id: str | None = Field(None, alias="matchId")
+    split: Literal["train", "val", "test"]
+    prompt: str
+    output: str
+    verdict: Literal["accept", "edit", "reject"] | None = None
+    edited: str | None = None
+
+
+class DatasetPage(CamelModel):
+    items: list[DatasetExample]
+    total: int
+    reviewed: int
+    counts: dict[str, int]  # "explain/en" -> accepted or edited examples
+
+
+class DatasetReviewRequest(CamelModel):
+    verdict: Literal["accept", "edit", "reject"]
+    text: str | None = None
+    reviewer: str | None = None
+
+
+# --- Matches and Progress (A08 / A11 without accounts; roadmap R13, R17) ---
+
+
+class MatchRow(CamelModel):
+    id: str
+    map: str
+    score: str
+    when: str
+    status: MatchStatus
+    player_id: str | None = Field(None, alias="playerId")
+    player_name: str | None = Field(None, alias="playerName")
+    moments: int = 0
+    model: str | None = None  # model that wrote the review; None for templates only
+    versions: int = 0  # earlier reviews kept by a re-run
+    title: str | None = None  # the owner's own name for the match
+
+
+class ProgressMatch(CamelModel):
+    ref: str
+    match_id: str = Field(alias="matchId")
+    map: str
+    when: str
+    rounds: int
+
+
+class ProgressDetector(CamelModel):
+    detector: str
+    kind: str
+    label: str
+    counts: list[int]  # one per match, oldest first
+    per10_recent: float | None = Field(None, alias="per10Recent")
+    per10_before: float | None = Field(None, alias="per10Before")
+
+
+class ProgressZone(CamelModel):
+    map: str
+    zone: str
+    deaths: int
+    examples: list[str]  # "M2:F3"
+
+
+class ProgressResponse(CamelModel):
+    player_id: str = Field(alias="playerId")
+    matches: list[ProgressMatch]
+    detectors: list[ProgressDetector]
+    zones: list[ProgressZone]
+
+
+class RerunRequest(CamelModel):
+    language: CoachLanguage = "en"
+
+
+# --- Lab Evaluation (roadmap R10) ---
+
+
+class EvalRow(CamelModel):
+    """One model on one job, counted from the coach traces."""
+
+    model: str
+    job: str
+    runs: int
+    verified: int  # the model's text passed the verifier (moment selection: its picks were stored)
+    fallbacks: int  # template or ranker used instead
+    repaired: int
+    tool_calls: int = Field(alias="toolCalls")
+    tool_errors: int = Field(alias="toolErrors")
+    median_s: float | None = Field(None, alias="medianS")
+    by_lang: dict[str, str] = Field(default_factory=dict, alias="byLang")  # "en" -> "11/12"
+
+
+class EvalResultFile(CamelModel):
+    """An ``eval/results/*.json`` file written by ``python -m eval.compare_models run``."""
+
+    file: str
+    label: str
+    model: str | None = None
+    summary: dict[str, Any]
+
+
+class RatingTally(CamelModel):
+    model: str
+    wins: int
+    losses: int
+    ties: int
+
+
+class EvalSummary(CamelModel):
+    rows: list[EvalRow]
+    results: list[EvalResultFile]
+    ratings: list[RatingTally]
+
+
+class ABSide(CamelModel):
+    trace_id: str = Field(alias="traceId")
+    text: str
+
+
+class ABPair(CamelModel):
+    """Two models' verified answers to the same job, target and language; models hidden."""
+
+    job: str
+    target: str
+    lang: str | None = None
+    question: str
+    a: ABSide
+    b: ABSide
+
+
+class ABRatingRequest(CamelModel):
+    a: str  # trace ids, as shown
+    b: str
+    winner: Literal["a", "b", "tie"]
+    rater: str | None = Field(None, max_length=40)
+
+
+# --- "Show a round where you did this well" (roadmap R15) ---
+
+
+class GoodExample(CamelModel):
+    """A good play of the same player in the same zone, from any of their matches."""
+
+    id: str  # "M2:F7"
+    match_id: str = Field(alias="matchId")
+    finding_id: str = Field(alias="findingId")  # "F7", in that match
+    round: int
+    t: float
+    zone: str | None = None
+    summary: str
+    same_match: bool = Field(alias="sameMatch")
+
+
+class GoodExamples(CamelModel):
+    zone: str | None = None
+    items: list[GoodExample]
+
+
+# --- Accounts and admin (docs 27 and 30) ---
+
+Role = Literal["admin", "labeller", "player"]
+
+
+class UserOut(CamelModel):
+    id: str
+    username: str | None = None
+    display_name: str = Field(alias="displayName")
+    avatar_url: str | None = Field(None, alias="avatarUrl")
+    role: Role
+    steam_id: str | None = Field(None, alias="steamId")
+    has_password: bool = Field(False, alias="hasPassword")
+    created_at: str | None = Field(None, alias="createdAt")
+    last_seen_at: str | None = Field(None, alias="lastSeenAt")
+    disabled: bool = False
+    consented: bool = False
+
+
+class AuthState(CamelModel):
+    auth_enabled: bool = Field(alias="authEnabled")
+    user: UserOut | None = None
+    needs_setup: bool = Field(False, alias="needsSetup")  # no account yet: the first becomes admin
+    signup: Literal["invite", "open", "closed"] = "invite"
+    steam: bool = True
+    study_mode: bool = Field(False, alias="studyMode")
+    needs_consent: bool = Field(False, alias="needsConsent")
+
+
+class RegisterRequest(CamelModel):
+    username: str = Field(min_length=3, max_length=32, pattern=r"^[A-Za-z0-9_.-]+$")
+    password: str = Field(min_length=1, max_length=256)
+    display_name: str | None = Field(None, alias="displayName", max_length=40)
+    invite_code: str | None = Field(None, alias="inviteCode", max_length=40)
+
+
+class LoginRequest(CamelModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class ResetPasswordRequest(CamelModel):
+    code: str = Field(min_length=8, max_length=80)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class ProfileUpdate(CamelModel):
+    display_name: str | None = Field(None, alias="displayName", min_length=1, max_length=40)
+    current_password: str | None = Field(None, alias="currentPassword", max_length=256)
+    new_password: str | None = Field(None, alias="newPassword", max_length=256)
+    username: str | None = Field(None, min_length=3, max_length=32, pattern=r"^[A-Za-z0-9_.-]+$")
+
+
+class DeleteAccountRequest(CamelModel):
+    confirm: str = Field(max_length=64)  # the username, or DELETE for a Steam-only account
+
+
+class UserSettings(CamelModel):
+    language: CoachLanguage = "en"
+    playback_speed: float = Field(1.0, alias="playbackSpeed", ge=0.25, le=4)
+    explanation_length: Literal["short", "normal", "long"] = Field("normal", alias="explanationLength")
+    autoplay_clips: bool = Field(True, alias="autoplayClips")
+    # Set by the API on read: false means these are defaults, and a browser's own choices win
+    saved: bool = False
+
+
+class FeedbackRequest(CamelModel):
+    target: str = Field(min_length=1, max_length=80)  # moment id, "summary", "wrapup" or an Ask message id
+    kind: Literal["explanation", "answer"] = "explanation"
+    verdict: Literal["useful", "not_right"]
+    note: str | None = Field(None, max_length=500)
+
+
+class ReviewProgressRequest(CamelModel):
+    moment_id: str = Field(alias="momentId", min_length=1, max_length=40)
+    t: float | None = None
+
+
+class MatchPatch(CamelModel):
+    title: str | None = Field(None, max_length=80)

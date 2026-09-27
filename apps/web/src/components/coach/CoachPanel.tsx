@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent, type RefObject } from "rea
 import { api } from "@/lib/api/client";
 import type { CoachLanguage } from "@/lib/contracts";
 import { CoachText, type CiteHandlers } from "./CoachText";
+import { Feedback } from "./Feedback";
 
 type Turn = {
   id: number;
@@ -17,6 +18,8 @@ type Turn = {
   error?: boolean;
   mocked?: boolean;
   source?: "agent" | "template";
+  /** Ask history id once stored: feedback attaches to it */
+  messageId?: number | null;
 };
 
 type Props = CiteHandlers & {
@@ -39,7 +42,7 @@ type Props = CiteHandlers & {
 };
 
 /** What the coach is doing, from the tool it just called. */
-const STEP_LABELS: Record<string, string> = {
+export const STEP_LABELS: Record<string, string> = {
   list_rounds: "Reading the rounds",
   get_round_stats: "Reading the round stats",
   list_findings: "Looking through the findings",
@@ -49,6 +52,9 @@ const STEP_LABELS: Record<string, string> = {
   get_player_history: "Checking earlier matches",
   search_knowledge: "Searching the map notes",
   request_clip: "Queueing a clip",
+  list_matches: "Listing your matches",
+  find_moments: "Looking through your matches",
+  queue: "Waited for the GPU",
 };
 
 export function CoachPanel({
@@ -79,6 +85,35 @@ export function CoachPanel({
     const open = aborts.current;
     return () => open.forEach((c) => c.abort());
   }, []);
+
+  // Earlier questions on this match come back when the Studio opens again (A09)
+  useEffect(() => {
+    if (!playerId) return;
+    let live = true;
+    api
+      .askHistory(matchId)
+      .then((rows) => {
+        if (!live) return;
+        const earlier: Turn[] = rows
+          .filter((r) => r.playerId === playerId && r.answer)
+          .reverse()
+          .map((r) => ({
+            id: nextId.current++,
+            q: r.question,
+            a: r.answer ?? "",
+            shown: (r.answer ?? "").length,
+            pending: false,
+            steps: [],
+            source: r.source === "agent" ? "agent" : "template",
+            messageId: r.id,
+          }));
+        setTurns((ts) => [...earlier, ...ts]);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [matchId, playerId]);
 
   // Reveal answers word by word (prototype stream()); instant with reduced motion.
   // Only verified text reaches this point: the server never streams unchecked tokens.
@@ -141,7 +176,7 @@ export function CoachPanel({
             patch(id, (x) => ({ ...x, steps: [...x.steps, label] }));
           } else if (ev.event === "answer") {
             answered = true;
-            patch(id, (x) => ({ ...x, a: ev.data.answer, pending: false, source: ev.data.source }));
+            patch(id, (x) => ({ ...x, a: ev.data.answer, pending: false, source: ev.data.source, messageId: ev.data.messageId }));
           } else {
             answered = true;
             fail(id, ev.data.detail);
@@ -186,6 +221,9 @@ export function CoachPanel({
             </div>
             {!x.pending && x.source === "template" ? (
               <div className="aa-note">Written from the findings: the coach model is off or its answer did not pass the checks.</div>
+            ) : null}
+            {!x.pending && !x.error && x.messageId && x.shown >= x.a.length ? (
+              <Feedback matchId={matchId} target={String(x.messageId)} kind="answer" />
             ) : null}
           </div>
         ))}

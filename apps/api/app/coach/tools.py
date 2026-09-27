@@ -27,6 +27,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app.auth.scope import allowed, can_write
 from app.analysis.detectors import DETECTORS
 from app.analysis.match_data import MatchData, RoundData, build_match_data
 from app.maps.zones import zone_at
@@ -72,6 +73,8 @@ class _Data:
             self._cache.clear()
 
     def match(self, match_id: str) -> MatchData:
+        if not allowed(match_id):
+            raise ToolError(f"Unknown match_id {match_id!r}.")
         with self._lock:
             if match_id in self._cache:
                 self._cache.move_to_end(match_id)
@@ -89,12 +92,19 @@ class _Data:
         return data
 
     def findings(self, match_id: str, player_id: str, **filters: Any) -> list[Finding]:
+        if not allowed(match_id):
+            raise ToolError(f"Unknown match_id {match_id!r}.")
         if not self.repo.analysis.has_analysis(match_id, player_id):
             raise ToolError("No analysis for that player in this match.")
         return self.repo.analysis.findings(match_id, player_id, **filters)
 
 
 data = _Data()
+
+
+def _check_write() -> None:
+    if not can_write.get():
+        raise ToolError("This app's token can only read. Ask the admin for a token that can write.")
 
 
 def use_repository(repository: Any) -> None:
@@ -395,6 +405,7 @@ def select_moments(
     the match has them, no two moments within 10 s in the same round."""
     from app.coach.verify import verify_moments
 
+    _check_write()
     findings = data.findings(match_id, player_id)
     result = verify_moments([m.model_dump() if isinstance(m, BaseModel) else m for m in moments], findings)
     if not result.ok:
@@ -436,6 +447,7 @@ def request_clip(
 ) -> dict[str, Any]:
     """Queue a gameplay clip of the coached player's view for a round window (at most 60 s).
     Returns the clip job id and status. The radar replay is available meanwhile."""
+    _check_write()
     if t1 <= t0 or t1 - t0 > 60:
         raise ToolError("Use 0 <= t0 < t1 with a window of at most 60 s.")
     match = data.match(match_id)
@@ -448,6 +460,107 @@ def request_clip(
         return {**job, "note": "Queued, but gameplay recording is off on this server; the radar replay shows the round."}
     moment_recorder.enqueue(match_id, player_id)
     return {**job, "note": "Queued for recording from the player's view. The radar replay is available meanwhile."}
+
+
+# --- across matches (doc 29 R05) -----------------------------------------------
+
+MapName = Literal["de_mirage", "de_anubis"]
+
+
+def _map_key(name: str | None) -> str:
+    """'Mirage', 'de_mirage' and 'mirage' compare equal."""
+    return (name or "").lower().removeprefix("de_")
+
+
+def player_match_refs(player_id: str) -> dict[str, str]:
+    """``M1``, ``M2``, … for the player's analysed matches, oldest first -> match id.
+
+    Short refs keep cross-match citations like [M2:F3] easy for a 14B model to copy;
+    the numbering covers every match, so it does not change with a map filter."""
+    history = data.repo.analysis.player_history(player_id)
+    return {f"M{i}": h["matchId"] for i, h in enumerate(history, start=1)}
+
+
+def cross_match_findings(
+    player_id: str,
+    *,
+    map: str | None = None,
+    detector: str | None = None,
+    kind: str | None = None,
+    zone: str | None = None,
+) -> list[tuple[str, dict[str, Any], Finding]]:
+    """(ref, match record, finding with id ``M2:F3``) across the player's matches, newest match first."""
+    out: list[tuple[str, dict[str, Any], Finding]] = []
+    for ref, match_id in reversed(list(player_match_refs(player_id).items())):
+        record = data.repo.get(match_id) or {}
+        if map and _map_key((record.get("match") or {}).get("map")) != _map_key(map):
+            continue
+        for f in data.repo.analysis.findings(match_id, player_id, kind=kind, detector=detector):
+            if zone and (f.zone or "").lower() != zone.lower():
+                continue
+            out.append((ref, record, f.model_copy(update={"id": f"{ref}:{f.id}"})))
+    return out
+
+
+@tool
+def list_matches(
+    player_id: PlayerId,
+    map: Annotated[MapName | None, Field(description="Only matches on this map.")] = None,
+) -> dict[str, Any]:
+    """List the coached player's analysed matches, oldest first, each with a short ref (M1, M2, ...),
+    the map, the date, the score, the rounds played and how many mistakes and good plays were found.
+    Use the ref to read a match's findings with find_moments and cite them as [M2:F3]."""
+    refs = player_match_refs(player_id)
+    if not refs:
+        raise ToolError("This player has no analysed matches yet.")
+    rows = []
+    for ref, match_id in refs.items():
+        record = data.repo.get(match_id) or {}
+        match = record.get("match") or {}
+        if map and _map_key(match.get("map")) != _map_key(map):
+            continue
+        findings = data.repo.analysis.findings(match_id, player_id)
+        rows.append(
+            {
+                "ref": ref,
+                "map": match.get("map"),
+                "when": match.get("when"),
+                "score": match.get("score"),
+                "rounds": len(data.repo.analysis.round_stats(match_id, player_id)),
+                "mistakes": sum(1 for f in findings if f.kind == "mistake"),
+                "goodPlays": sum(1 for f in findings if f.kind == "good"),
+            }
+        )
+    return {"playerMatches": rows}
+
+
+@tool
+def find_moments(
+    player_id: PlayerId,
+    detector: Annotated[str | None, Field(description="Only this detector, e.g. dry_peek.")] = None,
+    kind: Annotated[Literal["mistake", "good", "context", "pattern"] | None, Field(description="Only this kind.")] = None,
+    zone: Annotated[str | None, Field(description="Only this callout, e.g. 'A ramp'.")] = None,
+    map: Annotated[MapName | None, Field(description="Only matches on this map.")] = None,
+    limit: Annotated[int, Field(ge=1, le=12, description="How many, newest match first.")] = 8,
+) -> dict[str, Any]:
+    """Find findings across all the coached player's matches, newest match first: id (cite it as
+    written, e.g. [M2:F3]), match ref, map, round, time, zone, detector, kind, summary and evidence.
+    Use it for questions about habits and for examples from other matches."""
+    if detector is not None and detector not in DETECTORS:
+        raise ToolError(f"Unknown detector {detector!r}. Known: {', '.join(DETECTORS)}.")
+    found = cross_match_findings(player_id, map=map, detector=detector, kind=kind, zone=zone)
+    return {
+        "total": len(found),
+        "moments": [
+            {
+                **_finding_row(f),
+                "match": ref,
+                "map": (record.get("match") or {}).get("map"),
+                "evidence": f.evidence,
+            }
+            for ref, record, f in found[:limit]
+        ],
+    }
 
 
 def round_t(t: float) -> float:

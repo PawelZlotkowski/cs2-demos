@@ -27,13 +27,18 @@ from app.analysis.ranker import MIN_EACH, MIN_GAP_S, MIN_MOMENTS, TARGET, rank_m
 from app.coach.templates import render
 from app.models.contracts import Finding, RoundStats, SelectedMoment
 
-CITATION_RE = re.compile(r"\[((?:F\d+|m\d+|K\d+|t:\d+(?:\.\d+)?)(?:\s*,\s*(?:F\d+|m\d+|K\d+|t:\d+(?:\.\d+)?))*)\]")
+# One token: a finding (F12, or M2:F12 for another match on the Coach page), moment, passage or time
+_TOKEN = r"(?:(?:M\d+:)?F\d+|m\d+|K\d+|t:\d+(?:\.\d+)?)"
+CITATION_RE = re.compile(rf"\[({_TOKEN}(?:\s*,\s*{_TOKEN})*)\]")
+FINDING_TOKEN_RE = re.compile(r"(?:M\d+:)?F\d+")
 # A number not glued to a word before it (AK-47, M4A1 and F12 are not numbers)
 NUMBER_RE = re.compile(r"(?<![A-Za-z0-9_\-.,:])(\d{1,3}(?:[ .,]\d{3})+(?![\d])|\d+(?:[.,]\d+)?)")
 CLOCK_RE = re.compile(r"(?<![\d:])(\d{1,2}):(\d{2})(?![\d:])")
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ\"'(\[])")
 
 CYRILLIC_RE = re.compile(r"[\u0400-\u04FF]")
+# Tool-call syntax a model sometimes writes into its prose instead of calling the tool
+TOOL_MARKUP_RE = re.compile(r"</?tool_call>|<\|[a-z_]+\|>|\{\s*\"(?:name|arguments)\"\s*:")
 
 MAX_WINDOW_S = 30.0
 
@@ -81,6 +86,10 @@ class TextCheck:
     finding_ids: list[str]
 
 
+def is_finding_token(token: str) -> bool:
+    return FINDING_TOKEN_RE.fullmatch(token) is not None
+
+
 def citations_in(text: str) -> list[str]:
     out: list[str] = []
     for group in CITATION_RE.findall(text):
@@ -104,9 +113,9 @@ def verify_text(
         return TextCheck(False, ["The answer is empty."], [], [])
 
     cites = citations_in(text)
-    finding_ids = [c for c in cites if c.startswith("F")]
+    finding_ids = [c for c in cites if is_finding_token(c)]
     for c in cites:
-        if c.startswith("F") and c not in ctx.findings:
+        if is_finding_token(c) and c not in ctx.findings:
             errors.append(f"[{c}] is not a finding of this player in this match.")
         elif c.startswith("m") and c not in ctx.moment_ids:
             errors.append(f"[{c}] is not one of the selected moments.")
@@ -149,6 +158,9 @@ def verify_text(
 
     if CYRILLIC_RE.search(text):
         errors.append("Use Latin letters only; the text contains Cyrillic characters.")
+    leaked = tool_text_in(text)
+    if leaked:
+        errors.append(f"Do not write tool calls as text ({leaked!r}); call the tool, then answer in plain sentences.")
     if "\u2014" in text:
         errors.append("Do not use em dashes; use a comma or a full stop instead.")
 
@@ -159,6 +171,24 @@ def verify_text(
     # De-duplicate, keep order
     errors = list(dict.fromkeys(errors))
     return TextCheck(not errors, errors, cites, finding_ids)
+
+
+def tool_names() -> set[str]:
+    from app.coach.tools import TOOLS
+
+    return set(TOOLS)
+
+
+def tool_text_in(text: str) -> str | None:
+    """The first tool name or tool-call markup written into the text, if any."""
+    m = TOOL_MARKUP_RE.search(text)
+    if m:
+        return m.group(0)
+    for name in sorted(tool_names()):
+        m = re.search(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])", text)
+        if m:
+            return m.group(0)
+    return None
 
 
 def autocite(text: str, ctx: VerifyContext, candidates: list[str]) -> str:

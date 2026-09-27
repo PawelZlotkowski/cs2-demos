@@ -1,0 +1,1111 @@
+/* Coach, Lab and Settings pages (doc 29), in the Tactical Desk system (doc 28):
+   hairlines, 2 / 4 px radii, no shadows, condensed Archivo for numbers only. */
+
+:where(.page-coach, .runs, .settings-sec) :where(button:not(.btn)) {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: inherit;
+}
+
+.main.wide {
+  max-width: 1120px;
+}
+
+.page-h {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-h .lede {
+  max-width: 60ch;
+}
+
+.empty {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface-panel);
+  color: var(--text-2);
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.empty p {
+  margin: 0;
+}
+
+.num {
+  font-family: var(--display);
+  font-stretch: 78%;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: var(--fs-12);
+}
+
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+/* ---- Top bar additions ---- */
+
+.bar-link {
+  color: var(--text-3);
+  font-size: var(--fs-13);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .bar-link:hover {
+    color: var(--text);
+  }
+}
+
+/* Setup problem: ink, not the mistake colour, which only means a player's mistake. */
+.sys-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--text);
+  border-radius: var(--r-ctl);
+  font-size: var(--fs-12);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sys-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text);
+}
+
+/* ---- Coach page ---- */
+
+.page-coach {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.coach-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.coach-who p {
+  margin: 0;
+}
+
+.who-pick {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--text-3);
+}
+
+.who-pick select,
+.filters select {
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  height: 32px;
+  padding: 0 6px;
+}
+
+.who-one {
+  color: var(--text-3);
+}
+
+.who-one b {
+  color: var(--text);
+}
+
+.who-facts {
+  color: var(--text-3);
+  font-size: var(--fs-13);
+}
+
+.who-facts .num {
+  color: var(--text);
+  font-size: var(--fs-16);
+}
+
+.page-thread {
+  flex: 1;
+  padding: 20px 0 12px;
+}
+
+.page-ask {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 0 4px;
+  background: var(--surface-page);
+  border-top: 1px solid var(--border);
+}
+
+.page-ask .q {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
+/* ---- Lab ---- */
+
+.subtabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.subtabs a {
+  padding: 8px 10px;
+  color: var(--text-3);
+  font-weight: 500;
+  text-decoration: none;
+  box-shadow: inset 0 -2px 0 transparent;
+}
+
+.subtabs a[aria-current="page"] {
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--text);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.filters select {
+  font-weight: 500;
+}
+
+.table-wrap {
+  /* Positioned, so screen-reader-only labels inside stay in the scroll box */
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+}
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-13);
+}
+
+table.data th {
+  text-align: left;
+  font-weight: 600;
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  background: var(--surface-panel);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+table.data td {
+  padding: 7px 12px;
+  border-top: 1px solid var(--border-soft);
+  white-space: nowrap;
+}
+
+table.data .n {
+  text-align: right;
+}
+
+table.data tr[aria-selected="true"] td {
+  background: var(--surface-sunk);
+}
+
+.row-open {
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 3px;
+}
+
+.verdict-fail {
+  font-weight: 600;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.run-detail {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface-panel);
+}
+
+.run-detail > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.run-detail h2 {
+  font-size: var(--fs-16);
+  font-weight: 600;
+  margin: 0;
+}
+
+.run-detail h3 {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  margin: 16px 0 6px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 16px;
+  margin: 12px 0 0;
+}
+
+.facts dt {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+
+.facts dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.steps {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+}
+
+.steps li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+}
+
+.steps .args {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.v-errors {
+  margin: 0;
+  padding-left: 20px;
+  font-size: var(--fs-13);
+}
+
+pre.out {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* ---- Settings ---- */
+
+.settings-sec {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.sec-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sec-h h2 {
+  font-size: var(--fs-16);
+  font-weight: 600;
+  margin: 0;
+}
+
+.checks {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+}
+
+.checks li {
+  display: grid;
+  grid-template-columns: 140px 100px 1fr;
+  gap: 4px 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-soft);
+  font-size: var(--fs-13);
+}
+
+.checks li:first-child {
+  border-top: 0;
+}
+
+.check-name {
+  font-weight: 600;
+}
+
+.check-state {
+  color: var(--text-3);
+}
+
+.checks li[data-state="ok"] .check-state {
+  color: var(--text);
+}
+
+.checks li[data-state="problem"] .check-state {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.check-detail {
+  color: var(--text-2);
+}
+
+/* A setup problem shrinks to its dot when the bar is short of room; the words stay for screen
+   readers and in the tooltip. The Studio's scorebug needs the room sooner. */
+@media (max-width: 1100px) {
+  .sys-notice .sys-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .sys-notice {
+    justify-content: center;
+    width: 28px;
+    padding: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  /* The mark still links home; the words would push the nav off a phone screen. */
+  .topbar .brand-text {
+    display: none;
+  }
+
+  .checks li {
+    grid-template-columns: 1fr auto;
+  }
+
+  .check-detail {
+    grid-column: 1 / -1;
+  }
+
+  .page-h {
+    flex-direction: column;
+  }
+}
+
+/* ---- Shared form bits for the roadmap pages ---- */
+
+:where(.plan, .know, .lab-tab, .page-list) :where(button:not(.btn)) {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: inherit;
+}
+
+.input,
+.page-form textarea,
+.add-note textarea,
+.add-note select {
+  font: inherit;
+  font-size: var(--fs-13);
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  padding: 7px 10px;
+  min-width: 0;
+}
+
+.input:focus-visible,
+.add-note textarea:focus-visible,
+.add-note select:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 0;
+}
+
+.filters .grow {
+  flex: 1 1 240px;
+  display: flex;
+}
+
+.filters .grow .input {
+  flex: 1;
+}
+
+.seg-plain {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  margin-inline-start: 0;
+}
+
+.seg-plain button {
+  border-radius: 1px;
+}
+
+.seg-plain button[aria-pressed="true"] {
+  background: var(--surface-raised);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.link.small {
+  font-size: var(--fs-12);
+}
+
+/* ---- Coach, Plan ---- */
+
+.plan {
+  display: grid;
+  gap: 20px;
+  max-width: 760px;
+}
+
+.plan-note .expl {
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.55;
+  margin: 0 0 6px;
+}
+
+.plan-note .aa-note {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+
+.plan-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: plan;
+  border-top: 1px solid var(--border);
+}
+
+.plan-items > li {
+  counter-increment: plan;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.plan-items > li::before {
+  content: counter(plan, decimal-leading-zero);
+  grid-row: 1 / span 3;
+  font-family: var(--display);
+  font-stretch: 78%;
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--text-3);
+  line-height: 1.1;
+}
+
+.plan-items > li > * {
+  grid-column: 2;
+}
+
+.plan-items > li[data-done] h2 {
+  color: var(--text-3);
+}
+
+.plan-item-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plan-item-h h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.plan-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-13);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.plan-evidence {
+  margin: 4px 0 0;
+  color: var(--text-2);
+}
+
+.plan-drill {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-ctl);
+}
+
+.plan-drill h3 {
+  margin: 0 0 4px;
+  font-size: var(--fs-13);
+  font-weight: 600;
+}
+
+.plan-drill p {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ---- Coach, Knowledge ---- */
+
+.know {
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.know-radar {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 1;
+  background: var(--stage);
+  border-radius: var(--r-panel);
+  overflow: hidden;
+}
+
+.know-radar img,
+.know-radar svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.know-radar img {
+  opacity: 0.85;
+}
+
+.know-radar polygon {
+  fill: transparent;
+  stroke: rgb(255 255 255 / 0.28);
+  stroke-width: 2;
+  cursor: pointer;
+}
+
+.know-radar polygon[data-on] {
+  fill: rgb(255 255 255 / 0.22);
+  stroke: #fff;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .know-radar polygon:hover {
+    fill: rgb(255 255 255 / 0.12);
+  }
+}
+
+.know-radar figcaption {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  right: 8px;
+  color: var(--stage-text-2);
+  font-size: var(--fs-11);
+}
+
+.zone-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: var(--fs-12);
+}
+
+.zone-list button {
+  color: var(--text-3);
+}
+
+.zone-list button[aria-pressed="true"] {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.passages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+
+.passages > li {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.psg-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.psg-h h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.psg-h .mono {
+  color: var(--text-3);
+  margin-inline-end: 4px;
+}
+
+.passages p {
+  margin: 6px 0 0;
+  max-width: 72ch;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.passages .psg-flag {
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.passages .link {
+  margin-top: 6px;
+}
+
+.flag-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.flag-form .input {
+  flex: 1 1 240px;
+}
+
+.add-note {
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.add-note summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.add-note form {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  max-width: 560px;
+}
+
+.add-note label {
+  display: grid;
+  gap: 4px;
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+
+@media (max-width: 760px) {
+  .know {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- Matches and Progress (doc 29 R13, R17) ---- */
+
+.row-actions {
+  text-align: right;
+}
+
+.row-actions .confirm {
+  white-space: nowrap;
+}
+
+.note-below {
+  margin-top: 12px;
+  max-width: 80ch;
+}
+
+table.prog th[scope="row"] {
+  font-weight: 500;
+  color: var(--text);
+  background: none;
+  border-bottom: 0;
+  border-top: 1px solid var(--border-soft);
+  font-size: var(--fs-13);
+}
+
+table.prog th[scope="row"] .g {
+  margin-inline-end: 6px;
+}
+
+table.prog td.n {
+  position: relative;
+  min-width: 44px;
+}
+
+table.prog .dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
+  margin-inline-end: 6px;
+  border-radius: 50%;
+  background: var(--mistake);
+  transform: scale(var(--s));
+}
+
+table.prog tr[data-kind="good"] .dot {
+  background: var(--good);
+}
+
+table.prog tr[data-kind="good"]:first-of-type th,
+table.prog tr[data-kind="mistake"] + tr[data-kind="good"] > * {
+  border-top: 1px solid var(--border);
+}
+
+.zones-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+}
+
+.zones-cols h3 {
+  margin: 0 0 6px;
+  font-size: var(--fs-13);
+  font-weight: 700;
+}
+
+.zone-rank {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.zone-rank li {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.zone-rank .num {
+  font-size: 16px;
+}
+
+.zone-ex {
+  display: flex;
+  gap: 8px;
+  font-size: var(--fs-12);
+}
+
+/* ---- Lab tabs (doc 29 R07, R10, R11) ---- */
+
+.lab-tab {
+  display: grid;
+  gap: 16px;
+}
+
+.lab-tab .sec-h {
+  margin-top: 8px;
+}
+
+.filters .sp {
+  flex: 1;
+}
+
+.input.narrow {
+  width: 90px;
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--text);
+}
+
+.label-grid {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.round-pick {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.round-pick button {
+  width: 100%;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  color: var(--text-2);
+}
+
+.round-pick button[data-done] {
+  background: var(--surface-sunk);
+  color: var(--text-3);
+}
+
+.round-pick button[aria-pressed="true"] {
+  border-color: var(--text);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--text);
+}
+
+.label-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.label-h h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.label-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+
+.label-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.label-list p {
+  margin: 4px 0 0;
+  max-width: 64ch;
+  color: var(--text-2);
+  font-size: var(--fs-13);
+}
+
+.label-missed,
+.pick-list {
+  margin: 0 0 8px;
+  padding-inline-start: 20px;
+  font-size: var(--fs-13);
+}
+
+.picks {
+  display: grid;
+  gap: 12px;
+  max-width: 760px;
+}
+
+.pick-score {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+}
+
+.pick-score dd {
+  font-size: 20px;
+}
+
+.agree {
+  margin-top: 12px;
+}
+
+.ab {
+  display: grid;
+  gap: 12px;
+}
+
+.ab-q {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+  font-weight: 600;
+}
+
+.ab-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.ab-sides figure {
+  margin: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+}
+
+.ab-sides figcaption {
+  font-size: var(--fs-12);
+  font-weight: 700;
+  color: var(--text-3);
+}
+
+.ab .expl,
+.ds-ex .expl {
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.ab-sides .btn {
+  justify-self: start;
+}
+
+.ds-ex {
+  display: grid;
+  gap: 8px;
+  max-width: 820px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+}
+
+.ds-ex .out {
+  max-height: 260px;
+}
+
+.ds-edit {
+  width: 100%;
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .label-grid,
+  .ab-sides {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .round-pick {
+    grid-template-columns: repeat(8, 1fr);
+  }
+}
+
+/* ---- Settings, Connect another app (R14) ---- */
+
+.checks.connect li {
+  grid-template-columns: 180px minmax(0, 1fr) auto;
+}
+
+.checks.connect .cmd {
+  overflow-wrap: anywhere;
+}
+
+.checks.connect .check-detail {
+  grid-column: 2 / -1;
+}
+
+@media (max-width: 640px) {
+  .checks.connect li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .checks.connect .check-name,
+  .checks.connect .check-detail {
+    grid-column: 1 / -1;
+  }
+}
+
+.lab-tab .sec-h {
+  display: grid;
+  justify-content: start;
+  gap: 2px;
+}
+
+.lab-tab .sec-h .meta {
+  max-width: 90ch;
+}

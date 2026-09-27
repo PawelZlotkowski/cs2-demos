@@ -67,3 +67,9 @@ Don't reverse any of these without the owner's approval. Each lists the decision
     - *Consequence:* no LAN, tunnel or public exposure; study participants use that PC. Revisit HTTPS and hardening before exposing it.
 24. **Matches arrive by manual upload only.** (Owner, 27 Sep 2026)
     - *Consequence:* no Steam share-code or FACEIT automatic import in the prototype.
+25. **Labelling, evaluation and dataset review live in an in-app Lab.** (Owner, 27 Sep 2026)
+    - *Consequence:* an admin-only Lab page (Runs, Labels, Evaluation, Dataset, Study) replaces the scripts as the main way to do T17, T51, T61 and T62; see [29](./29-FEATURE-ROADMAP.md).
+26. **The Coach has its own page.** (Owner, 27 Sep 2026)
+    - *Consequence:* a top-bar Coach page with Ask across matches, a practice Plan and Knowledge; the Home ask bar hands off to it. Decision 5 still applies. See [29](./29-FEATURE-ROADMAP.md).
+27. **The Studio Round tab comes after the Coach page.** (Owner, 27 Sep 2026)
+    - *Consequence:* R04 is built after R05 and R06.

@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     mcp_command: str | None = None
     coach_max_steps: int = 6
     traces_dir: Path | None = None
+    # Admin Lab (doc 29 §2.2): trace viewer, labelling, evaluation. Until accounts
+    # (A13 roles) exist it is switched on per PC, since traces hold player data.
+    lab_enabled: bool = False
+    # Lab Labels write T17 files here (default: the repo's data/labels, which is committed)
+    labels_dir: Path | None = None
+    # Fine-tuning set built from the traces (T50); the Lab Dataset tab reviews it (T51)
+    dataset_dir: Path | None = None
     # Knowledge base (plan §7): markdown folder, optional local embedding server
     knowledge_dir: Path | None = None
     embed_url: str | None = None
@@ -68,6 +75,29 @@ class Settings(BaseSettings):
     # edges (CS2 needs a moment to settle after the jump, and the result lands after the action)
     csdm_moment_pad_before: float = 1.0
     csdm_moment_pad_after: float = 3.0
+
+    # Accounts and the admin panel (docs 27 and 30). Off by default: the app is
+    # then one local user who is also the admin, as before accounts existed.
+    auth_enabled: bool = False
+    # "invite" (a code from the admin panel), "open" or "closed". The first
+    # account can always be created and becomes the admin.
+    signup: str = "invite"
+    session_days: int = 30
+    # Where the browser reaches the app, for Steam's return address. Empty: taken
+    # from the request (the Next.js /api rewrite forwards the host).
+    public_url: str | None = None
+    # Optional Steam Web API key, only for the Steam name and avatar
+    steam_api_key: str | None = None
+    # Per-user upload limit (0 = no limit) and the user study switch (consent step)
+    max_matches_per_user: int = 20
+    study_mode: bool = False
+    # Read-only share links for a review (A14); off by default
+    share_links: bool = False
+    # FastAPI's /docs and /openapi.json; hidden when accounts are on unless set
+    api_docs: bool | None = None
+
+    def docs_enabled(self) -> bool:
+        return self.api_docs if self.api_docs is not None else not self.auth_enabled
 
     def resolved_upload_dir(self) -> Path:
         path = self.upload_dir or (self.data_dir / "uploads")
