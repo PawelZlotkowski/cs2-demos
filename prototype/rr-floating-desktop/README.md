@@ -6,6 +6,8 @@ This folder does not replace `apps/web`, the Night ops layouts or `prototype/ana
 
 ## Run it
 
+On Pawel's Windows PC with the model, clips and Lab on, follow [RUN-ON-PC.md](RUN-ON-PC.md).
+
 Start the API as usual (see `docs/RUN-LOCALLY.md`), then:
 
 ```bash
