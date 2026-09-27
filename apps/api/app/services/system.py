@@ -112,7 +112,7 @@ def traces_check() -> SystemCheck:
     except OSError as exc:
         return SystemCheck(name="traces", state="problem", detail=f"Traces folder not writable: {exc}.")
     files = sorted(folder.glob("*.jsonl"))
-    return SystemCheck(name="traces", state="ok", detail=f"{len(files)} days of coach runs in {folder}.")
+    return SystemCheck(name="traces", state="ok", detail=f"{len(files)} {'day' if len(files) == 1 else 'days'} of coach runs in {folder}.")
 
 
 async def system_status(get: Callable[[str], Any] | None = None) -> SystemStatus:

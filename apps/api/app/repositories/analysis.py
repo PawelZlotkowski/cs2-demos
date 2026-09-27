@@ -270,6 +270,17 @@ class AnalysisRepository:
             if mid != exclude_match_id
         ]
 
+    def coached_players(self) -> list[tuple[str, list[str]]]:
+        """Every player with analysis, and their analysed match ids (oldest first)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT player_id, match_id, MIN(rowid) FROM round_stats GROUP BY player_id, match_id ORDER BY MIN(rowid)"
+            ).fetchall()
+        out: dict[str, list[str]] = {}
+        for pid, mid, _order in rows:
+            out.setdefault(pid, []).append(mid)
+        return list(out.items())
+
     def has_analysis(self, match_id: str, player_id: str) -> bool:
         with self._connect() as conn:
             row = conn.execute(

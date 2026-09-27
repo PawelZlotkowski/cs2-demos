@@ -1,0 +1,434 @@
+/* Coach, Lab and Settings pages (doc 29), in the Tactical Desk system (doc 28):
+   hairlines, 2 / 4 px radii, no shadows, condensed Archivo for numbers only. */
+
+:where(.page-coach, .runs, .settings-sec) :where(button:not(.btn)) {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: inherit;
+}
+
+.main.wide {
+  max-width: 1120px;
+}
+
+.page-h {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-h .lede {
+  max-width: 60ch;
+}
+
+.empty {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface-panel);
+  color: var(--text-2);
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.empty p {
+  margin: 0;
+}
+
+.num {
+  font-family: var(--display);
+  font-stretch: 78%;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: var(--fs-12);
+}
+
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+/* ---- Top bar additions ---- */
+
+.bar-link {
+  color: var(--text-3);
+  font-size: var(--fs-13);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .bar-link:hover {
+    color: var(--text);
+  }
+}
+
+/* Setup problem: ink, not the mistake colour, which only means a player's mistake. */
+.sys-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--text);
+  border-radius: var(--r-ctl);
+  font-size: var(--fs-12);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sys-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text);
+}
+
+/* ---- Coach page ---- */
+
+.page-coach {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.coach-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.coach-who p {
+  margin: 0;
+}
+
+.who-pick {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--text-3);
+}
+
+.who-pick select,
+.filters select {
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  height: 32px;
+  padding: 0 6px;
+}
+
+.who-one {
+  color: var(--text-3);
+}
+
+.who-one b {
+  color: var(--text);
+}
+
+.who-facts {
+  color: var(--text-3);
+  font-size: var(--fs-13);
+}
+
+.who-facts .num {
+  color: var(--text);
+  font-size: var(--fs-16);
+}
+
+.page-thread {
+  flex: 1;
+  padding: 20px 0 12px;
+}
+
+.page-ask {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 0 4px;
+  background: var(--surface-page);
+  border-top: 1px solid var(--border);
+}
+
+.page-ask .q {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
+/* ---- Lab ---- */
+
+.subtabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.subtabs a {
+  padding: 8px 10px;
+  color: var(--text-3);
+  font-weight: 500;
+  text-decoration: none;
+  box-shadow: inset 0 -2px 0 transparent;
+}
+
+.subtabs a[aria-current="page"] {
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--text);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.filters select {
+  font-weight: 500;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+}
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-13);
+}
+
+table.data th {
+  text-align: left;
+  font-weight: 600;
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  background: var(--surface-panel);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+table.data td {
+  padding: 7px 12px;
+  border-top: 1px solid var(--border-soft);
+  white-space: nowrap;
+}
+
+table.data .n {
+  text-align: right;
+}
+
+table.data tr[aria-selected="true"] td {
+  background: var(--surface-sunk);
+}
+
+.row-open {
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 3px;
+}
+
+.verdict-fail {
+  font-weight: 600;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.run-detail {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface-panel);
+}
+
+.run-detail > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.run-detail h2 {
+  font-size: var(--fs-16);
+  font-weight: 600;
+  margin: 0;
+}
+
+.run-detail h3 {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  margin: 16px 0 6px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 16px;
+  margin: 12px 0 0;
+}
+
+.facts dt {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+
+.facts dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.steps {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+}
+
+.steps li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+}
+
+.steps .args {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.v-errors {
+  margin: 0;
+  padding-left: 20px;
+  font-size: var(--fs-13);
+}
+
+pre.out {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* ---- Settings ---- */
+
+.settings-sec {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.sec-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sec-h h2 {
+  font-size: var(--fs-16);
+  font-weight: 600;
+  margin: 0;
+}
+
+.checks {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+}
+
+.checks li {
+  display: grid;
+  grid-template-columns: 140px 100px 1fr;
+  gap: 4px 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-soft);
+  font-size: var(--fs-13);
+}
+
+.checks li:first-child {
+  border-top: 0;
+}
+
+.check-name {
+  font-weight: 600;
+}
+
+.check-state {
+  color: var(--text-3);
+}
+
+.checks li[data-state="ok"] .check-state {
+  color: var(--text);
+}
+
+.checks li[data-state="problem"] .check-state {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.check-detail {
+  color: var(--text-2);
+}
+
+@media (max-width: 720px) {
+  /* The mark still links home; the words would push the nav off a phone screen. */
+  .topbar .brand-text,
+  .sys-notice .sys-text {
+    display: none;
+  }
+
+  .sys-notice {
+    padding: 0 9px;
+  }
+
+  .checks li {
+    grid-template-columns: 1fr auto;
+  }
+
+  .check-detail {
+    grid-column: 1 / -1;
+  }
+
+  .page-h {
+    flex-direction: column;
+  }
+}

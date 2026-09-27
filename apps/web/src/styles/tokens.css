@@ -361,9 +361,16 @@ p {
     padding: 0 12px;
   }
 
-  .hide-s,
-  .nav {
-    /* The brand already links home, and the Studio is the page you're on. */
+  .hide-s {
+    display: none;
+  }
+
+  /* Pages keep a compact nav so Coach and Lab stay reachable; in the Studio the scorebug needs the room. */
+  .nav a {
+    padding: 0 6px;
+  }
+
+  .topbar:has(.sb) .nav {
     display: none;
   }
 

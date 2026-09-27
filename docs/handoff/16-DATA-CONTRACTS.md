@@ -133,7 +133,7 @@ Pydantic only in `contracts.py`; the TypeScript mirror is left for the UI tasks 
 
 ### Migration note (doc 29: R01, R03, R05, 27 Sep 2026)
 
-Pydantic only in `contracts.py`; the TypeScript mirror comes with the Coach, Lab and Settings pages, which belong to the web thread.
+Pydantic in `contracts.py`, mirrored in `apps/web/src/lib/contracts/` (also `CoachedPlayer` for `GET /players` and `Features` for `GET /features`).
 
 - **New:** `SystemStatus` (`ok`, `llmModel`, `servedModels`, `mcpTools`, `checks`) with `SystemCheck` (`name` = `llm` | `mcp` | `csdm` | `knowledge` | `traces`, `state` = `ok` | `off` | `problem`, `detail`). `TracePage` (`items`, `total`) of `TraceSummary` (`id` = `<date>:<line>`, `ts`, `job`, `matchId`, `playerId`, `lang`, `model`, `source`, `verifierOk`, `repaired`, `latencyS`, `toolCalls`); `TraceDetail` adds `steps` (`tool`, `args`, `resultBytes`, `ms`, `error`), `knowledgeIds`, `verifierErrors`, `output`, `fallback` and the raw `record`. `CoachAskRequest` (`question`, `language`).
 - **Citations:** a finding from another match is cited as `M2:F3`: the match ref from `list_matches` (`M1` is the player's oldest analysed match) and the finding id in that match.

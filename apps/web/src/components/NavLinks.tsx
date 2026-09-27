@@ -2,19 +2,54 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api/client";
+
+const LAB_KEY = "rr.lab";
 
 export function NavLinks() {
   const pathname = usePathname() ?? "/";
   const inStudio = pathname.startsWith("/studio");
+  const [lab, setLab] = useState(false);
+
+  useEffect(() => {
+    // Remembered per browser so the link does not pop in on every page; refreshed in the background.
+    try {
+      setLab(window.localStorage.getItem(LAB_KEY) === "1");
+    } catch {
+      /* storage blocked */
+    }
+    api
+      .features()
+      .then((f) => {
+        setLab(f.lab);
+        try {
+          window.localStorage.setItem(LAB_KEY, f.lab ? "1" : "0");
+        } catch {
+          /* storage blocked */
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const current = (href: string) => (pathname === href || pathname.startsWith(`${href}/`) ? "page" : undefined);
   return (
     <nav className="nav" aria-label="Main">
       <Link href="/" aria-current={pathname === "/" ? "page" : undefined}>
         Home
       </Link>
+      <Link href="/coach" aria-current={current("/coach")}>
+        Coach
+      </Link>
       {/* Studio needs a match; it only appears once one is open. */}
       {inStudio ? (
         <Link href={pathname} aria-current="page">
           Studio
+        </Link>
+      ) : null}
+      {lab ? (
+        <Link href="/lab" aria-current={current("/lab")}>
+          Lab
         </Link>
       ) : null}
     </nav>

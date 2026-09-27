@@ -150,7 +150,7 @@ Same format as [TASKS](../coach/TASKS.md). Pawel assigns them.
 
 ### Progress
 
-- **27 Sep 2026:** R00, and the API halves of R01, R03 and R05, are built (see [18](./18-CURRENT-STATE.md) and the [16](./16-DATA-CONTRACTS.md) migration note). Their pages, and R02, wait for the web work agreed with the thread that owns `apps/web`.
+- **27 Sep 2026:** R00, R01, R02 (without Matches and Progress, which arrive with A08 and A11), R03 and R05/R06 (the Coach page's Ask tab) are built. The top bar has Home, Coach, Lab (only with `RR_LAB_ENABLED`), a Settings link and a setup warning that shows only when a check fails. Settings has the System section only. A Coach citation such as `[M2:F3]` opens `/studio/<match>?f=F3`, which lands on the moment holding that finding, or on its round. API additions for the pages: `GET /players` (coached players) and `GET /features` (`{lab}`).
 
 ## 7. Suggested order
 

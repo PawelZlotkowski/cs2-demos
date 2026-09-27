@@ -301,7 +301,14 @@ export type AskEvent =
   | { event: "step"; data: { tool: string; ms: number; error: string | null } }
   | {
       event: "answer";
-      data: { answer: string; citations: string[]; source: "agent" | "template"; verified: boolean };
+      data: {
+        answer: string;
+        citations: string[];
+        source: "agent" | "template";
+        verified: boolean;
+        /** Coach page only: cited match ref ("M2") to match id. */
+        matches?: Record<string, string>;
+      };
     }
   | { event: "error"; data: { detail: string } };
 
@@ -436,5 +443,81 @@ export interface RoundReplay {
 export interface EventsPage {
   matchId: string;
   events: ReplayEvent[];
+  total: number;
+}
+
+// --- Doc 29 roadmap: Coach page, system status, Lab ---
+
+/** POST /players/{pid}/ask: a question across all the player's matches. Findings come back as "M2:F3". */
+export interface CoachAskRequest {
+  question: string;
+  language?: CoachLanguage;
+}
+
+/** GET /players: someone picked for review in at least one match. */
+export interface CoachedPlayer {
+  id: string;
+  name: string;
+  matches: number;
+  maps: string[];
+}
+
+export interface Features {
+  lab: boolean;
+}
+
+export type SystemCheckName = "llm" | "mcp" | "csdm" | "knowledge" | "traces";
+
+export interface SystemCheck {
+  name: SystemCheckName;
+  /** "off" when disabled in .env, "problem" when on but not working. */
+  state: "ok" | "off" | "problem";
+  detail: string;
+}
+
+/** GET /system */
+export interface SystemStatus {
+  ok: boolean;
+  llmModel: string;
+  servedModels: string[];
+  mcpTools: string[];
+  checks: SystemCheck[];
+}
+
+export interface TraceToolStep {
+  tool: string;
+  args: Record<string, unknown>;
+  resultBytes: number;
+  ms: number;
+  error: string | null;
+}
+
+/** One coach job from data/traces; id is "<date>:<line>". */
+export interface TraceSummary {
+  id: string;
+  ts: string;
+  job: string;
+  matchId: string | null;
+  playerId: string | null;
+  lang: string | null;
+  model: string | null;
+  source: string | null;
+  verifierOk: boolean | null;
+  repaired: boolean;
+  latencyS: number | null;
+  toolCalls: number;
+}
+
+export interface TraceDetail extends TraceSummary {
+  steps: TraceToolStep[];
+  knowledgeIds: string[];
+  verifierErrors: string[];
+  output: string | null;
+  fallback: string | null;
+  record: Record<string, unknown>;
+}
+
+export interface TracePage {
+  items: TraceSummary[];
   total: number;
 }

@@ -582,6 +582,15 @@ class AskRequest(CamelModel):
     view: StageView | None = None
 
 
+class CoachedPlayer(CamelModel):
+    """A player someone picked for review in at least one match (Coach page)."""
+
+    id: str
+    name: str
+    matches: int
+    maps: list[str]
+
+
 class CoachAskRequest(CamelModel):
     """Coach page question across all the player's matches (doc 29 R05)."""
 

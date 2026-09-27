@@ -72,3 +72,11 @@ def test_lab_lists_and_opens_an_ask_trace(analysed, tmp_path, monkeypatch):
     assert detail["steps"][0]["tool"] == "get_finding" and good in detail["output"]
     assert client.get("/lab/traces/2000-01-01:1").status_code == 404
     assert client.get("/lab/traces/../x:1").status_code == 404
+
+
+def test_features_and_coached_players(analysed, monkeypatch):
+    mid, pid = analysed
+    monkeypatch.setattr(settings, "lab_enabled", True)
+    assert client.get("/features").json() == {"lab": True}
+    players = client.get("/players").json()
+    assert players[0]["id"] == pid and players[0]["matches"] == 1 and players[0]["name"] != pid

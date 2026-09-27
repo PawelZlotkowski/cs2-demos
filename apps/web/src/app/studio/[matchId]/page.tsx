@@ -200,7 +200,24 @@ export default function StudioPage() {
         setAnalysis(view);
         if (pid) setFocusId(pid);
         // Deep link (?m=m3&t=41.5) opens that moment; otherwise the overview, with moment 1 behind it.
+        // ?f=F3 (from the Coach page) opens the moment holding that finding at its time, or else its round.
         const q = new URLSearchParams(window.location.search);
+        const linkedFinding = view?.findings.find((x) => x.id === q.get("f"));
+        const findingMoment = linkedFinding
+          ? view?.moments.find((x) => x.findingIds.includes(linkedFinding.id))
+          : undefined;
+        if (linkedFinding && !findingMoment) {
+          const fRound = rs.find((r) => r.number === linkedFinding.round);
+          if (fRound) {
+            pendingSeek.current = linkedFinding.t;
+            setRoundId(fRound.id);
+            return;
+          }
+        }
+        if (linkedFinding && findingMoment) {
+          q.set("m", findingMoment.id);
+          q.set("t", String(linkedFinding.t));
+        }
         const linked = view?.moments.find((x) => x.id === q.get("m"));
         const first = linked ?? view?.moments[0];
         const firstRound = first ? rs.find((r) => r.number === first.round) : undefined;

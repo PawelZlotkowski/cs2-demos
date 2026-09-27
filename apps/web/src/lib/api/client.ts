@@ -1,5 +1,11 @@
 import type {
   AskEvent,
+  CoachAskRequest,
+  CoachedPlayer,
+  Features,
+  SystemStatus,
+  TraceDetail,
+  TracePage,
   AskRequest,
   CoachLanguage,
   ClipManifest,
@@ -152,47 +158,67 @@ export const api = {
   mediaUrl: (path: string) => `${API_URL}${path}`,
   getKnowledge: (id: string) => request<KnowledgePassage>(`/knowledge/${id}`),
   /** Ask over server-sent events: `step` per tool call, then one verified `answer`. */
-  ask: async (
+  ask: (
     matchId: string,
     playerId: string,
     body: AskRequest,
     onEvent: (e: AskEvent) => void,
     signal?: AbortSignal,
-  ): Promise<void> => {
-    const res = await fetch(`${API_URL}/matches/${matchId}/players/${playerId}/ask`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-      body: JSON.stringify(body),
-      signal,
-    });
-    if (!res.ok || !res.body) {
-      let detail = res.statusText;
-      try {
-        const b = (await res.json()) as { detail?: string };
-        if (b.detail) detail = b.detail;
-      } catch {
-        /* ignore */
-      }
-      throw new Error(detail || "The coach did not answer.");
-    }
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = "";
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (value) buf += decoder.decode(value, { stream: !done });
-      let cut = buf.indexOf("\n\n");
-      while (cut >= 0) {
-        const block = buf.slice(0, cut);
-        buf = buf.slice(cut + 2);
-        const parsed = parseSseBlock(block);
-        if (parsed) onEvent(parsed);
-        cut = buf.indexOf("\n\n");
-      }
-      if (done) break;
-    }
+  ): Promise<void> => streamAsk(`/matches/${matchId}/players/${playerId}/ask`, body, onEvent, signal),
+  /** Coach page: the same events, across all the player's matches. */
+  askAcross: (playerId: string, body: CoachAskRequest, onEvent: (e: AskEvent) => void, signal?: AbortSignal) =>
+    streamAsk(`/players/${playerId}/ask`, body, onEvent, signal),
+  features: () => request<Features>("/features"),
+  getPlayers: () => request<CoachedPlayer[]>("/players"),
+  getSystem: () => request<SystemStatus>("/system"),
+  getTraces: (opts?: { job?: string; matchId?: string; source?: string; limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(opts ?? {})) if (v != null && v !== "") q.set(k, String(v));
+    const qs = q.toString();
+    return request<TracePage>(`/lab/traces${qs ? `?${qs}` : ""}`);
   },
+  getTrace: (id: string) => request<TraceDetail>(`/lab/traces/${encodeURIComponent(id)}`),
 };
+
+async function streamAsk(
+  path: string,
+  body: AskRequest | CoachAskRequest,
+  onEvent: (e: AskEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!res.ok || !res.body) {
+    let detail = res.statusText;
+    try {
+      const b = (await res.json()) as { detail?: string };
+      if (b.detail) detail = b.detail;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail || "The coach did not answer.");
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (value) buf += decoder.decode(value, { stream: !done });
+    let cut = buf.indexOf("\n\n");
+    while (cut >= 0) {
+      const block = buf.slice(0, cut);
+      buf = buf.slice(cut + 2);
+      const parsed = parseSseBlock(block);
+      if (parsed) onEvent(parsed);
+      cut = buf.indexOf("\n\n");
+    }
+    if (done) break;
+  }
+}
 
 export function parseSseBlock(block: string): AskEvent | null {
   let event = "message";

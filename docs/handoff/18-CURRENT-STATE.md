@@ -69,7 +69,7 @@ Still in `prototype/analysis-studio.html` (reference): moment rail, Coach panel,
 - **R01:** `GET /system` checks llama-server and whether it serves `RR_LLM_MODEL`, the MCP tool list, CS Demo Manager, the knowledge index and the traces folder.
 - **R03:** `GET /lab/traces` and `/lab/traces/{id}` read `data/traces/*.jsonl` for the Lab's Runs tab, behind `RR_LAB_ENABLED`.
 - **R05:** MCP tools `list_matches` and `find_moments`, the `answer_across.v1` prompt and `POST /players/{pid}/ask` for the Coach page, with `[M2:F3]` citations checked by the verifier.
-- The web pages (Coach, Lab, Settings System) are not built yet.
+- **Web:** top bar with Home, Coach and Lab (flagged), a setup warning and a Settings link; `/coach` (Ask across matches, citations open the Studio at the finding via `?f=`), `/lab` (Runs table and run detail), `/settings` (System checks). `GET /players` and `GET /features` feed them.
 
 ## Planned next (AI Coach milestone, kicked off 26 Sep 2026)
 
