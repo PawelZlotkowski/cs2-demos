@@ -1481,7 +1481,8 @@
 
   .moments li {
     flex: none;
-    width: 132px;
+    width: auto;
+    max-width: 200px;
   }
 
   .mom-title {
@@ -1518,6 +1519,10 @@
     visibility: visible;
     transition: transform 260ms var(--ease-drawer);
   }
+}
+
+.sheet-grab {
+  display: none;
 }
 
 /* ---- Mobile: stage on top, panel slides up from the bottom ---- */
@@ -1557,8 +1562,32 @@
   }
 
   .now,
-  .fs-btn {
+  .fs-btn,
+  .clock span {
     display: none;
+  }
+
+  /* Keeps the Gameplay/Radar switch on the transport row at 390 (U15). */
+  .transport {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  .clock {
+    min-width: 0;
+    margin-inline: 4px;
+  }
+
+  .seg {
+    flex: none;
+  }
+
+  .seg button {
+    padding-inline: 8px;
+  }
+
+  .ctx:not(.open) .picked {
+    visibility: hidden;
   }
 
   .tl {
@@ -1570,6 +1599,17 @@
     min-height: 30px;
   }
 
+  /* Bottom sheet (14 Responsive, U15): collapsed it still shows the moment's label and
+     key finding; the handle or a drag up opens it for the explanation. */
+  .studio {
+    --peek: 132px;
+    padding-bottom: var(--peek);
+  }
+
+  .ctx-toggle {
+    display: none !important;
+  }
+
   .ctx {
     top: auto;
     left: 0;
@@ -1577,9 +1617,48 @@
     height: 72vh;
     border-left: 0;
     border-top: 1px solid var(--border);
-    border-radius: 10px 10px 0 0;
-    transform: translateY(100%);
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.1);
+    border-radius: 6px 6px 0 0;
+    transform: translateY(calc(100% - var(--peek)));
+    visibility: visible;
+    transition: transform 260ms var(--ease-drawer);
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.08);
+  }
+
+  .ctx:not(.open) {
+    overflow: hidden;
+  }
+
+  .ctx:not(.open) .ins-head {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .ctx .ins-head {
+    font-size: var(--fs-16);
+    line-height: 1.35;
+  }
+
+  .sheet-grab {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex: none;
+    width: 100%;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: grab;
+    touch-action: none;
+  }
+
+  .sheet-grab span {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
   }
 }
 
@@ -1855,4 +1934,136 @@
   height: 2px;
   margin-top: 8px;
   background: var(--text-3);
+}
+
+/* ---- Review overview and wrap-up (design plan items 2 and 3) ---- */
+
+.review-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Round strip: filled ink = won, outline = lost; the glyph under a round marks its moment. */
+.round-strip {
+  display: grid;
+  grid-template-columns: repeat(var(--rounds), minmax(0, 1fr));
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  max-width: calc(var(--rounds) * 18px);
+}
+
+.round-strip li.half {
+  margin-left: 4px;
+}
+
+.rs-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 2px 0;
+  border-radius: 2px;
+}
+
+.rs-box {
+  display: block;
+  width: 100%;
+  height: 14px;
+  border: 1.5px solid var(--text-3);
+  border-radius: 2px;
+}
+
+.rs-cell[data-won="true"] .rs-box {
+  background: var(--text);
+  border-color: var(--text);
+}
+
+.rs-cell[aria-current="true"] .rs-box {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.rs-cell .g,
+.rs-none {
+  width: 7px;
+  height: 7px;
+}
+
+.rs-cell:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .rs-cell:hover .rs-box {
+    border-color: var(--text);
+  }
+}
+
+.review-start {
+  padding: 12px 0 4px;
+}
+
+/* A long label ("Review moment 1: Shot while moving in Mid") wraps instead of overflowing. */
+.btn.btn-wrap {
+  white-space: normal;
+  height: auto;
+  min-height: 32px;
+  padding: 6px 12px;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.moment-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 0 12px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.moment-step .meta {
+  font-size: 12px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.drills {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+
+.drills b {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.drills p {
+  margin: 2px 0 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.drills .meta {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.review-actions {
+  padding: 12px 0 8px;
+  border-top: 1px solid var(--border-soft);
 }

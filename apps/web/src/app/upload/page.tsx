@@ -14,13 +14,15 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<File | null>(null);
   const [over, setOver] = useState(false);
+  const [sent, setSent] = useState(0);
 
   async function onFile(file: File | null) {
     if (!file || busy) return;
     setError(null);
     setBusy(file);
+    setSent(0);
     try {
-      const res = await api.upload(file);
+      const res = await api.upload(file, (done) => setSent(done));
       router.push(`/processing/${res.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed.");
@@ -55,9 +57,19 @@ export default function UploadPage() {
         <b>{busy ? `Uploading ${busy.name}` : over ? "Drop to upload" : "Drop a demo here"}</b>
         <span className="meta" style={{ display: "block" }}>
           {busy
-            ? `${formatSize(busy.size)}. The processing page opens when the upload finishes.`
+            ? sent >= busy.size
+              ? `${formatSize(busy.size)} sent. Opening the processing page.`
+              : `${formatSize(sent)} of ${formatSize(busy.size)}. The processing page opens when the upload finishes.`
             : "Or choose a file."}
         </span>
+        {busy ? (
+          <progress
+            className="upload-bar"
+            max={busy.size}
+            value={sent}
+            aria-label={`Uploading ${busy.name}`}
+          />
+        ) : null}
         <div style={{ marginTop: 20, display: "flex", justifyContent: "center", gap: 12 }}>
           <label htmlFor={inputId} className="btn btn-fill" style={{ cursor: busy ? "wait" : "pointer" }}>
             {busy ? "Uploading…" : "Choose file"}

@@ -9,6 +9,8 @@ type Props = {
   duration: number;
   t: number;
   marks: LaneMark[];
+  /** Lanes to draw, in order; fixed for the match so rows don't move between rounds. */
+  lanes?: readonly Lane[];
   rounds: RoundSummary[];
   /** Per-round result from the match (1 = won), for the match strip. */
   won: (0 | 1)[];
@@ -36,6 +38,7 @@ export function ReplayTimeline({
   duration,
   t,
   marks,
+  lanes = LANE_ORDER,
   rounds,
   won,
   momentRounds,
@@ -61,11 +64,7 @@ export function ReplayTimeline({
     return () => ro.disconnect();
   }, []);
 
-  // Empty lanes are noise; the lane set comes from what happened this round.
-  const lanes = useMemo(() => {
-    const used = new Set(marks.map((m) => m.lane));
-    return LANE_ORDER.filter((l) => used.has(l));
-  }, [marks]);
+  // The lane set is fixed for the match (U13); a lane with nothing this round stays as an empty row.
 
   // Markers closer than CLUSTER_GAP px collapse into a count.
   const items = useMemo(() => {

@@ -17,6 +17,15 @@ def test_quick_death_without_utility():
     assert f.evidence["distanceToKillerM"] == 15.0
     assert f.t == 29.6
     assert f.zone == "A ramp"
+    assert f.template == "dry_peek.instant"
+
+
+def test_under_a_second_keeps_the_number():
+    k = _death()
+    rd = round_(kills=[k], shots=[shot(29.2, "t1", 0)])
+    (f,) = dry_peek.detect(match(rd), 2, "t1")
+    assert f.evidence["timeToDeathS"] == 0.8
+    assert f.template == "dry_peek"
 
 
 def test_teammate_flash_nearby_means_not_dry():

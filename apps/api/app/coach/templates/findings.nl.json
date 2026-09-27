@@ -5,6 +5,7 @@
  "shot_while_moving": "Schoot {movingShots} van {shots} kogels met de {weapon} in beweging, tot {speedUps} u/s, op {zone}; nauwkeurige snelheid is {accurateSpeedUps} u/s.",
  "unused_utility": "Ging dood op {zone} na {timeAliveS} s met {grenadesUnused} ongebruikte granaten ({grenadeList}).",
  "dry_peek": "Ging dood door {killerName} op {zone} {timeToDeathS} s na het eerste contact, zonder flash of smoke van het team voor het gevecht.",
+ "dry_peek.instant": "Ging dood door {killerName} op {zone} vrijwel direct na het eerste contact, zonder flash of smoke van het team voor het gevecht.",
  "team_flash": "Eigen flash verblindde {teammatesBlinded} teamgenoten op {zone} (langste {longestBlindS} s) en {enemiesBlinded} tegenstanders.",
  "team_flash.self": "Eigen flash verblindde de speler {longestBlindS} s op {zone} en {enemiesBlinded} tegenstanders.",
  "opening_duel.won": "Won het openingsduel tegen {opponentName} op {zone} met de {weapon}.",

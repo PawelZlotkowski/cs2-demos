@@ -20,6 +20,7 @@ from __future__ import annotations
 from app.analysis.detectors.common import FindingDraft, clamp, is_team_kill, zone_of
 from app.analysis.match_data import UNITS_TO_M, MatchData, distance, to_m
 
+INSTANT_S = 0.5
 MAX_TIME_TO_DEATH_S = 1.0
 MAX_DAMAGE_DEALT = 50
 SUPPORT_BEFORE_S = 3.0
@@ -87,7 +88,8 @@ def detect(match: MatchData, round_no: int, player_id: str) -> list[FindingDraft
             t=round(contact, 3),
             tick=death.tick,
             player_id=player_id,
-            template="dry_peek",
+            # "0 s after first contact" reads like a bug; under half a second say it plainly.
+            template="dry_peek.instant" if ttd < INSTANT_S else "dry_peek",
             severity=round(clamp(severity), 3),
             evidence=evidence,
             other_ids=[killer],

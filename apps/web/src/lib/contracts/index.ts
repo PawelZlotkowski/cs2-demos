@@ -253,6 +253,7 @@ export interface PlayerSelectRequest {
 
 /** Analysis-tab text for a moment ("m3") or an on-demand round ("r12"). */
 export interface MomentExplanation {
+  /** "m3", "r12", or the review's "summary" and "wrapup". */
   target: string;
   lang: CoachLanguage;
   text: string; // with [F..] [t:..] [m..] [K..] tokens
@@ -263,6 +264,22 @@ export interface MomentExplanation {
   verifierErrors: string[];
   model?: string | null;
   promptVersion?: string | null;
+}
+
+/** A drill from the knowledge base for one mistake type in the review (design plan item 3). */
+export interface PracticeDrill {
+  detector: string;
+  findingIds: string[];
+  passageId: string;
+  title: string;
+  text: string;
+  source: string;
+}
+
+/** End of the review: verified wrap-up text ("wrapup") and one drill per mistake type. */
+export interface ReviewWrapUp {
+  explanation: MomentExplanation;
+  drills: PracticeDrill[];
 }
 
 export interface ExplainRequest {
