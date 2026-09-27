@@ -1,0 +1,132 @@
+.analysis-window {
+  padding: 32px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.score-card {
+  padding: 32px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.score-label {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.score-value {
+  font-size: 72px;
+  font-weight: 700;
+  line-height: 1;
+  font-family: 'Fragment Mono', monospace;
+}
+
+.score-accent {
+  color: var(--accent);
+}
+
+.score-subtitle {
+  margin-top: 12px;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.problems-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.problems-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.problems-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.problems-count {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.problems-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.problem-row {
+  padding: 16px 20px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+  transition: 
+    background var(--duration) var(--ease),
+    border-color var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+}
+
+.problem-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateX(4px);
+}
+
+.problem-round {
+  font-family: 'Fragment Mono', monospace;
+  font-size: 13px;
+  color: var(--muted);
+  min-width: 60px;
+}
+
+.problem-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.problem-title {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.problem-severity {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.severity-high {
+  color: #FF5F57;
+}
+
+.severity-medium {
+  color: #FFBD2E;
+}
+
+.severity-low {
+  color: var(--muted);
+}

@@ -1,0 +1,51 @@
+.dock {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 10, 10, 0.9);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 10000;
+}
+
+.dock-item {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: transparent;
+  transition: background var(--duration) var(--ease);
+  position: relative;
+}
+
+.dock-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dock-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.dock-icon {
+  width: 28px;
+  height: 28px;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  fill: none;
+}

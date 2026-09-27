@@ -1,0 +1,89 @@
+.drills-window {
+  padding: 24px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.drills-header {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.drills-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.drills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.drill-item {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.drill-checkbox {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--muted);
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: 
+    border-color var(--duration) var(--ease),
+    background var(--duration) var(--ease);
+}
+
+.drill-checkbox:hover {
+  border-color: var(--accent);
+}
+
+.drill-checkbox.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.drill-checkbox svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.drill-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drill-title {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.drill-description {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.drill-link {
+  align-self: flex-start;
+  font-size: 13px;
+  color: var(--accent);
+  margin-top: 4px;
+}

@@ -1,0 +1,72 @@
+/* Night ops tokens */
+@import url('https://api.fontshare.com/v2/css?f[]=instrument-sans@400,500,600,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fragment+Mono:ital@0;1&display=swap');
+
+:root {
+  --void: #050505;
+  --panel: #0A0A0A;
+  --ink: #F2F2F2;
+  --muted: #666666;
+  --line: #1A1A1A;
+  --accent: #3B6AE8;
+  
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration: 300ms;
+  --stagger: 40ms;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Instrument Sans', system-ui, -apple-system, sans-serif;
+  background: var(--void);
+  color: var(--ink);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.mono {
+  font-family: 'Fragment Mono', ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+  transition: transform var(--duration) var(--ease);
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+.button-primary {
+  background: var(--accent);
+  color: var(--ink);
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.button-ghost {
+  border: 1px solid var(--accent);
+  padding: 9px 19px;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
