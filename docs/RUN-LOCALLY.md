@@ -188,6 +188,21 @@ python -m cs2_demo_mcp --transport http      # http://127.0.0.1:8765/mcp
 npx @modelcontextprotocol/inspector python -m cs2_demo_mcp
 ```
 
+## Troubleshooting
+
+- **"picked by code (coach model unavailable)" and no requests in the llama-server window:** the API
+  read `.env` before `RR_LLM_ENABLED=true` was in it, or was started from another folder. Restart it
+  from `apps\api` and check what it loads:
+  `python -c "from app.core.config import settings as s; print(s.llm_enabled, s.llm_model, s.csdm_enabled, s.csdm_mode)"`
+- **The wrong model answers:** an older llama-server still holds port 8080.
+  `curl.exe -s http://127.0.0.1:8080/v1/models` names the model file; stop them all with
+  `Get-Process llama-server | Stop-Process` and start the one you want.
+- **Clips read as skipped:** `RR_CSDM_ENABLED=1` and `RR_CSDM_MODE=csdm` are missing from `.env`.
+- **`pytest` fails with `No module named 'demoparser2'`:** the venv is not active, so another Python
+  (Anaconda) ran it. Activate `.venv` and use `python -m pytest`.
+- **Moment picking takes about two minutes with Gemma:** expected; it reasons before answering
+  (Qwen takes about 30 s).
+
 ## Docker instead
 
 `docker compose up --build` from the repo root runs the API on 8000 and the web on 3000, with the
