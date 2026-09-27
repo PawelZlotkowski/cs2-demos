@@ -77,6 +77,21 @@ python -m eval.compare_models report eval/results/qwen3-14b.json eval/results/ge
 
 The table covers verified explanations (per language) and Ask answers, repairs, citations the verifier had to add, runs that hit the tool-step limit, tool calls without error, median latency and peak VRAM (from `nvidia-smi`). Gemma samples at temperature 1.0, so add `--repeat 3` before drawing conclusions from a gap of one or two answers. Polish and Dutch quality still needs a native read of the texts in `comparison.md`.
 
+## First results (27 Sep 2026, RTX 5080)
+
+Both of Pawel's matches, coaching pawcio_, `--repeat 2`, EN/PL/NL; Gemma 4 12B Q6_K from Unsloth on llama.cpp b11205 (no template changes needed).
+
+| | Qwen3-14B Q4_K_M | Gemma 4 12B Q6_K |
+|---|---|---|
+| Explanations verified (Mirage + Anubis) | 66/72 (pl 21/24) | 71/72 (pl 24/24) |
+| Ask answers verified | 36/36 | 36/36 |
+| Tool calls without error | 66/66 | 34/35 |
+| Moment selection time (Mirage / Anubis) | 38 s / 24 s | 108 s / 131 s |
+| Explanation median time | 2.1–2.2 s | 2.0 s |
+| Peak VRAM | 12.7 GB | 12.2 GB |
+
+Qwen's failures were Cyrillic letters in PL/NL (3), invented knowledge ids (2) and one number not in the findings. Gemma's one fallback was an uncited closing sentence, and its one tool error was an invalid `kind` it recovered from. Gemma calls about half as many tools. Its moment selection (thinking on) is 3–5× slower. The Polish and Dutch texts still need a native read before calling the language quality.
+
 ## Sources
 
 - Gemma 4 model card: https://ai.google.dev/gemma/docs/core/model_card_4
