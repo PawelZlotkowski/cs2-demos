@@ -123,7 +123,7 @@ def test_explain_moment_with_tools(analysed, tmp_path):
     )
     expl = asyncio.run(jobs.explain(mid, pid, "m1", "en"))
     assert expl.source == "agent" and expl.verifier_errors == []
-    assert i["dry_peek"] in expl.finding_ids and expl.prompt_version == "explain_moment.v2"
+    assert i["dry_peek"] in expl.finding_ids and expl.prompt_version == "explain_moment.v3"
     assert repo.analysis.explanation(mid, pid, "m1", "en") == expl
     assert llm.requests[0]["thinking"] is False
     t = traces(tmp_path)[0]

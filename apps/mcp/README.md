@@ -29,11 +29,12 @@ npx @modelcontextprotocol/inspector python -m cs2_demo_mcp
 |---|---|
 | `list_rounds(match_id, player_id)` | side, result, score, K/D/damage per round |
 | `get_round_stats(match_id, player_id, round)` | `RoundStats` for one round |
+| `get_match_totals(match_id, player_id)` | whole-match totals: rounds, kills, deaths, damage, ADR, utility, openings, trades |
 | `list_findings(match_id, player_id, round?, kind?, detector?)` | findings: id, kind, detector, round, t, zone, severity, summary |
 | `get_finding(match_id, player_id, finding_id)` | one finding with its evidence |
 | `get_round_timeline(match_id, round)` | kills, grenades, plant/defuse with round clock times and callouts |
 | `get_player_state(match_id, round, t)` | every player's side, callout, health at time t |
-| `get_player_history(player_id, detector?, exclude_match_id?)` | detector rates across the player's earlier matches |
+| `get_player_history(player_id, detector?, match_id?)` | detector rates across the player's earlier matches (`match_id` is left out) |
 | `select_moments(match_id, player_id, moments)` | validates and stores 5–6 picked moments |
 | `search_knowledge(query, map?, k?)` | top map-note passages as `K..` ids with title, source and text |
 | `request_clip(match_id, player_id, round, t0, t1)` | queues a clip of up to 60 s (the CS Demo Manager recorder is not connected yet) |

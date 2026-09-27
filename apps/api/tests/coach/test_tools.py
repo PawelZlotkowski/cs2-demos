@@ -21,6 +21,7 @@ def test_registry_has_the_plan_tools():
     assert set(TOOLS) == {
         "list_rounds",
         "get_round_stats",
+        "get_match_totals",
         "list_findings",
         "get_finding",
         "get_round_timeline",
@@ -41,6 +42,16 @@ def test_list_rounds(analysed):
     assert [r["round"] for r in out["rounds"]] == [1, 2]
     assert out["rounds"][0] == {"round": 1, "side": "T", "won": False, "score": "0-1", "k": 0, "d": 1, "dmg": 0}
     assert out["rounds"][1]["score"] == "1-1"
+
+
+def test_get_match_totals(analysed):
+    mid, pid = analysed
+    totals = call("get_match_totals", match_id=mid, player_id=pid)["matchTotals"]
+    rounds = call("list_rounds", match_id=mid, player_id=pid)["rounds"]
+    assert totals["rounds"] == len(rounds)
+    assert totals["kills"] == sum(r["k"] for r in rounds)
+    assert totals["deaths"] == sum(r["d"] for r in rounds)
+    assert totals["roundsWon"] == sum(1 for r in rounds if r["won"])
 
 
 def test_get_round_stats(analysed):

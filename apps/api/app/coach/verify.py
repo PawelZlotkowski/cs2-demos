@@ -33,6 +33,8 @@ NUMBER_RE = re.compile(r"(?<![A-Za-z0-9_\-.,:])(\d{1,3}(?:[ .,]\d{3})+(?![\d])|\
 CLOCK_RE = re.compile(r"(?<![\d:])(\d{1,2}):(\d{2})(?![\d:])")
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ\"'(\[])")
 
+CYRILLIC_RE = re.compile(r"[\u0400-\u04FF]")
+
 MAX_WINDOW_S = 30.0
 
 
@@ -48,8 +50,8 @@ class VerifyContext:
     round_durations: dict[int, float] = field(default_factory=dict)
     # Numbers the user or the Studio context supplied (question text, round, t)
     extra_numbers: set[float] = field(default_factory=set)
-    # Numbers get_player_history returned in this run: earlier matches, no finding to cite
-    history_numbers: set[float] = field(default_factory=set)
+    # Numbers get_player_history / get_match_totals returned in this run: no finding to cite
+    summary_numbers: set[float] = field(default_factory=set)
     zones: set[str] = field(default_factory=set)
 
     @classmethod
@@ -138,12 +140,17 @@ def verify_text(
         numbers = NUMBER_RE.findall(CLOCK_RE.sub(" ", body))
         names_zone = any(z in body for z in ctx.zones)
         states_fact = bool(numbers) or names_zone
-        # A habit sentence quoting only the player's history has no finding to cite
+        # A sentence quoting only history or match totals has no finding to cite
         from_history = bool(numbers) and not names_zone and all(
-            any(abs(_parse_number(n)[0] - v) <= 1e-6 for v in ctx.history_numbers) for n in numbers
+            any(abs(_parse_number(n)[0] - v) <= 1e-6 for v in ctx.summary_numbers) for n in numbers
         )
         if states_fact and not from_history and not CITATION_RE.search(s):
             errors.append(f"This sentence states a fact without a citation: {s.strip()[:80]!r}. Cite the finding it comes from, or leave the number and callout out.")
+
+    if CYRILLIC_RE.search(text):
+        errors.append("Use Latin letters only; the text contains Cyrillic characters.")
+    if "\u2014" in text:
+        errors.append("Do not use em dashes; use a comma or a full stop instead.")
 
     detected = detect_language(plain)
     if detected is not None and detected != lang:
@@ -152,6 +159,31 @@ def verify_text(
     # De-duplicate, keep order
     errors = list(dict.fromkeys(errors))
     return TextCheck(not errors, errors, cites, finding_ids)
+
+
+def autocite(text: str, ctx: VerifyContext, candidates: list[str]) -> str:
+    """Add the missing ``[F..]`` to a fact sentence when one candidate finding holds all its numbers.
+
+    Qwen often quotes a finding's number correctly but leaves the citation off. The
+    number still has to match that finding, so this only repairs the missing token.
+    """
+    ids = [c for c in dict.fromkeys(citations_in(text) + list(candidates)) if c in ctx.findings]
+    if not ids:
+        return text
+    out = []
+    for s in SENTENCE_RE.split(text.strip()):
+        body = CITATION_RE.sub(" ", s)
+        numbers = [_parse_number(n) for n in NUMBER_RE.findall(CLOCK_RE.sub(" ", body))]
+        if numbers and not CITATION_RE.search(s):
+            for fid in ids:
+                allowed = _finding_numbers(ctx, fid)
+                if all(any(abs(v - a) <= max(tol, 0.02 * abs(a)) for a in allowed) for v, tol in numbers):
+                    m = re.search(r"[.!?]*\s*$", s)
+                    cut = m.start() if m else len(s)
+                    s = f"{s[:cut]} [{fid}]{s[cut:]}"
+                    break
+        out.append(s)
+    return " ".join(out)
 
 
 def _parse_number(raw: str) -> tuple[float, float]:
@@ -173,8 +205,21 @@ def _numbers_in(value: Any) -> list[float]:
     return []
 
 
+def _finding_numbers(ctx: VerifyContext, fid: str) -> set[float]:
+    """Numbers one finding backs: its round, time, evidence and that round's stats."""
+    f = ctx.findings[fid]
+    nums = {float(f.round), round(f.t, 1), float(round(f.t))}
+    for v in f.evidence.values():
+        nums.update(_numbers_in(v))
+    stats = ctx.round_stats.get(f.round)
+    if stats:
+        for v in stats.model_dump().values():
+            nums.update(_numbers_in(v))
+    return nums
+
+
 def _allowed_numbers(ctx: VerifyContext, finding_ids: list[str], cites: list[str]) -> list[float]:
-    allowed: set[float] = set(ctx.extra_numbers) | ctx.history_numbers
+    allowed: set[float] = set(ctx.extra_numbers) | ctx.summary_numbers
     rounds: set[int] = set()
     for fid in finding_ids:
         f = ctx.findings[fid]
