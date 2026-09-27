@@ -227,6 +227,7 @@ async def main():
 
         async def settings():
             await dock("Settings").click()
+            await win("settings").locator(".source-item", has_text="System").click()
             await win("settings").locator(".group li[data-state]").first.wait_for(timeout=10_000)
             states = await win("settings").locator(".group li[data-state]").evaluate_all(
                 "els => els.map(e => e.querySelector('.check-name').textContent + ': ' + e.querySelector('.check-state').textContent)"
@@ -237,8 +238,9 @@ async def main():
         await step("Settings: system checks", settings)
 
         async def lab():
-            await dock("Lab").click()
-            lab_win = win("lab")
+            await dock("Admin").click()
+            lab_win = win("admin")
+            await lab_win.locator(".source-item", has_text="Lab").click()
             await lab_win.locator("table.data tbody tr, .empty").first.wait_for(timeout=15_000)
             runs = await lab_win.locator("table.data tbody tr").count()
             await shot("14-lab-runs")

@@ -19,7 +19,12 @@ async def get_system() -> SystemStatus:
 @router.get("/features")
 def features() -> dict[str, bool]:
     """Switches the web app needs before it draws the nav."""
-    return {"lab": settings.lab_enabled}
+    return {
+        "lab": settings.lab_enabled,
+        "auth": settings.auth_enabled,
+        "shareLinks": settings.share_links,
+        "studyMode": settings.study_mode,
+    }
 
 
 @router.get("/players", response_model=list[CoachedPlayer])

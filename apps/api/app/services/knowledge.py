@@ -93,3 +93,73 @@ def add_note(req: KnowledgeNoteRequest) -> KnowledgeRow:
         pass
     row = next(r for r in reversed(list_knowledge(req.map)) if r.title == title)
     return row
+
+
+# --- own notes in the admin panel (doc 30 AD10) ---
+
+NOTE_MAPS = ("de_mirage", "de_anubis")
+
+
+def _note_sections(path: Path) -> tuple[str, list[tuple[str, str]]]:
+    """(front matter and preamble, [(title, body)]) of a notes file."""
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    head, *parts = re.split(r"^## ", text, flags=re.MULTILINE)
+    sections = []
+    for part in parts:
+        title, _, body = part.partition("\n")
+        sections.append((title.strip(), body.strip("\n")))
+    return head, sections
+
+
+def _write_sections(path: Path, head: str, sections: list[tuple[str, str]]) -> None:
+    out = head.rstrip("\n") + "\n"
+    for title, body in sections:
+        out += f"\n## {title}\n\n{body.strip()}\n"
+    path.write_text(out, encoding="utf-8")
+
+
+def own_notes() -> list[dict[str, str]]:
+    rows = []
+    for map_name in NOTE_MAPS:
+        _, sections = _note_sections(knowledge_dir() / "notes" / f"{map_name}.md")
+        for i, (title, body) in enumerate(sections):
+            rows.append({"map": map_name, "index": str(i), "title": title, "text": body})
+    return rows
+
+
+def _rebuild() -> None:
+    from app.rag.index import default_index
+
+    try:
+        default_index().rebuild()
+    except Exception:  # noqa: BLE001 - the next search rebuilds it anyway
+        pass
+
+
+def edit_note(map_name: str, index: int, title: str, text: str) -> None:
+    """Change a note in place; its [K..] id stays the same."""
+    path = knowledge_dir() / "notes" / f"{map_name}.md"
+    head, sections = _note_sections(path)
+    if map_name not in NOTE_MAPS or not 0 <= index < len(sections):
+        raise KeyError(index)
+    body = text.strip().replace("\n## ", "\n### ")
+    sections[index] = (" ".join(title.split()), body)
+    _write_sections(path, head, sections)
+    _rebuild()
+
+
+def delete_note(map_name: str, index: int) -> None:
+    """Remove a note; the notes after it on that map get new [K..] ids."""
+    path = knowledge_dir() / "notes" / f"{map_name}.md"
+    head, sections = _note_sections(path)
+    if map_name not in NOTE_MAPS or not 0 <= index < len(sections):
+        raise KeyError(index)
+    del sections[index]
+    _write_sections(path, head, sections)
+    _rebuild()
+
+
+def rebuild_index() -> int:
+    from app.rag.index import default_index
+
+    return default_index().rebuild()

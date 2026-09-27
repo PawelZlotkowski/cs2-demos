@@ -274,6 +274,9 @@ class AnalysisRepository:
                 "SELECT match_id, detector, COUNT(*) FROM findings WHERE player_id = ? GROUP BY match_id, detector",
                 (player_id,),
             ).fetchall()
+        from app.auth.scope import allowed
+
+        rounds = [r for r in rounds if allowed(r[0])]
         per_match: dict[str, dict[str, int]] = {}
         for mid, detector, n in counts:
             per_match.setdefault(mid, {})[detector] = n
@@ -289,10 +292,31 @@ class AnalysisRepository:
             rows = conn.execute(
                 "SELECT player_id, match_id, MIN(rowid) FROM round_stats GROUP BY player_id, match_id ORDER BY MIN(rowid)"
             ).fetchall()
+        from app.auth.scope import allowed
+
         out: dict[str, list[str]] = {}
         for pid, mid, _order in rows:
+            if not allowed(mid):
+                continue
             out.setdefault(pid, []).append(mid)
         return list(out.items())
+
+    def forget_match(self, match_id: str) -> None:
+        """Every row of a deleted match."""
+        with self._lock, self._connect() as conn:
+            for table in ("match_players", "findings", "round_stats", "moments", "explanations", "clip_jobs"):
+                conn.execute(f"DELETE FROM {table} WHERE match_id = ?", (match_id,))
+
+    def all_clip_jobs(self, limit: int = 200) -> list[dict]:
+        """Recent clip jobs of every match, newest first (admin Jobs)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, match_id, player_id, round, t0, t1, status, created_at, error FROM clip_jobs"
+                " ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        keys = ["id", "matchId", "playerId", "round", "t0", "t1", "status", "createdAt", "error"]
+        return [dict(zip(keys, r, strict=True)) for r in rows]
 
     def has_analysis(self, match_id: str, player_id: str) -> bool:
         with self._connect() as conn:

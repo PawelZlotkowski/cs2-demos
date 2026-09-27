@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api/client';
 import type { ABPair, DatasetPage, EvalSummary, Finding as ApiFinding, LabelsSummary, PickScore, SelectedMoment, TraceDetail, TracePage, TraceSummary } from '@/lib/contracts';
-import { WindowFrame } from '../desktop/WindowFrame';
 import { errorText, findingLabel, fromFinding, type Finding } from '../data/model';
+import { useAuth } from '../state/auth';
 import { useStore } from '../state/store';
+import { PaneHead } from '../ui/kit';
 import { Segmented } from '../ui/Segmented';
 import { clock } from '../ui/time';
 
@@ -56,9 +57,12 @@ function when(ts: string) {
   return Number.isNaN(d.getTime()) ? ts : d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export function LabWindow() {
+/** The Lab, as the Admin window's Lab section (doc 30 §5.2). Admins and labellers; the API checks the role. */
+export function LabPane() {
   const [tab, setTab] = useState<Tab>('runs');
   const [on, setOn] = useState<boolean | null>(null);
+  const { isAdmin } = useAuth();
+  const s = useStore();
   useEffect(() => {
     api
       .features()
@@ -66,11 +70,8 @@ export function LabWindow() {
       .catch(() => setOn(false));
   }, []);
   return (
-    <WindowFrame
-      id="lab"
-      subtitle="Owner only · RR_LAB_ENABLED=1"
-      minW={720}
-      toolbar={
+    <div className="pane">
+      <PaneHead title="Lab" lede={LEDES[tab]}>
         <Segmented<Tab>
           label="Lab"
           value={tab}
@@ -82,27 +83,34 @@ export function LabWindow() {
             { id: 'dataset', label: 'Dataset' },
           ]}
         />
-      }
-    >
-      <div className="page">
-        <p className="lede">{LEDES[tab]}</p>
-        {on === false ? (
-          <p className="empty">
-            The API has the Lab switched off. Add <code>RR_LAB_ENABLED=1</code> to <code>apps/api/.env</code> and restart the API.
-          </p>
-        ) : on == null ? (
-          <p className="meta thinking">Checking the API</p>
-        ) : tab === 'runs' ? (
-          <RunsTab />
-        ) : tab === 'labels' ? (
-          <LabelsTab />
-        ) : tab === 'evaluation' ? (
-          <EvalTab />
-        ) : (
-          <DatasetTab />
-        )}
-      </div>
-    </WindowFrame>
+      </PaneHead>
+      {on === false ? (
+        <p className="empty">
+          The Lab is switched off.{' '}
+          {isAdmin ? (
+            <>
+              Turn it on under{' '}
+              <button type="button" className="link" onClick={() => s.openAdmin('settings')}>
+                Settings
+              </button>{' '}
+              (Lab), or add <code>RR_LAB_ENABLED=1</code> to <code>apps/api/.env</code>.
+            </>
+          ) : (
+            'Ask the admin to turn it on.'
+          )}
+        </p>
+      ) : on == null ? (
+        <p className="meta thinking">Checking the API</p>
+      ) : tab === 'runs' ? (
+        <RunsTab />
+      ) : tab === 'labels' ? (
+        <LabelsTab />
+      ) : tab === 'evaluation' ? (
+        <EvalTab />
+      ) : (
+        <DatasetTab />
+      )}
+    </div>
   );
 }
 
@@ -805,6 +813,8 @@ function EvalTab() {
 }
 
 function DatasetTab() {
+  // Writing the fine-tuning files is the admin's; a labeller reviews examples only
+  const { isAdmin } = useAuth();
   const [page, setPage] = useState<DatasetPage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -854,9 +864,11 @@ function DatasetTab() {
           .map(([k, v]) => `${v} ${k}`)
           .join(', ') || 'Nothing kept yet'}{' '}
         · {page.reviewed} reviewed · {page.total} left to review{' '}
-        <button type="button" className="link small" onClick={() => void doExport()}>
-          Export
-        </button>
+        {isAdmin ? (
+          <button type="button" className="link small" onClick={() => void doExport()}>
+            Export
+          </button>
+        ) : null}
       </p>
       {exported ? <p className="meta">{exported}</p> : null}
       {!r ? (

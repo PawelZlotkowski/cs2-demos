@@ -26,6 +26,8 @@ export type Match = {
   id: string;
   map: MapId | null;
   mapLabel: string;
+  /** The owner's own name for the match, when they gave one */
+  title: string | null;
   /** As the API stores it: rounds won by the CT side first. The Studio shows the player's own score. */
   score: string;
   when: string;
@@ -43,6 +45,7 @@ export function fromRow(r: MatchRow): Match {
     id: r.id,
     map: mapIdOf(r.map),
     mapLabel: mapName(r.map),
+    title: r.title ?? null,
     score: r.score,
     when: r.when,
     status: r.status,

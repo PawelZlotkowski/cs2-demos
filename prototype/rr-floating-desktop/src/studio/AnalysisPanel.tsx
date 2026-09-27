@@ -4,8 +4,10 @@ import type { MomentExplanation } from '@/lib/contracts';
 import { COACH_LANGUAGES } from '../data/languages';
 import { eventTitle, findingLabel, typeLabel, type Finding, type Match, type Moment, type ReplayEvent, type RoundData } from '../data/model';
 import { useCached, type StudioData } from '../data/useStudio';
+import { useAuth } from '../state/auth';
 import { useStore } from '../state/store';
 import { CoachText, type CiteHandlers } from '../ui/CoachText';
+import { Feedback } from '../ui/Feedback';
 import { clock } from '../ui/time';
 import type { Review } from './Rail';
 
@@ -38,8 +40,11 @@ function sourceNote(e: MomentExplanation | null): string {
     : 'Written from the findings: the coach model was off for this review.';
 }
 
-function CoachBlock({ children, expl }: { children: ReactNode; expl: MomentExplanation | null }) {
+type FeedbackTarget = { matchId: string; target: string };
+
+function CoachBlock({ children, expl, feedback }: { children: ReactNode; expl: MomentExplanation | null; feedback?: FeedbackTarget }) {
   const s = useStore();
+  const { canLab } = useAuth();
   return (
     <section className="layer coach-expl" aria-live="polite">
       <div className="coach-expl-h">
@@ -56,23 +61,34 @@ function CoachBlock({ children, expl }: { children: ReactNode; expl: MomentExpla
       {expl ? (
         <p className="expl-note">
           {sourceNote(expl)}
-          {s.lab ? (
+          {canLab && s.features?.lab ? (
             <>
               {' '}
-              <button type="button" className="link" onClick={() => s.open('lab')}>
+              <button type="button" className="link" onClick={() => s.openAdmin('lab')}>
                 How this was written
               </button>
             </>
           ) : null}
         </p>
       ) : null}
+      {expl && feedback ? <Feedback matchId={feedback.matchId} target={feedback.target} /> : null}
     </section>
   );
 }
 
-function CoachAnswer({ state, busy, cites }: { state: { value: MomentExplanation | null; error: string | null; loading: boolean }; busy: string; cites: CiteHandlers }) {
+function CoachAnswer({
+  state,
+  busy,
+  cites,
+  feedback,
+}: {
+  state: { value: MomentExplanation | null; error: string | null; loading: boolean };
+  busy: string;
+  cites: CiteHandlers;
+  feedback?: FeedbackTarget;
+}) {
   return (
-    <CoachBlock expl={state.value}>
+    <CoachBlock expl={state.value} feedback={feedback}>
       {state.loading ? (
         <p className="meta thinking">{busy}</p>
       ) : state.error ? (
@@ -166,7 +182,7 @@ function RoundExplain({ ctx }: { ctx: PanelCtx }) {
         </button>
       </CoachBlock>
     );
-  return <CoachAnswer state={res} busy={`Explaining round ${n}`} cites={ctx.cites} />;
+  return <CoachAnswer state={res} busy={`Explaining round ${n}`} cites={ctx.cites} feedback={{ matchId: ctx.match.id, target: `round-${n}` }} />;
 }
 
 function money(v: number | null | undefined) {
@@ -256,7 +272,7 @@ function Overview({ ctx }: { ctx: PanelCtx }) {
         </ol>
         <p className="meta small">Filled rounds were won. A mark is a moment the coach picked.</p>
       </section>
-      <CoachAnswer state={summary} busy="Writing the match summary" cites={ctx.cites} />
+      <CoachAnswer state={summary} busy="Writing the match summary" cites={ctx.cites} feedback={{ matchId: m.id, target: 'summary' }} />
       {first ? (
         <div className="review-start">
           <button type="button" className="btn btn-default btn-large" onClick={() => ctx.selectMoment(first)}>
@@ -283,7 +299,7 @@ function WrapUp({ ctx }: { ctx: PanelCtx }) {
     <>
       <h2 className="ins-head">{seen === ctx.moments.length ? `You reviewed all ${ctx.moments.length} moments` : `${seen} of ${ctx.moments.length} moments reviewed`}</h2>
       <p className="picked">Here is what to take into your next match.</p>
-      <CoachAnswer state={expl} busy="Writing the debrief" cites={ctx.cites} />
+      <CoachAnswer state={expl} busy="Writing the debrief" cites={ctx.cites} feedback={{ matchId: ctx.match.id, target: 'wrapup' }} />
       {wrap.value?.drills.length ? (
         <section className="layer">
           <h3>Practise next</h3>
@@ -322,7 +338,12 @@ function MomentExplain({ ctx, moment }: { ctx: PanelCtx; moment: Moment }) {
   const s = useStore();
   const key = useKey(ctx, moment.id);
   const res = useCached(key, () => api.getMomentExplanation(ctx.match.id, ctx.data.playerId, moment.id, s.language));
-  return <CoachAnswer state={res} busy="Reading the coach’s explanation" cites={ctx.cites} />;
+  // Review progress (A09): a moment counts as seen once its explanation is on screen
+  const shown = !!res.value;
+  useEffect(() => {
+    if (shown) void api.markSeen(ctx.match.id, moment.id).catch(() => undefined);
+  }, [shown, ctx.match.id, moment.id]);
+  return <CoachAnswer state={res} busy="Reading the coach’s explanation" cites={ctx.cites} feedback={{ matchId: ctx.match.id, target: moment.id }} />;
 }
 
 export function AnalysisPanel({ ctx }: { ctx: PanelCtx }) {

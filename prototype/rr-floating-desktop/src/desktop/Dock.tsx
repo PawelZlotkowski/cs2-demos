@@ -1,14 +1,16 @@
 import { useState } from 'react';
+import { useAuth } from '../state/auth';
 import { WIN_TITLE, useStore, type WinId } from '../state/store';
 import { AppIcon } from '../ui/icons';
 
 export function Dock() {
   const s = useStore();
+  const { canLab } = useAuth();
   const [launching, setLaunching] = useState<WinId | null>(null);
 
   const apps: WinId[] = ['matches', 'studio', 'progress', 'coach'];
-  const system: WinId[] = ['settings', ...(s.lab ? (['lab'] as WinId[]) : [])];
-  const transient: WinId[] = s.wins.addMatch.open ? ['addMatch'] : [];
+  const system: WinId[] = ['settings', ...(canLab ? (['admin'] as WinId[]) : [])];
+  const transient: WinId[] = (['addMatch', 'reviews'] as WinId[]).filter((id) => s.wins[id].open);
   const minimized = (Object.keys(WIN_TITLE) as WinId[]).filter((id) => s.wins[id].open && s.wins[id].minimized);
 
   function launch(id: WinId) {

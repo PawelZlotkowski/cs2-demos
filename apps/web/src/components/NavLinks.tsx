@@ -81,11 +81,6 @@ export function NavLinks() {
           Studio
         </Link>
       ) : null}
-      {lab ? (
-        <Link href="/lab" aria-current={current("/lab")}>
-          Lab
-        </Link>
-      ) : null}
     </nav>
   );
 }

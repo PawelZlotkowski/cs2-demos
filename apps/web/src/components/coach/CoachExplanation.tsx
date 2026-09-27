@@ -6,6 +6,7 @@ import type { CoachLanguage, MomentExplanation } from "@/lib/contracts";
 import { COACH_LANGUAGES } from "@/lib/coach/language";
 import { labRemembered } from "@/components/NavLinks";
 import { CoachText, type CiteHandlers } from "./CoachText";
+import { Feedback } from "./Feedback";
 
 type Props = CiteHandlers & {
   matchId: string;
@@ -57,6 +58,12 @@ export function CoachExplanation({ matchId, playerId, momentId, round, language,
     };
   }, [matchId, playerId, momentId, round, roundAsked, language]);
 
+  // Review progress (A09): a moment counts as seen once its explanation is on screen
+  const shown = state.kind === "done" && !!momentId;
+  useEffect(() => {
+    if (shown && momentId) void api.markSeen(matchId, momentId).catch(() => undefined);
+  }, [shown, matchId, momentId]);
+
   return (
     <section className="layer coach-expl" aria-live="polite">
       <div className="coach-expl-h">
@@ -90,10 +97,11 @@ export function CoachExplanation({ matchId, playerId, momentId, round, language,
             {lab ? (
               <>
                 {" "}
-                <a href={`/lab?matchId=${encodeURIComponent(matchId)}&job=explain#runs`}>How this was written</a>
+                <a href={`/admin/lab?matchId=${encodeURIComponent(matchId)}&job=explain#runs`}>How this was written</a>
               </>
             ) : null}
           </p>
+          <Feedback matchId={matchId} target={momentId ?? `round-${round}`} />
         </>
       )}
     </section>
