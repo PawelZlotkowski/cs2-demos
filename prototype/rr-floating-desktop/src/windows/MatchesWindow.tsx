@@ -3,6 +3,7 @@ import { api } from '@/lib/api/client';
 import { WindowFrame } from '../desktop/WindowFrame';
 import { BUSY, errorText, type Match, type MatchStatus } from '../data/model';
 import { useStore } from '../state/store';
+import { ApiTooOld } from '../ui/ApiNotice';
 
 const STATUS_LABEL: Partial<Record<MatchStatus, string>> = {
   awaiting_player: 'Pick a player',
@@ -50,7 +51,8 @@ export function MatchesWindow() {
     >
       <div className="page">
         <p className="lede">Every match on this computer, newest first, with the model that wrote its review.</p>
-        {s.matchesError ? (
+        {s.apiTooOld ? <ApiTooOld /> : null}
+        {s.matchesError && !s.apiTooOld ? (
           <p className="err" role="alert">
             Could not load the matches: {s.matchesError}. Start the API (<code>uvicorn app.main:app --port 8000</code> in <code>apps/api</code>) and{' '}
             <button type="button" className="link" onClick={() => void s.refreshMatches()}>

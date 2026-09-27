@@ -34,7 +34,7 @@ export function MenuBar() {
 
   const latest = s.matches.find((m) => m.status === 'complete');
   const llm = s.system?.checks.find((c) => c.name === 'llm');
-  const modelLabel = !s.system ? 'API offline' : llm?.state === 'ok' ? s.system.llmModel : 'Coach model off';
+  const modelLabel = s.apiTooOld ? 'API from another copy' : !s.system ? 'API offline' : llm?.state === 'ok' ? s.system.llmModel : 'Coach model off';
   const openWins = (Object.keys(WIN_TITLE) as WinId[]).filter((id) => s.wins[id].open);
   const views: WinId[] = ['matches', 'progress', 'coach', 'studio', ...(s.lab ? (['lab'] as WinId[]) : [])];
 
@@ -149,7 +149,7 @@ export function MenuBar() {
       ))}
       <span className="mb-spacer" />
       <button type="button" className="mb-status" title="Coach model, from Settings" onClick={() => s.open('settings')}>
-        <span className="mb-dot" data-state={!s.system ? 'problem' : (llm?.state ?? 'off')} aria-hidden />
+        <span className="mb-dot" data-state={s.apiTooOld || !s.system ? 'problem' : (llm?.state ?? 'off')} aria-hidden />
         <span className="mono">{modelLabel}</span>
       </button>
       <span className="mb-status">{time}</span>

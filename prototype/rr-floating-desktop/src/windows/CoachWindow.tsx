@@ -9,6 +9,7 @@ import { useStore } from '../state/store';
 import { streamTurn } from '../studio/SidePanels';
 import { CoachText } from '../ui/CoachText';
 import { Segmented } from '../ui/Segmented';
+import { ApiTooOld } from '../ui/ApiNotice';
 
 const ACROSS_SUGGESTIONS = [
   'What mistake do I repeat most across my matches?',
@@ -69,7 +70,7 @@ export function CoachWindow() {
       {tab !== 'knowledge' && !player ? (
         <div className="page">
           <p className="lede">{LEDE[tab]}</p>
-          <p className="empty">Review a match first: add a demo and pick the player, then ask here.</p>
+          {s.apiTooOld ? <ApiTooOld /> : <p className="empty">Review a match first: add a demo and pick the player, then ask here.</p>}
         </div>
       ) : null}
       {tab === 'ask' && player ? <AskAcross key={player.id} playerId={player.id} name={player.name} onMatchFinding={onMatchFinding} matches={player.matches} lede={LEDE.ask} /> : null}

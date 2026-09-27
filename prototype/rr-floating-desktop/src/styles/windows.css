@@ -1337,3 +1337,22 @@ pre.out {
     transition: none;
   }
 }
+
+/* A window that crashed: its error, a retry and the details to send */
+.win-crash {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.crash-stack {
+  margin-top: 8px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--fill);
+  font: 11px/1.45 var(--mono);
+  white-space: pre-wrap;
+  user-select: text;
+}

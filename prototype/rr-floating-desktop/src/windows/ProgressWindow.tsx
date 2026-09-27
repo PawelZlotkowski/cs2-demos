@@ -5,6 +5,7 @@ import { WindowFrame } from '../desktop/WindowFrame';
 import { MAPS, mapIdOf, mapName, type MapId } from '../data/maps';
 import { errorText } from '../data/model';
 import { useStore } from '../state/store';
+import { ApiTooOld } from '../ui/ApiNotice';
 
 function trendText(recent: number | null, before: number | null): string {
   if (recent == null || before == null) return '';
@@ -116,7 +117,7 @@ export function ProgressWindow() {
       }
     >
       <div className="page">
-        {!player ? <p className="empty">Review a match first; progress starts with the first reviewed match.</p> : null}
+        {!player ? s.apiTooOld ? <ApiTooOld /> : <p className="empty">Review a match first; progress starts with the first reviewed match.</p> : null}
         {error ? <p className="err">{error}</p> : null}
         <p className="lede">What keeps happening across your matches, oldest on the left. Counts come from the detectors; nothing here is a score.</p>
         <div className="table-wrap">

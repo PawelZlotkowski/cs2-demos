@@ -97,6 +97,9 @@ function initialWm(): WmState {
   return { wins, top: 1 };
 }
 
+/** FastAPI's reply for a route it does not have: the API is from a copy without PR #22's endpoints. */
+const isMissingRoute = (e: unknown) => e instanceof Error && e.message === 'Not Found';
+
 export type Notice = { id: number; title: string; body: string; action?: { label: string; run: () => void } };
 export type StudioTarget = { matchId: string; findingId?: string; nonce: number };
 
@@ -113,6 +116,8 @@ type Store = {
   /** Every match the API knows, newest first; polled while one is being processed. */
   matches: Match[];
   matchesError: string | null;
+  /** The API answers but lacks the endpoints this desktop needs (GET /matches, /players): it is from another copy. */
+  apiTooOld: boolean;
   refreshMatches: () => Promise<void>;
   /** GET /system: which model llama-server serves and what is switched on. */
   system: SystemStatus | null;
@@ -159,6 +164,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [wm, dispatch] = useReducer(wmReducer, undefined, initialWm);
   const [matches, setMatchesState] = useState<Match[]>([]);
   const [matchesError, setMatchesError] = useState<string | null>(null);
+  const [apiTooOld, setApiTooOld] = useState(false);
   const [system, setSystem] = useState<SystemStatus | null>(null);
   const [players, setPlayers] = useState<CoachedPlayer[]>([]);
   const [playerId, setPlayerId] = useState<string | null>(null);
@@ -173,6 +179,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try {
       const ps = await api.getPlayers();
       setPlayers(ps);
+      setApiTooOld(false);
       setPlayerId((cur) => {
         if (cur && ps.some((p) => p.id === cur)) return cur;
         let saved: string | null = null;
@@ -183,8 +190,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
         return ps.find((p) => p.id === saved)?.id ?? ps[0]?.id ?? null;
       });
-    } catch {
-      /* the matches error already says the API is down */
+    } catch (e) {
+      if (isMissingRoute(e)) setApiTooOld(true);
     }
   }, []);
 
@@ -195,6 +202,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setMatchesError(null);
     } catch (e) {
       setMatchesError(errorText(e));
+      if (isMissingRoute(e)) setApiTooOld(true);
     }
     void refreshPlayers();
   }, [refreshPlayers]);
@@ -317,6 +325,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     zoom,
     matches,
     matchesError,
+    apiTooOld,
     refreshMatches,
     system,
     refreshSystem,

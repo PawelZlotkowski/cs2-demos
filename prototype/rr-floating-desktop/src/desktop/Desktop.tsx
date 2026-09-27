@@ -10,6 +10,7 @@ import { StudioWindow } from '../windows/StudioWindow';
 import { Dock } from './Dock';
 import { MenuBar } from './MenuBar';
 import { Notices } from './Notices';
+import { WindowBoundary } from './WindowBoundary';
 
 export function Desktop() {
   const { wins, open, lab } = useStore();
@@ -21,13 +22,41 @@ export function Desktop() {
   return (
     <div className="desktop">
       <MenuBar />
-      {wins.matches.open ? <MatchesWindow /> : null}
-      {wins.addMatch.open ? <AddMatchWindow /> : null}
-      {wins.studio.open ? <StudioWindow /> : null}
-      {wins.progress.open ? <ProgressWindow /> : null}
-      {wins.coach.open ? <CoachWindow /> : null}
-      {wins.settings.open ? <SettingsWindow /> : null}
-      {lab && wins.lab.open ? <LabWindow /> : null}
+      {wins.matches.open ? (
+        <WindowBoundary id="matches">
+          <MatchesWindow />
+        </WindowBoundary>
+      ) : null}
+      {wins.addMatch.open ? (
+        <WindowBoundary id="addMatch">
+          <AddMatchWindow />
+        </WindowBoundary>
+      ) : null}
+      {wins.studio.open ? (
+        <WindowBoundary id="studio">
+          <StudioWindow />
+        </WindowBoundary>
+      ) : null}
+      {wins.progress.open ? (
+        <WindowBoundary id="progress">
+          <ProgressWindow />
+        </WindowBoundary>
+      ) : null}
+      {wins.coach.open ? (
+        <WindowBoundary id="coach">
+          <CoachWindow />
+        </WindowBoundary>
+      ) : null}
+      {wins.settings.open ? (
+        <WindowBoundary id="settings">
+          <SettingsWindow />
+        </WindowBoundary>
+      ) : null}
+      {lab && wins.lab.open ? (
+        <WindowBoundary id="lab">
+          <LabWindow />
+        </WindowBoundary>
+      ) : null}
       <Notices />
       <Dock />
     </div>
