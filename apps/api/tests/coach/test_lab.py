@@ -77,6 +77,6 @@ def test_lab_lists_and_opens_an_ask_trace(analysed, tmp_path, monkeypatch):
 def test_features_and_coached_players(analysed, monkeypatch):
     mid, pid = analysed
     monkeypatch.setattr(settings, "lab_enabled", True)
-    assert client.get("/features").json() == {"lab": True}
+    assert client.get("/features").json()["lab"] is True
     players = client.get("/players").json()
     assert players[0]["id"] == pid and players[0]["matches"] == 1 and players[0]["name"] != pid

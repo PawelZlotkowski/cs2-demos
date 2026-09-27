@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import sqlite3
 import threading
 import uuid
@@ -187,12 +189,19 @@ class MatchRepository:
             raise ValueError(
                 f"File is too large. Maximum upload size is {settings.max_upload_bytes // (1024 * 1024)} MB."
             )
+        return self._new_upload(filename, lambda dest: dest.write_bytes(raw))
+
+    def create_upload_from_file(self, filename: str, src: Path) -> dict[str, Any]:
+        """Takes over a file the upload route streamed to disk."""
+        return self._new_upload(filename, lambda dest: os.replace(src, dest))
+
+    def _new_upload(self, filename: str, write: Any) -> dict[str, Any]:
         match_id = f"match-{uuid.uuid4().hex[:12]}"
         if filename.lower().endswith(".dem.zst"):
             dest = self.upload_dir / f"{match_id}.dem.zst"
         else:
             dest = self.upload_dir / f"{match_id}.dem"
-        dest.write_bytes(raw)
+        write(dest)
         now = datetime.now(timezone.utc).isoformat()
         match = {
             "id": match_id,
@@ -327,6 +336,25 @@ class MatchRepository:
             record["stage_started_at"] = datetime.now(timezone.utc).timestamp()
             self._upsert_row(record)
             return record
+
+    def delete(self, match_id: str) -> dict[str, Any] | None:
+        """Forget a match: the record, its row and its files (upload, work, replay, clips)."""
+        with self._lock:
+            record = self._records.pop(match_id, None)
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("DELETE FROM matches WHERE id = ?", (match_id,))
+        if record is None:
+            return None
+        for path in (record.get("path"), settings.resolved_work_dir() / f"{match_id}.dem"):
+            if path:
+                Path(path).unlink(missing_ok=True)
+        for leftover in self.upload_dir.glob(f"{match_id}.*"):
+            leftover.unlink(missing_ok=True)
+        match_dir = self.matches_dir / match_id
+        if match_dir.is_dir() and match_dir.resolve().parent == self.matches_dir.resolve():
+            shutil.rmtree(match_dir, ignore_errors=True)
+        self.analysis.forget_match(match_id)
+        return record
 
     def sample_id(self) -> str:
         return self._fixture["matchId"]

@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { NavLinks } from "@/components/NavLinks";
+import { AccountMenu } from "@/components/auth/AccountMenu";
+import { AuthProvider } from "@/components/auth/AuthProvider";
 import { SystemNotice } from "@/components/SystemNotice";
 import { ThemeSelect, themeBootScript } from "@/components/ThemeSelect";
 import "@fontsource/hanken-grotesk/400.css";
@@ -13,6 +15,7 @@ import "@fontsource-variable/archivo/wdth.css";
 import "@/styles/tokens.css";
 import "@/styles/studio.css";
 import "@/styles/pages.css";
+import "@/styles/admin.css";
 
 export const metadata = {
   title: { default: "Round Reviewer", template: "%s · Round Reviewer" },
@@ -30,6 +33,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <a className="skip-link" href="#content">
           Skip to content
         </a>
+        <AuthProvider>
         <div className="shell">
           <header className="topbar">
             <Link href="/" className="brand">
@@ -46,16 +50,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <div className="spacer" />
             <SystemNotice />
             <ThemeSelect />
-            <Link href="/settings" className="bar-link hide-s">
-              Settings
-            </Link>
             <Link href="/upload" className="btn btn-line">
               <span className="hide-s">Add match</span>
               <span className="show-s">Add</span>
             </Link>
+            <AccountMenu />
           </header>
           {children}
         </div>
+        </AuthProvider>
       </body>
     </html>
   );

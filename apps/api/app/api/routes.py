@@ -1,12 +1,17 @@
 import asyncio
 import json
 import re
+import uuid
+from dataclasses import dataclass
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 
+from app.auth.deps import current_user
+from app.auth.store import users
 from app.core.config import settings
+from app.services.gpu import QueueFull, gpu
 from app.core.validation import UPLOAD_REJECT_MESSAGE, is_allowed_demo_filename
 from app.models.contracts import (
     REPLAY_READY_STATUSES,
@@ -25,7 +30,6 @@ from app.models.contracts import (
     MomentClip,
     MomentExplanation,
     ReviewWrapUp,
-    PatternsResponse,
     PlayerSelectRequest,
     ReplayEvent,
     RoundClip,
@@ -43,7 +47,6 @@ from app.processing.video_clips import clip_file, find_clip, get_or_init_manifes
 from app.coach.tools import player_match_refs
 from app.repositories.matches import repo
 from app.services.coach import coach_service
-from app.services.patterns import patterns_from_record
 
 router = APIRouter()
 
@@ -71,23 +74,47 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+UPLOAD_CHUNK = 1024 * 1024
+DEMO_MAGICS = (b"\x28\xb5\x2f\xfd", b"PBDEMS2\x00")  # zstd frame, CS2 demo
+
+
 @router.post("/matches/upload", response_model=UploadResponse)
-async def upload_match(file: UploadFile = File(...)) -> UploadResponse:
+async def upload_match(request: Request, file: UploadFile = File(...)) -> UploadResponse:
+    """Streams the demo to disk in chunks and stops at the size limit (doc 30 S3)."""
     filename = file.filename or ""
     if not is_allowed_demo_filename(filename):
         raise HTTPException(status_code=400, detail=UPLOAD_REJECT_MESSAGE)
-    raw = await file.read()
-    if not raw:
-        raise HTTPException(status_code=400, detail="Empty file. Choose a demo file to upload.")
-    if len(raw) > settings.max_upload_bytes:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File is too large. Maximum upload size is {settings.max_upload_bytes // (1024 * 1024)} MB.",
-        )
+    user = current_user(request)
+    limit = settings.max_matches_per_user
+    if settings.auth_enabled and limit and user["role"] != "admin":
+        owned = users().owned_match_ids(user["id"], repo.list_ids())
+        if len(owned) >= limit:
+            raise HTTPException(status_code=403, detail=f"You have {limit} matches, the most allowed. Delete one first.")
+    tmp = repo.upload_dir / f".upload-{uuid.uuid4().hex}"
+    size = 0
+    head = b""
+    too_large = f"File is too large. Maximum upload size is {settings.max_upload_bytes // (1024 * 1024)} MB."
     try:
-        record = repo.create_upload(filename, raw)
+        with tmp.open("wb") as out:
+            while chunk := await file.read(UPLOAD_CHUNK):
+                if len(head) < 8:
+                    head += chunk[: 8 - len(head)]
+                size += len(chunk)
+                if size > settings.max_upload_bytes:
+                    raise HTTPException(status_code=400, detail=too_large)
+                out.write(chunk)
+        if size == 0:
+            raise HTTPException(status_code=400, detail="Empty file. Choose a demo file to upload.")
+        if head.startswith(b"HL2DEMO"):
+            raise HTTPException(status_code=400, detail="That is a CS:GO demo. Only CS2 demos are supported.")
+        if not any(head.startswith(m) for m in DEMO_MAGICS):
+            raise HTTPException(status_code=400, detail=UPLOAD_REJECT_MESSAGE)
+        record = repo.create_upload_from_file(filename, tmp)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        tmp.unlink(missing_ok=True)
+    users().set_owner(record["id"], user["id"])
     pipeline.enqueue(record["id"])
     return UploadResponse(
         id=record["id"],
@@ -138,7 +165,7 @@ def stream_round_clip(match_id: str, round_id: str) -> FileResponse:
         path,
         media_type="video/mp4",
         filename=f"{round_id}.mp4",
-        headers={"Accept-Ranges": "bytes", "Cache-Control": "public, max-age=3600"},
+        headers={"Accept-Ranges": "bytes", "Cache-Control": "private, max-age=3600"},
     )
 
 
@@ -404,7 +431,7 @@ def _sse(event: str, data: dict) -> str:
 
 
 @router.post("/matches/{match_id}/players/{player_id}/ask")
-async def ask_coach(match_id: str, player_id: str, body: AskRequest) -> StreamingResponse:
+async def ask_coach(match_id: str, player_id: str, body: AskRequest, request: Request) -> StreamingResponse:
     """Ask tab over server-sent events.
 
     ``step`` events report each tool call while the coach looks things up;
@@ -415,11 +442,12 @@ async def ask_coach(match_id: str, player_id: str, body: AskRequest) -> Streamin
     return _ask_stream(
         lambda on_step: pipeline_module.coach_jobs(repo).ask(match_id, player_id, body, on_step=on_step),
         f"{match_id} / {player_id}",
+        job=AskJob("ask", current_user(request), match_id, player_id, body.question, body.language),
     )
 
 
 @router.post("/players/{player_id}/ask")
-async def ask_coach_across(player_id: str, body: CoachAskRequest) -> StreamingResponse:
+async def ask_coach_across(player_id: str, body: CoachAskRequest, request: Request) -> StreamingResponse:
     """Coach page Ask across all the player's analysed matches (doc 29 R05).
 
     Same events as the Ask tab. Findings are cited as ``M2:F3``; the answer
@@ -438,10 +466,25 @@ async def ask_coach_across(player_id: str, body: CoachAskRequest) -> StreamingRe
         lambda on_step: pipeline_module.coach_jobs(repo).ask_across(player_id, body, on_step=on_step),
         player_id,
         extra,
+        job=AskJob("ask_across", current_user(request), None, player_id, body.question, body.language),
     )
 
 
-def _ask_stream(run, label: str, extra=None) -> StreamingResponse:
+@dataclass
+class AskJob:
+    kind: str
+    user: dict
+    match_id: str | None
+    player_id: str
+    question: str
+    language: str
+
+
+def _ask_stream(run, label: str, extra=None, *, job: AskJob) -> StreamingResponse:
+    """Waits for the GPU queue (one Ask per user), streams, and keeps the question and answer (A09)."""
+    user_id = job.user["id"]
+    if gpu.has_ask(user_id):
+        raise HTTPException(status_code=429, detail="The coach is still answering your last question.")
     queue: asyncio.Queue[str | None] = asyncio.Queue()
 
     async def on_step(step: dict) -> None:
@@ -449,7 +492,16 @@ def _ask_stream(run, label: str, extra=None) -> StreamingResponse:
 
     async def work() -> None:
         try:
-            outcome = await run(on_step)
+            async with gpu.aslot(job.kind, match_id=job.match_id, player_id=job.player_id, user_id=user_id) as slot:
+                if slot.started_at and slot.started_at - slot.created_at > 1:
+                    await on_step({"tool": "queue", "ms": int((slot.started_at - slot.created_at) * 1000), "error": None})
+                outcome = await run(on_step)
+            message_id = None
+            try:
+                message_id = users().add_ask(user_id, job.match_id, job.player_id, job.question, outcome.answer,
+                                             list(outcome.citations), outcome.source, job.language)
+            except Exception:  # noqa: BLE001 - history is best effort
+                pass
             await queue.put(
                 _sse(
                     "answer",
@@ -458,10 +510,13 @@ def _ask_stream(run, label: str, extra=None) -> StreamingResponse:
                         "citations": outcome.citations,
                         "source": outcome.source,
                         "verified": outcome.source == "agent",
+                        "messageId": message_id,
                         **(extra(outcome) if extra else {}),
                     },
                 )
             )
+        except QueueFull as exc:
+            await queue.put(_sse("error", {"detail": str(exc)}))
         except Exception:  # pragma: no cover - logged, reported to the client
             import logging
 
@@ -507,20 +562,8 @@ def get_moment(match_id: str, moment_id: str) -> Moment:
 
 @router.post("/matches/{match_id}/coach", response_model=CoachResponse)
 def coach(match_id: str, body: CoachRequest) -> CoachResponse:
+    """Scripted answers for the sample match only; real matches use the Ask tab."""
     record = repo.get(match_id)
-    if not record:
+    if not record or not record.get("is_sample"):
         raise HTTPException(status_code=404, detail="Match not found.")
     return coach_service.answer(record, body)
-
-
-@router.get("/users/me/patterns", response_model=PatternsResponse)
-def my_patterns() -> PatternsResponse:
-    record = repo.get(repo.sample_id())
-    assert record is not None
-    return patterns_from_record(record)
-
-
-@router.get("/users/{user_id}/patterns", response_model=PatternsResponse)
-def user_patterns(user_id: str) -> PatternsResponse:
-    _ = user_id
-    return my_patterns()

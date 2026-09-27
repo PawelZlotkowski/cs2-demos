@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { readStartRate } from "@/lib/prefs";
 
 export type PlaybackRate = 0.5 | 1 | 2 | 4;
 export type ClockMaster = "raf" | "video";
@@ -146,6 +147,11 @@ export function usePlaybackClock(initialDuration = 0): PlaybackClock {
     },
     [pause, setT, syncVideoTime],
   );
+
+  // The starting speed from Settings (A07); read after mount so the server render matches
+  useEffect(() => {
+    setRate(readStartRate());
+  }, []);
 
   useEffect(() => {
     rateRef.current = rate;

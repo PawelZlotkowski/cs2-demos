@@ -7,4 +7,4 @@ npm install
 npm run dev
 ```
 
-API base URL: `NEXT_PUBLIC_API_URL` (see `.env.example`).
+The browser calls `/api`, which `next.config.ts` rewrites to `API_INTERNAL_URL` (see `.env.example`).

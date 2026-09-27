@@ -1,6 +1,10 @@
 # Round Reviewer — API + Web
 # From repo root: docker compose up --build
 #
+# Ports are published on 127.0.0.1 only, so other machines on the network cannot reach the
+# app (doc 30, S1). To use it from another device, turn accounts on (RR_AUTH_ENABLED=true)
+# first, then change "127.0.0.1:3000:3000" to "3000:3000".
+#
 # CS Demo Manager database (optional):
 #   docker compose --profile csdm up -d csdm-db
 # Then install PostgreSQL Command Line Tools on Windows and put psql on PATH
@@ -12,11 +16,15 @@ services:
       context: ./apps/api
       dockerfile: ../../docker/Dockerfile.api
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - api-data:/app/data
     environment:
       RR_DATA_DIR: /app/data
+      # Sign-in, roles and the admin panel's user pages (doc 30). Off: this PC is the admin.
+      RR_AUTH_ENABLED: ${RR_AUTH_ENABLED:-false}
+      # Where the browser opens the app; Steam sends people back here after sign-in.
+      RR_PUBLIC_URL: ${RR_PUBLIC_URL:-http://localhost:3000}
       RR_FIXTURE_PATH: /app/fixtures/sample-match.json
       RR_MOCK_STAGE_SECONDS: "0.5"
       # CS:DM cannot run in Linux containers. Keep disabled here; run a Windows
@@ -34,13 +42,13 @@ services:
       context: ./apps/web
       dockerfile: ../../docker/Dockerfile.web
       args:
-        # Browser calls the API via the published host port (not the compose service name).
-        NEXT_PUBLIC_API_URL: http://localhost:8000
+        # The browser calls /api on the web app, which Next forwards to the API on the compose
+        # network. Rewrites are fixed at build time, so the address is a build argument.
+        API_INTERNAL_URL: http://api:8000
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      # Server-side fetch (if used) reaches the API on the compose network.
+      # Server-side fetches reach the API on the compose network too.
       API_INTERNAL_URL: http://api:8000
     depends_on:
       api:
@@ -52,7 +60,7 @@ services:
     image: postgres:17
     container_name: csdm-postgres
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

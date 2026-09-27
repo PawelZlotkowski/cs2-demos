@@ -39,13 +39,17 @@ def _added(record: dict) -> float:
 
 
 def match_rows() -> list[MatchRow]:
+    from app.auth.scope import allowed
+    from app.auth.store import users
+
+    titles = users().titles()
     rows = []
     records = sorted((repo.get(mid) or {} for mid in repo.list_ids()), key=_added, reverse=True)
     for record in records:
         mid = record.get("id")
         if not mid:
             continue
-        if record.get("is_sample"):
+        if record.get("is_sample") or not allowed(mid):
             continue
         match = record.get("match") or {}
         pid = repo.analysis.get_player(mid) or match.get("selectedPlayerId")
@@ -62,6 +66,7 @@ def match_rows() -> list[MatchRow]:
                 moments=len(repo.analysis.moments(mid, pid)) if pid else 0,
                 model=review_model(mid, pid) if pid else None,
                 versions=len(extras().versions(mid, pid)) if pid else 0,
+                title=titles.get(mid),
             )
         )
     return rows  # newest first

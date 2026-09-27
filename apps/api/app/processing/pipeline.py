@@ -63,6 +63,8 @@ class PlayerSelectionError(Exception):
         super().__init__(message)
         self.status_code = status_code
 
+from app.services.gpu import gpu  # noqa: E402
+
 _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="demo-parse")
 
 
@@ -149,6 +151,7 @@ class ProcessingPipeline:
             # Gameplay clips fill in asynchronously (no-op unless CS:DM is enabled).
             self.repo.set_status(match_id, MatchStatus.awaiting_player)
             video_worker.enqueue(match_id)
+            self._auto_pick(match_id)
         except (DecompressError, ParseError) as exc:
             logger.warning("Processing failed for %s: %s", match_id, exc)
             self.repo.set_status(match_id, MatchStatus.failed, error=str(exc))
@@ -160,6 +163,25 @@ class ProcessingPipeline:
                 error="Could not process that demo. Check the server log for details.",
             )
             raise exc
+
+    def _auto_pick(self, match_id: str) -> None:
+        """A06: the owner's linked SteamID is in the demo, so coach them without asking."""
+        if not settings.auth_enabled:
+            return
+        from app.auth.store import users
+
+        try:
+            store = users()
+            owner = store.owner(match_id)
+            steam_id = store.steam_id(owner) if owner else None
+            record = self.repo.get(match_id) or {}
+            roster = {p["id"] for p in (record.get("match") or {}).get("players") or []}
+            if steam_id and steam_id in roster:
+                language = store.user_settings(owner).get("language") or "en"
+                logger.info("Auto-picked the signed-in player for %s", match_id)
+                self.select_player(match_id, steam_id, language=language, run_async=False)
+        except Exception:
+            logger.exception("Auto-pick failed for %s; the player picker stays open", match_id)
 
     # --- coach analysis (AI Coach plan §3 steps 3–4) ---
 
@@ -189,6 +211,10 @@ class ProcessingPipeline:
             self._analyse_safe(match_id, player_id, language)
 
     def _analyse_safe(self, match_id: str, player_id: str, language: str = "en") -> None:
+        from app.auth.scope import scope_for_match, visible_matches
+
+        # The coach's history tools see only what the match's owner owns (A04)
+        visible_matches.set(scope_for_match(match_id))
         try:
             t0 = time.perf_counter()
             analysis_json, replays = self.repo.load_analysis_input(match_id)
@@ -248,7 +274,8 @@ class ProcessingPipeline:
         try:
             self.repo.set_status(match_id, MatchStatus.selecting)
             t0 = time.perf_counter()
-            outcome = run_sync(coach_jobs(self.repo).select_moments(match_id, player_id))
+            with gpu.slot("select", match_id=match_id, player_id=player_id):
+                outcome = run_sync(coach_jobs(self.repo).select_moments(match_id, player_id))
             logger.info(
                 "Moments for %s by %s in %.1f s", match_id, outcome.source, time.perf_counter() - t0
             )
@@ -262,14 +289,16 @@ class ProcessingPipeline:
         try:
             self.repo.set_status(match_id, MatchStatus.explaining)
             t0 = time.perf_counter()
-            run_sync(coach_jobs(self.repo).explain_all_moments(match_id, player_id, language))
+            with gpu.slot("explain", match_id=match_id, player_id=player_id):
+                run_sync(coach_jobs(self.repo).explain_all_moments(match_id, player_id, language))
             logger.info("Explanations for %s in %.1f s", match_id, time.perf_counter() - t0)
         except Exception:
             logger.exception("Explanations failed for %s / %s", match_id, player_id)
         # The overview summary and the closing wrap-up (design plan items 2 and 3)
         for part in ("summary", "wrapup"):
             try:
-                run_sync(coach_jobs(self.repo).review(match_id, player_id, part, language))
+                with gpu.slot("review", match_id=match_id, player_id=player_id):
+                    run_sync(coach_jobs(self.repo).review(match_id, player_id, part, language))
             except Exception:
                 logger.exception("Review %s failed for %s / %s", part, match_id, player_id)
 

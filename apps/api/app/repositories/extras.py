@@ -180,6 +180,34 @@ class ExtrasRepository:
             out.setdefault(pid, []).append(note)
         return out
 
+    def flags(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT id, passage_id, note, created_at FROM knowledge_flags ORDER BY id DESC").fetchall()
+        return [{"id": i, "passageId": p, "note": n, "createdAt": c} for i, p, n, c in rows]
+
+    def resolve_flag(self, flag_id: int) -> bool:
+        with self._lock, self._connect() as conn:
+            return conn.execute("DELETE FROM knowledge_flags WHERE id = ?", (flag_id,)).rowcount > 0
+
+    def forget_match(self, match_id: str) -> None:
+        """Rows of a deleted match."""
+        with self._lock, self._connect() as conn:
+            conn.execute("DELETE FROM bookmarks WHERE match_id = ?", (match_id,))
+            conn.execute("DELETE FROM review_versions WHERE match_id = ?", (match_id,))
+
+    def version(self, match_id: str, version_id: str) -> dict[str, Any] | None:
+        if not version_id.startswith("v") or not version_id[1:].isdigit():
+            return None
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, player_id, model, created_at, json FROM review_versions WHERE match_id = ? AND id = ?",
+                (match_id, int(version_id[1:])),
+            ).fetchone()
+        if not row:
+            return None
+        i, pid, m, c, j = row
+        return {"id": f"v{i}", "playerId": pid, "model": m, "createdAt": c, **json.loads(j)}
+
     # --- review versions ---
 
     def save_version(self, match_id: str, player_id: str, model: str, body: dict[str, Any]) -> None:

@@ -19,6 +19,8 @@ British spelling. Handoff docs in `docs/handoff/` are the source of truth for pr
 | `docs/coach/` | AI Coach (read-first for this milestone) | Plan, task board, school proposal |
 | `apps/api/app/analysis/` | AI Coach | Analysis extract, detectors D1–D10, round stats, code ranker |
 | `apps/api/app/coach/` | AI Coach | LLM client, agent loop, tools, MCP server factory, verifier, prompts, jobs |
+| `apps/api/app/auth/`, `apps/api/app/admin/` | Accounts | Users, sessions, Steam sign-in, roles, the `guard` on every route; admin panel API ([30](docs/handoff/30-REVIEW-AND-ADMIN-PANEL.md)) |
+| `apps/web/src/app/admin/` | Accounts | Admin panel pages (the Lab lives at `/admin/lab`) |
 | `apps/api/app/rag/` | AI Coach (planned) | Knowledge ingest, hybrid index, retrieval |
 | `apps/mcp/` | AI Coach | `python -m cs2_demo_mcp` entry point for the `cs2-demo` MCP server (stdio / HTTP) |
 | `ml/` | AI Coach (planned) | llama.cpp serving notes, fine-tuning (QLoRA) |
@@ -66,7 +68,7 @@ docker compose up --build
 - API: http://localhost:8000 (`/health`, `/docs`)  
 - Compose: [`compose.yaml`](compose.yaml) · Dockerfiles under `docker/`
 
-Browser calls the API at `http://localhost:8000` (`NEXT_PUBLIC_API_URL`). Server-side fetches inside the web container use `http://api:8000` (`API_INTERNAL_URL`).
+The browser calls `/api` on the web app, which Next rewrites to the API (`API_INTERNAL_URL`, fixed at build time: `http://api:8000` in Docker). Ports are bound to 127.0.0.1.
 
 ### API (`apps/api`) — local
 
@@ -88,7 +90,7 @@ npm install
 npm run dev
 ```
 
-Set `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000` (default in `.env.example`).
+Set `API_INTERNAL_URL=http://127.0.0.1:8000` (default in `.env.example`); the browser reaches the API through the `/api` rewrite.
 
 ```bash
 npm run typecheck
