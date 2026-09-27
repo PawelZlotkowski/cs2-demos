@@ -146,7 +146,7 @@ Deletion matters in practice: the study participants are in the EU, so the conse
 ## 7. The user study: invites and roles
 
 - Two roles: `admin` and `player`. The first account created is admin.
-- Registration is **invite-only** once auth is on: the admin makes a code in an **Admin** page (or `python -m app.auth invite`), which a participant uses once to create a local account or to finish a Steam sign-in. This keeps a PC reachable over a school network or a tunnel from filling up with strangers.
+- Registration is **invite-only** once auth is on: the admin makes a code in an **Admin** page (or `python -m app.auth invite`), which a participant uses once to create a local account or to finish a Steam sign-in. The app runs only on Pawel's PC for now (decision 23), so codes mainly give each participant their own account; they also protect the app if it is ever exposed.
 - The admin page lists users, their match count, storage, and study status, and can export all feedback and Ask logs as CSV for the report (pseudonymous: user ids, no names).
 - A per-user upload limit (`RR_MAX_MATCHES_PER_USER`, default 20) and the one-GPU queue from section 4 keep one participant from blocking the others.
 - A consent checkbox on first sign-in when `RR_STUDY_MODE=true`, with the text in `docs/coach/`.
@@ -247,13 +247,13 @@ Same format and sizes as [TASKS](../coach/TASKS.md). Pawel assigns them.
 
 A00 to A04 are plumbing with no visible UI, so they can run alongside the polish plan's items 1 to 4 without touching the same files, except `app/page.tsx` (A08 and polish item 7), which should be one task.
 
-## Decisions for the owner
+## Decisions (owner, 27 September 2026)
 
-1. **How people sign in.** Steam plus a local password (recommended: Steam is what every CS2 tool uses and gives us the SteamID; the password keeps the demo working offline), local password only, or Steam only.
-2. **Where the app is reachable during the study.** Only on Pawel's PC and LAN (recommended), through a private tunnel such as Tailscale, or on the public internet. Public exposure would need HTTPS, stricter limits and a real security review first.
-3. **Automatic import.** Keep manual upload only for the prototype (recommended), or apply now for FACEIT's Downloads API (up to 30 days) so FACEIT import is possible later.
+Pawel answered the three open questions on 27 September 2026. They are recorded as decisions 22 to 24 in [19](./19-DECISIONS.md); 21 stays reserved for the style decision proposed in [26](./26-DESIGN-POLISH-PLAN.md).
 
-If Pawel agrees, record 1 and 3 as decisions 22 and 23 in [19](./19-DECISIONS.md) (21 is proposed by the polish plan).
+1. **Sign in with Steam plus a local password.** Both are built (A01, A02).
+2. **The app runs on Pawel's private PC only for now.** No LAN, tunnel or public exposure. Study participants use the app on that PC. `Secure` cookies, HTTPS and public-internet hardening wait until this changes; invite codes (A13) still separate participants' accounts.
+3. **Manual upload only.** No Steam share-code or FACEIT import for the prototype; section 9 stays "later".
 
 ## Sources
 
