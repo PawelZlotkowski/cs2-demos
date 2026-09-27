@@ -22,6 +22,7 @@ def sample_args(mid: str, pid: str) -> dict[str, dict]:
     return {
         "list_rounds": {"match_id": mid, "player_id": pid},
         "get_round_stats": {"match_id": mid, "player_id": pid, "round": 1},
+        "get_match_totals": {"match_id": mid, "player_id": pid},
         "list_findings": {"match_id": mid, "player_id": pid, "round": 1},
         "get_finding": {"match_id": mid, "player_id": pid, "finding_id": first},
         "get_round_timeline": {"match_id": mid, "round": 1},

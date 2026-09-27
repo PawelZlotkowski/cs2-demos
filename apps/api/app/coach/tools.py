@@ -11,8 +11,8 @@ people. The 14B model has a 32k context, so every result stays small (sizes
 are logged per call). A tool that cannot answer returns ``{"error": ...}``
 rather than raising, so the model can correct its arguments.
 
-``search_knowledge`` reads the RAG index (``app/rag``). ``request_clip`` only
-queues a job: the CS Demo Manager recorder (T00, T40) is not connected yet.
+``search_knowledge`` reads the RAG index (``app/rag``). ``request_clip`` queues a
+job for the CS Demo Manager recorder (``app/processing/moment_clips.py``).
 """
 
 from __future__ import annotations
@@ -208,6 +208,35 @@ def get_round_stats(match_id: MatchId, player_id: PlayerId, round: RoundNo) -> d
 
 
 @tool
+def get_match_totals(match_id: MatchId, player_id: PlayerId) -> dict[str, Any]:
+    """Whole-match totals for the coached player over the counted rounds: rounds played and
+    won, kills, deaths, assists, damage, damage per round (ADR), headshot kills, utility
+    thrown, opening kills and deaths, trade kills. Use it for questions about the whole match.
+    These numbers may be quoted without citing a finding."""
+    stats = data.repo.analysis.round_stats(match_id, player_id)
+    if not stats:
+        raise ToolError("No round stats for this player.")
+    total = lambda attr: sum(getattr(s, attr) for s in stats)
+    rounds = len(stats)
+    return {
+        "matchTotals": {
+            "rounds": rounds,
+            "roundsWon": sum(1 for s in stats if s.won),
+            "kills": total("kills"),
+            "deaths": total("deaths"),
+            "assists": total("assists"),
+            "damage": total("damage"),
+            "adr": round(total("damage") / rounds, 1),
+            "headshotKills": total("headshot_kills"),
+            "utilityThrown": total("utility_thrown"),
+            "openingKills": sum(1 for s in stats if s.opening_kill),
+            "openingDeaths": sum(1 for s in stats if s.opening_death),
+            "tradeKills": total("trade_kills"),
+        }
+    }
+
+
+@tool
 def list_findings(
     match_id: MatchId,
     player_id: PlayerId,
@@ -321,14 +350,14 @@ def get_player_state(
 def get_player_history(
     player_id: PlayerId,
     detector: Annotated[str | None, Field(description="Only this detector.")] = None,
-    exclude_match_id: Annotated[str | None, Field(description="Leave this match out (usually the current one).")] = None,
+    match_id: Annotated[str | None, Field(description="The current match, which is left out.")] = None,
 ) -> dict[str, Any]:
     """How often each detector fired for this player in their earlier analysed matches:
     findings per 10 rounds overall and per match, oldest match first. Use it to say whether
-    a mistake is a habit. Returns matches=0 when there is no history yet."""
+    a mistake is a habit. The current match is left out. Returns matches=0 when there is no history yet."""
     if detector is not None and detector not in DETECTORS:
         raise ToolError(f"Unknown detector {detector!r}. Known: {', '.join(DETECTORS)}.")
-    history = data.repo.analysis.player_history(player_id, exclude_match_id=exclude_match_id)
+    history = data.repo.analysis.player_history(player_id, exclude_match_id=match_id)
     total_rounds = sum(h["rounds"] for h in history)
     detectors = [detector] if detector else sorted({d for h in history for d in h["counts"]})
     rates = {}
@@ -411,8 +440,14 @@ def request_clip(
         raise ToolError("Use 0 <= t0 < t1 with a window of at most 60 s.")
     match = data.match(match_id)
     _round(match, round)
+    from app.core.config import settings
+    from app.processing.moment_clips import moment_recorder
+
     job = data.repo.analysis.queue_clip(match_id, player_id, round, round_t(t0), round_t(t1))
-    return {**job, "note": "Queued. The CS Demo Manager recorder is not connected yet, so the clip will not render."}
+    if not settings.csdm_enabled:
+        return {**job, "note": "Queued, but gameplay recording is off on this server; the radar replay shows the round."}
+    moment_recorder.enqueue(match_id, player_id)
+    return {**job, "note": "Queued for recording from the player's view. The radar replay is available meanwhile."}
 
 
 def round_t(t: float) -> float:

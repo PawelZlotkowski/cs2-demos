@@ -18,6 +18,7 @@ import {
   type ClipManifest,
   type Finding,
   type Match,
+  type MomentClip,
   type ReplayPlayer,
   type RoundClip,
   type RoundReplay,
@@ -47,6 +48,7 @@ import {
   type LaneMark,
 } from "@/lib/replay/roster";
 import { GameplayView } from "@/components/replay/GameplayView";
+import { PovClip } from "@/components/replay/PovClip";
 import {
   findingLabel,
   kindGlyph,
@@ -126,6 +128,8 @@ export default function StudioPage() {
   const [barSlot, setBarSlot] = useState<HTMLElement | null>(null);
   const [stageMode, setStageMode] = useState<StageView>("radar");
   const [clipManifest, setClipManifest] = useState<ClipManifest | null>(null);
+  const [povClips, setPovClips] = useState<MomentClip[]>([]);
+  const [povPoll, setPovPoll] = useState(0);
   const clock = usePlaybackClock(0);
   const wasPlaying = useRef(false);
 
@@ -250,6 +254,33 @@ export default function StudioPage() {
     };
   }, [matchId]);
 
+  // Poll the coached player's POV clips while any are queued or recording.
+  // Re-runs on round change: explaining a round on demand queues a clip for it.
+  const analysedPlayer = analysis?.playerId ?? null;
+  useEffect(() => {
+    if (!analysedPlayer) {
+      setPovClips([]);
+      return;
+    }
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    async function poll() {
+      try {
+        const list = await api.getPlayerClips(matchId, analysedPlayer!);
+        if (cancelled) return;
+        setPovClips(list);
+        if (list.some((c) => c.status === "queued" || c.status === "recording")) timer = setTimeout(poll, 3000);
+      } catch {
+        if (!cancelled) timer = setTimeout(poll, 6000);
+      }
+    }
+    poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [matchId, analysedPlayer, roundId, povPoll]);
+
   // ---- Derived replay state ----
 
   const roster = useMemo<ReplayPlayer[]>(
@@ -316,6 +347,28 @@ export default function StudioPage() {
   const moments = analysis?.moments ?? [];
   const activeMoment = moments.find((m) => m.id === momentId && m.round === roundNumber);
   const analysedName = analysis ? (lookup(analysis.playerId)?.name ?? "the selected player") : "";
+  const povClip = useMemo(() => {
+    const here = povClips.filter((c) => c.round === roundNumber);
+    const newest = (list: MomentClip[]) => list[list.length - 1];
+    return (
+      (activeMoment && newest(here.filter((c) => c.momentId === activeMoment.id))) ||
+      newest(here.filter((c) => clock.t >= c.t0 && clock.t <= c.t1 && c.status === "ready")) ||
+      here.find((c) => c.status === "ready") ||
+      newest(here) ||
+      null
+    );
+  }, [povClips, roundNumber, activeMoment, clock.t]);
+  const povReady = new Set(povClips.filter((c) => c.status === "ready" && c.momentId).map((c) => c.momentId));
+  const retryPov = useCallback(
+    (clipId: string) => {
+      if (!analysedPlayer) return;
+      void api
+        .retryPlayerClip(matchId, analysedPlayer, clipId)
+        .catch(() => undefined)
+        .finally(() => setPovPoll((n) => n + 1));
+    },
+    [matchId, analysedPlayer],
+  );
   const roundStats = analysis?.stats.find((r) => r.round === roundNumber);
 
   useEffect(() => {
@@ -354,10 +407,17 @@ export default function StudioPage() {
     return fromMan ?? fromReplay ?? fromRound;
   }, [roundId, replay, clipManifest, activeRound]);
 
-  const gameplayReady = activeClip?.status === "ready" && Boolean(activeClip.url);
-  const gameplaySrc = gameplayReady && roundId ? api.clipUrl(matchId, roundId) : null;
+  // The coached player's moment clip wins over a whole-round clip for the Gameplay view
+  const povSrc = povClip?.status === "ready" && povClip.url ? api.mediaUrl(povClip.url) : null;
+  const roundClipReady = activeClip?.status === "ready" && Boolean(activeClip.url);
+  const gameplayReady = Boolean(povSrc) || roundClipReady;
+  const gameplaySrc = !povSrc && roundClipReady && roundId ? api.clipUrl(matchId, roundId) : null;
+  const povMain = stageMode === "gameplay" && Boolean(povSrc);
   const gameplayDisabledReason = useMemo(() => {
     if (gameplayReady) return null;
+    if (povClip?.status === "queued" || povClip?.status === "recording") return "Recording this moment's clip…";
+    if (povClip?.status === "failed") return povClip.error ?? "Recording this moment's clip failed.";
+    if (analysis && !povClip) return "No clip for this round. Pick a moment to watch its clip.";
     if (!activeClip) return "Gameplay clips are not available for this match yet.";
     if (activeClip.status === "queued" || activeClip.status === "recording") {
       const done = clipManifest?.done ?? 0;
@@ -373,11 +433,12 @@ export default function StudioPage() {
       return activeClip.error ?? "Gameplay recording is disabled on this server.";
     }
     return "Gameplay clip is not ready.";
-  }, [activeClip, gameplayReady, clipManifest]);
+  }, [activeClip, gameplayReady, clipManifest, povClip, analysis]);
 
   // Keep clock master in sync with stage mode
   useEffect(() => {
-    if (stageMode === "gameplay" && gameplayReady) {
+    // A moment clip follows the shared clock; only a whole-round clip drives it
+    if (stageMode === "gameplay" && gameplayReady && !povSrc) {
       clock.setMaster("video");
     } else {
       clock.setMaster("raf");
@@ -386,7 +447,7 @@ export default function StudioPage() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stageMode, gameplayReady]);
+  }, [stageMode, gameplayReady, povSrc]);
 
   const setMode = useCallback(
     (mode: StageView) => {
@@ -833,6 +894,11 @@ export default function StudioPage() {
                         <span className="mom-meta">
                           <span className="when">
                             R{m.round} {formatClock(lead?.t ?? m.t0)}
+                            {povReady.has(m.id) ? (
+                              <span className="pov-tag" title="First-person clip ready">
+                                POV
+                              </span>
+                            ) : null}
                           </span>
                           <span className="reason">{reason.charAt(0).toUpperCase() + reason.slice(1)}</span>
                           <span className="seen" title={seenMoments.has(m.id) && !current ? "Seen" : undefined}>
@@ -905,9 +971,9 @@ export default function StudioPage() {
             {replay ? (
               <>
                 <div
-                  className={`surface${stageMode === "gameplay" ? " is-main" : " is-hidden"}`}
+                  className={`surface${stageMode === "gameplay" && !povSrc ? " is-main" : " is-hidden"}`}
                   data-mode="gameplay"
-                  hidden={stageMode !== "gameplay"}
+                  hidden={stageMode !== "gameplay" || Boolean(povSrc)}
                 >
                   <GameplayView
                     src={gameplaySrc}
@@ -917,9 +983,11 @@ export default function StudioPage() {
                   />
                 </div>
                 <div
-                  className={`surface${stageMode === "radar" ? " is-main" : " is-hidden"}`}
+                  className={`surface${stageMode === "radar" ? " is-main" : povMain ? " is-inset" : " is-hidden"}`}
                   data-mode="radar"
-                  hidden={stageMode !== "radar"}
+                  hidden={stageMode !== "radar" && !povMain}
+                  onClick={povMain ? () => setMode("radar") : undefined}
+                  title={povMain ? "Show the radar large (V)" : undefined}
                 >
                   {hasRadar ? (
                     <>
@@ -970,6 +1038,21 @@ export default function StudioPage() {
                     </div>
                   )}
                 </div>
+                {povClip && (stageMode === "radar" || povMain) ? (
+                  <PovClip
+                    clip={povClip}
+                    src={povSrc}
+                    main={povMain}
+                    playerName={analysedName}
+                    t={clock.t}
+                    playing={clock.playing}
+                    rate={clock.rate}
+                    onSeek={(t) => seekTo(t)}
+                    onRetry={retryPov}
+                    onEnlarge={() => setMode("gameplay")}
+                    onEnd={clock.pause}
+                  />
+                ) : null}
               </>
             ) : (
               <div className="stage-msg">
@@ -1220,9 +1303,11 @@ export default function StudioPage() {
           <p className="picked">
             {headFinding && activeMoment && activeMoment.findingIds[0] === headFinding.id
               ? cited(
-                  `${kindLabel(activeMoment.kind)}. Ranked ${ordinal(momentRank)} of ${moments.length} by the code ranker, from ${activeMoment.findingIds
-                    .map((id) => `[${id}]`)
-                    .join(" ")}.`,
+                  activeMoment.source === "agent"
+                    ? `${kindLabel(activeMoment.kind)}. Picked by the coach: ${activeMoment.pickedBecause}`
+                    : `${kindLabel(activeMoment.kind)}. Ranked ${ordinal(momentRank)} of ${moments.length} by the code ranker, from ${activeMoment.findingIds
+                        .map((id) => `[${id}]`)
+                        .join(" ")}.`,
                 )
               : headFinding
                 ? cited(`${kindLabel(headFinding.kind)} for ${analysedName}, finding [${headFinding.id}].`)

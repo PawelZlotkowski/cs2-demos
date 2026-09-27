@@ -81,10 +81,13 @@ def load_manifest(match_id: str, repository: MatchRepository | None = None) -> C
 def save_manifest(manifest: ClipManifest, repository: MatchRepository | None = None) -> None:
     path = manifest_path(manifest.match_id, repository)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    # Write then rename: the worker thread saves while status polls read
+    tmp = path.with_name(f"{path.name}.{threading.get_ident()}.tmp")
+    tmp.write_text(
         json.dumps(manifest.model_dump(by_alias=True, mode="json"), indent=2),
         encoding="utf-8",
     )
+    os.replace(tmp, path)
 
 
 def clip_file(match_id: str, round_id: str, repository: MatchRepository | None = None) -> Path:
@@ -133,6 +136,10 @@ def init_manifest_for_match(match_id: str, repository: MatchRepository | None = 
             status = ClipStatus.skipped
             url = None
             err = "Gameplay recording is disabled on this server."
+        elif not settings.csdm_round_clips:
+            status = ClipStatus.skipped
+            url = None
+            err = "Whole-round recording is off; the coach records clips of its moments instead."
         else:
             status = ClipStatus.queued
             url = None
@@ -229,7 +236,7 @@ class VideoWorker:
         self.repo = repository or repo
 
     def enqueue(self, match_id: str) -> None:
-        if not settings.csdm_enabled:
+        if not (settings.csdm_enabled and settings.csdm_round_clips):
             # Still write skipped manifest so UI can explain
             try:
                 init_manifest_for_match(match_id, self.repo)
@@ -307,88 +314,98 @@ class VideoWorker:
                     match_id,
                     clip.round_id,
                     status=ClipStatus.failed,
-                    error=_friendly_error(exc),
+                    error=friendly_error(exc),
                     repository=self.repo,
                 )
 
     def _csdm_analyze(self, dem: Path) -> None:
-        cmd = [resolve_csdm_bin(), "analyze", str(dem)]
-        self._run(cmd, timeout=settings.csdm_timeout_seconds)
+        csdm_analyze(dem)
 
     def _csdm_video(self, dem: Path, clip: RoundClip, out: Path) -> None:
-        out_dir = out.parent
-        cmd = [
-            resolve_csdm_bin(),
-            "video",
-            str(dem),
-            str(clip.start_tick),
-            str(clip.end_tick),
-            "--recording-system",
-            settings.csdm_recording_system,
-            "--encoder-software",
-            "FFmpeg",
-            "--framerate",
-            str(settings.csdm_fps),
-            "--width",
-            str(settings.csdm_width),
-            "--height",
-            str(settings.csdm_height),
-            "--ffmpeg-video-container",
-            "mp4",
-            "--output",
-            str(out_dir),
-        ]
-        if clip.focus_steamid:
-            cmd.extend(["--focus-player", clip.focus_steamid])
-        self._run(cmd, timeout=settings.csdm_timeout_seconds)
-        # CS:DM may name the file differently; normalize to rN.mp4
-        if out.exists():
+        csdm_record(dem, clip.start_tick, clip.end_tick, clip.focus_steamid, out)
+
+
+def csdm_analyze(dem: Path) -> None:
+    run_csdm([resolve_csdm_bin(), "analyze", str(dem)], timeout=settings.csdm_timeout_seconds)
+
+
+def csdm_record(dem: Path, start_tick: int, end_tick: int, focus_steamid: str | None, out: Path) -> None:
+    """Record ticks ``start_tick``..``end_tick`` from ``focus_steamid``'s view into ``out``."""
+    out_dir = out.parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        resolve_csdm_bin(),
+        "video",
+        str(dem),
+        str(start_tick),
+        str(end_tick),
+        "--recording-system",
+        settings.csdm_recording_system,
+        "--encoder-software",
+        "FFmpeg",
+        "--framerate",
+        str(settings.csdm_fps),
+        "--width",
+        str(settings.csdm_width),
+        "--height",
+        str(settings.csdm_height),
+        "--ffmpeg-video-container",
+        "mp4",
+        "--output",
+        str(out_dir),
+    ]
+    if focus_steamid:
+        cmd.extend(["--focus-player", focus_steamid])
+    run_csdm(cmd, timeout=settings.csdm_timeout_seconds)
+    # CS:DM may name the file differently; normalize to the expected name
+    if out.exists():
+        return
+    candidates = sorted(out_dir.glob("*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for cand in candidates:
+        if cand.resolve() == out.resolve():
             return
-        candidates = sorted(out_dir.glob("*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
-        for cand in candidates:
-            if cand.resolve() == out.resolve():
-                return
-            # Prefer a file whose name contains the round id; else take the newest.
-            if out.stem in cand.stem or cand == candidates[0]:
-                if cand.resolve() != out.resolve():
-                    shutil.move(str(cand), str(out))
-                return
-        raise RuntimeError("CS Demo Manager did not produce an MP4 in the output folder.")
-
-    def _run(self, cmd: list[str], timeout: float) -> None:
-        bin_path = cmd[0]
-        # Windows: .cmd/.bat need cmd.exe — CreateProcess cannot launch them directly.
-        if os.name == "nt" and bin_path.lower().endswith((".cmd", ".bat")):
-            run_cmd = ["cmd.exe", "/c", *cmd]
-        else:
-            run_cmd = cmd
-        try:
-            completed = subprocess.run(
-                run_cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=False,
-            )
-        except FileNotFoundError as exc:
-            raise RuntimeError(
-                "CS Demo Manager CLI was not found. Install CS:DM and add `csdm` to PATH."
-            ) from exc
-        except subprocess.TimeoutExpired as exc:
-            raise RuntimeError("Gameplay recording timed out.") from exc
-        if completed.returncode != 0:
-            detail = (completed.stderr or completed.stdout or "").strip()
-            raise RuntimeError(detail or f"Command failed: {' '.join(cmd)}")
-        # CS:DM sometimes exits 0 while printing a fatal condition (e.g. Steam closed).
-        combined = f"{completed.stdout or ''}\n{completed.stderr or ''}".strip()
-        low = combined.lower()
-        if "steam is not running" in low:
-            raise RuntimeError("Steam is not running. Start Steam (signed in), then retry recording.")
-        if "counter-strike" in low and "not found" in low:
-            raise RuntimeError("Counter-Strike 2 was not found. Install CS2 via Steam, then retry.")
+        # Prefer a file whose name contains the clip id; else take the newest.
+        if out.stem in cand.stem or cand == candidates[0]:
+            if cand.resolve() != out.resolve():
+                shutil.move(str(cand), str(out))
+            return
+    raise RuntimeError("CS Demo Manager did not produce an MP4 in the output folder.")
 
 
-def _friendly_error(exc: Exception) -> str:
+def run_csdm(cmd: list[str], timeout: float) -> None:
+    bin_path = cmd[0]
+    # Windows: .cmd/.bat need cmd.exe — CreateProcess cannot launch them directly.
+    if os.name == "nt" and bin_path.lower().endswith((".cmd", ".bat")):
+        run_cmd = ["cmd.exe", "/c", *cmd]
+    else:
+        run_cmd = cmd
+    try:
+        completed = subprocess.run(
+            run_cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "CS Demo Manager CLI was not found. Install CS:DM and add `csdm` to PATH."
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("Gameplay recording timed out.") from exc
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "").strip()
+        raise RuntimeError(detail or f"Command failed: {' '.join(cmd)}")
+    # CS:DM sometimes exits 0 while printing a fatal condition (e.g. Steam closed).
+    combined = f"{completed.stdout or ''}\n{completed.stderr or ''}".strip()
+    low = combined.lower()
+    if "steam is not running" in low:
+        raise RuntimeError("Steam is not running. Start Steam (signed in), then retry recording.")
+    if "counter-strike" in low and "not found" in low:
+        raise RuntimeError("Counter-Strike 2 was not found. Install CS2 via Steam, then retry.")
+
+
+def friendly_error(exc: Exception) -> str:
     msg = str(exc)
     low = msg.lower()
     if "not found" in low and "csdm" in low:

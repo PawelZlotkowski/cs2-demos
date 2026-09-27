@@ -30,9 +30,9 @@ class CamelModel(BaseModel):
 class MatchStatus(str, Enum):
     """Replay stages, then the coach stages (AI Coach plan §3).
 
-    Radar is usable from ``awaiting_player`` on. ``selecting``, ``recording`` and
-    ``explaining`` are reserved for phase 2 and 4; today ``detecting`` goes
-    straight to ``complete`` with the code ranker's moments.
+    Radar is usable from ``awaiting_player`` on. After ``detecting`` come
+    ``selecting`` (coach model on), ``recording`` (gameplay recording on: the POV
+    clip of each moment) and ``explaining`` (coach model on), then ``complete``.
     """
 
     uploaded = "uploaded"
@@ -188,6 +188,25 @@ class ClipManifest(CamelModel):
     clips: list[RoundClip]
     done: int = 0
     total: int = 0
+
+
+class MomentClip(CamelModel):
+    """First-person clip of the coached player for one window of a round.
+
+    ``t0``/``t1`` are round clock seconds, so the Studio plays it at
+    ``t - t0`` on the shared clock. ``momentId`` is set for the coach's
+    moments; on-demand rounds and ``request_clip`` leave it empty.
+    """
+
+    id: str  # "c3"
+    player_id: str = Field(alias="playerId")
+    round: int
+    t0: float
+    t1: float
+    moment_id: str | None = Field(None, alias="momentId")
+    status: ClipStatus
+    url: str | None = None
+    error: str | None = None
 
 
 class StatusResponse(CamelModel):

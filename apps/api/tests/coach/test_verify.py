@@ -6,6 +6,7 @@ import pytest
 
 from app.coach.verify import (
     VerifyContext,
+    autocite,
     citations_in,
     detect_language,
     fallback_text,
@@ -213,3 +214,29 @@ def test_picks_too_close_in_one_round():
 def test_scarce_findings_lower_the_bar():
     few = FINDINGS[:1] + [FINDINGS[3]]
     assert verify_moments([pick("F1"), pick("F4", "good")], few).ok
+
+
+def test_summary_numbers_pass_without_a_finding_citation():
+    ctx = VerifyContext.build([finding("F1")])
+    text = "You threw no utility before dying in 4 of your last 3 matches."
+    # Ask answers need no finding citation; the history counts are the only facts here
+    assert not verify_text(text, ctx, "en", require_citation=False).ok
+    ctx.summary_numbers.update({4.0, 3.0})
+    check = verify_text(text, ctx, "en", require_citation=False)
+    assert check.ok, check.errors
+
+
+def test_cyrillic_and_em_dashes_are_rejected():
+    ctx = VerifyContext.build([finding("F1")])
+    assert any("Cyrillic" in e for e in verify_text("Zginąłeś bez wsparcia, nieużyтыmi granatami [F1].", ctx, "pl").errors)
+    assert any("em dash" in e for e in verify_text("You died alone \u2014 nobody could trade you [F1].", ctx, "en").errors)
+
+
+def test_autocite_adds_the_finding_that_holds_the_number():
+    ctx = VerifyContext.build([finding("F1"), finding("F2", evidence={"reactionS": 0.16})])
+    text = "You died alone in Palace [F1]. Nobody could trade you within 5.0 s."
+    fixed = autocite(text, ctx, ["F2"])
+    assert fixed == "You died alone in Palace [F1]. Nobody could trade you within 5.0 s [F1]."
+    assert verify_text(fixed, ctx, "en").ok
+    # A number no candidate holds stays uncited, so the verifier still rejects it
+    assert autocite("You waited 9.9 s.", ctx, ["F1", "F2"]) == "You waited 9.9 s."
