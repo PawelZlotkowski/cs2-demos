@@ -96,7 +96,8 @@ export default function LabPage() {
       </nav>
       {off ? (
         <p className="empty">
-          The Lab is off. Add <code>RR_LAB_ENABLED=1</code> to <code>apps/api/.env</code> and restart the API.
+          The Lab is off. An admin can switch it on under <Link href="/admin/settings#lab">Settings</Link>, or add{" "}
+          <code>RR_LAB_ENABLED=1</code> to <code>apps/api/.env</code> and restart the API.
         </p>
       ) : tab === "runs" ? (
         <RunsTab />
@@ -158,7 +159,8 @@ function RunsTab() {
 
   return labOff ? (
         <p className="empty">
-          The Lab is off. Add <code>RR_LAB_ENABLED=1</code> to <code>apps/api/.env</code> and restart the API.
+          The Lab is off. An admin can switch it on under <Link href="/admin/settings#lab">Settings</Link>, or add{" "}
+          <code>RR_LAB_ENABLED=1</code> to <code>apps/api/.env</code> and restart the API.
         </p>
       ) : error ? (
         <p className="err" role="alert">
@@ -280,7 +282,7 @@ function RunsTab() {
 
           {matchId ? (
             <p className="meta">
-              Showing one match&rsquo;s runs. <a href="/lab#runs">Show every run</a>
+              Showing one match&rsquo;s runs. <a href="/admin/lab#runs">Show every run</a>
             </p>
           ) : null}
           {detail ? <RunDetail run={detail} onClose={() => setOpenId(null)} /> : null}

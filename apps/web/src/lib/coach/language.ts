@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { CoachLanguage } from "@/lib/contracts";
+import { LANG_EVENT, pushSettings } from "@/lib/prefs";
 
 /** Coach answer languages (plan §6.4). UI copy stays English. */
 export const COACH_LANGUAGES: { id: CoachLanguage; label: string }[] = [
@@ -11,7 +12,7 @@ export const COACH_LANGUAGES: { id: CoachLanguage; label: string }[] = [
 ];
 
 const KEY = "rr.coachLanguage";
-const EVENT = "rr:coach-language";
+const EVENT = LANG_EVENT;
 
 export function readCoachLanguage(): CoachLanguage {
   try {
@@ -23,7 +24,7 @@ export function readCoachLanguage(): CoachLanguage {
   return "en";
 }
 
-/** Per-browser setting shared by the Studio, the Ask tab and the player picker. */
+/** Account setting, mirrored in this browser, shared by the Studio, the Ask tab and the player picker. */
 export function useCoachLanguage(): [CoachLanguage, (lang: CoachLanguage) => void] {
   const [lang, setLang] = useState<CoachLanguage>("en");
 
@@ -40,12 +41,8 @@ export function useCoachLanguage(): [CoachLanguage, (lang: CoachLanguage) => voi
 
   const set = useCallback((next: CoachLanguage) => {
     setLang(next);
-    try {
-      window.localStorage.setItem(KEY, next);
-    } catch {
-      /* storage blocked: keeps the choice for this page only */
-    }
-    window.dispatchEvent(new Event(EVENT));
+    // Saved here and on the account, so the coach answers in it on every device
+    void pushSettings({ language: next });
   }, []);
 
   return [lang, set];

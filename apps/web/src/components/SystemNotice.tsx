@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api/client";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { ApiError, api } from "@/lib/api/client";
 
 const CACHE_KEY = "rr.system";
 const CACHE_MS = 60_000;
@@ -10,8 +11,15 @@ const CACHE_MS = 60_000;
 /** Top-bar line that shows only when part of the local setup is on but not working (doc 29 R01). */
 export function SystemNotice() {
   const [problem, setProblem] = useState<string | null>(null);
+  // Only the admin can fix a service, and the checks page is theirs
+  const { state, isAdmin } = useAuth();
+  const skip = !!state && !isAdmin;
 
   useEffect(() => {
+    if (skip) {
+      setProblem(null);
+      return;
+    }
     let cancelled = false;
     try {
       const cached = JSON.parse(window.sessionStorage.getItem(CACHE_KEY) ?? "null") as
@@ -37,13 +45,14 @@ export function SystemNotice() {
           /* storage blocked */
         }
       })
-      .catch(() => {
-        if (!cancelled) setProblem("API not reachable");
+      .catch((e: unknown) => {
+        // Signed out or not an admin: the API answered, so it is up
+        if (!cancelled) setProblem(e instanceof ApiError ? null : "API not reachable");
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [skip]);
 
   if (!problem) return null;
   return (

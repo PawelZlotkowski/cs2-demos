@@ -306,6 +306,8 @@ export type AskEvent =
         citations: string[];
         source: "agent" | "template";
         verified: boolean;
+        /** Stored Ask history id, the target for feedback on the answer (A10) */
+        messageId?: number | null;
         /** Coach page only: cited match ref ("M2") to match id. */
         matches?: Record<string, string>;
       };
@@ -464,6 +466,9 @@ export interface CoachedPlayer {
 
 export interface Features {
   lab: boolean;
+  auth?: boolean;
+  shareLinks?: boolean;
+  studyMode?: boolean;
 }
 
 export type SystemCheckName = "llm" | "mcp" | "csdm" | "knowledge" | "traces";
@@ -735,6 +740,8 @@ export interface MatchRow {
   moments: number;
   model: string | null;
   versions: number;
+  /** The owner's own name for the match */
+  title?: string | null;
 }
 
 export interface ProgressMatch {
@@ -783,4 +790,252 @@ export interface GoodExample {
 export interface GoodExamples {
   zone: string | null;
   items: GoodExample[];
+}
+
+
+// --- Accounts and the admin panel (docs 27 and 30), mirrors models/contracts.py ---
+
+export type Role = "admin" | "labeller" | "player";
+
+export interface UserOut {
+  id: string;
+  username: string | null;
+  displayName: string;
+  avatarUrl: string | null;
+  role: Role;
+  steamId: string | null;
+  hasPassword: boolean;
+  createdAt: string | null;
+  lastSeenAt: string | null;
+  disabled: boolean;
+  consented: boolean;
+}
+
+export interface AuthState {
+  authEnabled: boolean;
+  user: UserOut | null;
+  needsSetup: boolean;
+  signup: "invite" | "open" | "closed";
+  steam: boolean;
+  studyMode: boolean;
+  needsConsent: boolean;
+}
+
+export interface UserSettings {
+  language: CoachLanguage;
+  playbackSpeed: number;
+  explanationLength: "short" | "normal" | "long";
+  autoplayClips: boolean;
+  /** false: defaults, nothing saved on the account yet */
+  saved?: boolean;
+}
+
+export interface SessionRow {
+  id: string;
+  userId: string;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  userAgent: string | null;
+  ip: string | null;
+  current?: boolean;
+  userName?: string | null;
+}
+
+export interface AskHistoryItem {
+  id: number;
+  matchId: string | null;
+  playerId: string;
+  question: string;
+  answer: string | null;
+  citations: string[];
+  source: string | null;
+  lang: string | null;
+  createdAt: string;
+}
+
+export interface FeedbackItem {
+  target: string;
+  kind: "explanation" | "answer";
+  verdict: "useful" | "not_right";
+  note: string | null;
+}
+
+export interface ReviewVersion {
+  id: string;
+  playerId: string;
+  model: string;
+  createdAt: string;
+  moments: SelectedMoment[];
+  explanations: MomentExplanation[];
+}
+
+export interface SharedReview {
+  map: string | null;
+  score: string | null;
+  rounds: number | null;
+  playerName: string | null;
+  lang: CoachLanguage;
+  moments: { id: string; round: number; t0: number; t1: number; kind: "mistake" | "good"; pickedBecause: string; clip: string | null }[];
+  explanations: Record<string, string>;
+}
+
+export interface AdminUser extends UserOut {
+  matches: number;
+  bytes: number;
+  sessions: number;
+}
+
+export interface Invite {
+  id: string;
+  hint: string;
+  role: Role;
+  createdBy: string | null;
+  createdAt: string;
+  expiresAt: string | null;
+  usedBy: string | null;
+  usedByName?: string | null;
+  usedAt: string | null;
+  revokedAt: string | null;
+  code?: string;
+}
+
+export interface AdminMatch {
+  id: string;
+  title: string | null;
+  map: string | null;
+  score: string | null;
+  status: MatchStatus;
+  error: string | null;
+  ownerId: string;
+  ownerName: string | null;
+  playerId: string | null;
+  playerName: string | null;
+  model: string | null;
+  bytes: number;
+  createdAt: string | null;
+  shared: boolean;
+}
+
+export interface GpuJob {
+  id: string;
+  kind: string;
+  matchId: string | null;
+  playerId: string | null;
+  userId: string | null;
+  state: "queued" | "running" | "done" | "failed" | "cancelled";
+  createdAt: number;
+  startedAt: number | null;
+  endedAt: number | null;
+  error: string | null;
+}
+
+export interface AdminJobs {
+  gpu: { running: GpuJob[]; waiting: GpuJob[]; finished: GpuJob[] };
+  pipeline: { matchId: string; status: MatchStatus; error: string | null; since: number | null }[];
+  clips: { id: string; matchId: string; playerId: string; round: number; t0: number; t1: number; status: string; createdAt: string; error: string | null }[];
+}
+
+export interface StorageInfo {
+  folders: { name: string; path: string; bytes: number }[];
+  disk: { total: number; free: number } | null;
+}
+
+export interface AuditItem {
+  id: number;
+  at: string;
+  actorId: string | null;
+  actorName: string | null;
+  targetName?: string | null;
+  action: string;
+  target: string | null;
+  detail: Record<string, unknown> | null;
+  ip: string | null;
+}
+
+export interface AdminOverview {
+  system: SystemStatus;
+  counts: {
+    users: number;
+    matches: number;
+    reviewed: number;
+    failed: number;
+    processing: number;
+    gpuWaiting: number;
+    gpuRunning: number;
+    clipsFailed: number;
+  };
+  storage: StorageInfo;
+  authEnabled: boolean;
+  recent: AuditItem[];
+}
+
+export interface RuntimeSetting {
+  key: string;
+  env: string;
+  group: string;
+  label: string;
+  kind: "bool" | "number" | "text";
+  choices: string[] | null;
+  value: string | number | boolean | null;
+  envValue: string | number | boolean | null;
+  source: "env" | "admin";
+  updatedAt: string | null;
+}
+
+export interface AdminSettings {
+  runtime: RuntimeSetting[];
+  restart: { key: string; env: string; value: unknown }[];
+}
+
+export interface ModelStats {
+  system: SystemStatus;
+  stats: {
+    window: number;
+    models: { model: string; runs: number; verifiedRate: number | null; avgLatencyS: number | null; tokensPerSecond: number | null }[];
+  };
+  command: string;
+  sampling: string;
+  maxSteps: number;
+}
+
+export interface KnowledgeAdmin {
+  notes: { map: string; index: string; title: string; text: string }[];
+  flags: { id: number; passageId: string; note: string; createdAt: string; title: string | null }[];
+  passages: number;
+}
+
+export interface StudySummary {
+  studyMode: boolean;
+  participants: {
+    participant: string;
+    userId: string;
+    name: string;
+    role: Role;
+    consented: boolean;
+    matches: number;
+    reviewed: number;
+    feedback: number;
+    useful: number;
+    asks: number;
+  }[];
+}
+
+export interface ApiToken {
+  id: string;
+  name: string;
+  scope: "read" | "write";
+  userId: string;
+  userName?: string | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  token?: string;
+}
+
+export interface SecurityInfo {
+  sessions: SessionRow[];
+  failedLogins: { username: string; at: string; ip: string | null }[];
+  tokens: ApiToken[];
+  authEnabled: boolean;
 }

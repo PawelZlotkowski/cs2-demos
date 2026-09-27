@@ -13,9 +13,10 @@ export function useCoachedPlayer() {
   const [playerId, setPlayerId] = useState<string | null>(null);
 
   useEffect(() => {
-    api
-      .getPlayers()
-      .then((ps) => {
+    // The API lists only the signed-in user's players; "me" is their linked Steam account or
+    // the player they review most (A11), used until they pick another here
+    Promise.all([api.getPlayers(), api.myPlayer().catch(() => null)])
+      .then(([ps, me]) => {
         setPlayers(ps);
         let saved: string | null = null;
         try {
@@ -23,7 +24,8 @@ export function useCoachedPlayer() {
         } catch {
           /* storage blocked */
         }
-        setPlayerId(ps.find((p) => p.id === saved)?.id ?? ps[0]?.id ?? null);
+        const find = (id: string | null | undefined) => ps.find((p) => p.id === id)?.id;
+        setPlayerId(find(saved) ?? find(me?.playerId) ?? ps[0]?.id ?? null);
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "The API did not answer."));
   }, []);

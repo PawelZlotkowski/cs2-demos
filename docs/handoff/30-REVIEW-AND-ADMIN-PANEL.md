@@ -1,6 +1,6 @@
 # 30 Full review, roles and the admin panel
 
-**Date:** 27 September 2026 · **Status:** plan, nothing built · **Reviewed:** PR #22's branch (`claude/feature-roadmap-26ezhz`, development plus doc 29 R00–R18)
+**Date:** 27 September 2026 · **Status:** built (all four steps of §7; §9 says what differs from the plan) · **Reviewed:** PR #22's branch (`claude/feature-roadmap-26ezhz`, development plus doc 29 R00–R18)
 
 Pawel asked for a full review of what is still missing (pages, users, security, roles) and for a **separate admin panel where he can control everything**. This doc lists the gaps, ranks the security findings with file references, defines roles, and plans the admin panel as tasks `AD00`–`AD16` that slot into the accounts plan ([27](./27-ACCOUNTS-PLAN.md), `A00`–`A14`).
 
@@ -81,6 +81,8 @@ Roles are a single column (`users.role`). No custom permission editor: three fix
 ### 3.3 Before accounts exist
 
 `RR_AUTH_ENABLED=false` stays the default so tests and the current setup keep working (doc 27). With auth off, the admin panel behaves like today's Lab: it is on only when `RR_ADMIN_ENABLED=true` and only answers requests from `127.0.0.1`. With auth on, the switch is ignored and the role decides.
+
+*As built (§9):* there is no `RR_ADMIN_ENABLED` or loopback check. With auth off every request is the local admin, and the protection is that Docker publishes the ports on 127.0.0.1 only.
 
 ---
 
@@ -202,3 +204,39 @@ Sizes: S under half a day, M one to two days. `A` tasks are doc 27's; they stay 
 1. **Admin panel inside the app at `/admin` (recommended) or a separate app on its own port?** The plan assumes `/admin`.
 2. **A third role, `labeller`, for the pair partner?** Recommended, so the partner can label without admin rights.
 3. **Start with step 1 of the order (no accounts yet), or accounts first?** Recommended: step 1 first, because AD00 closes the open ports today.
+
+---
+
+## 9. What was built (27 September 2026)
+
+Every task in §7 and doc 27's `A00`–`A14` is in the branch `claude/review-admin-panel-lmr5ft` (PR #24, which builds on PR #22). `pytest` covers the API side in `apps/api/tests/coach/test_accounts.py`.
+
+### Where things are
+
+| Part | Files |
+|---|---|
+| Users, sessions, invites, reset codes, tokens, audit, settings overrides (one SQLite file, `matches.db`) | `apps/api/app/auth/store.py` |
+| Argon2id passwords, Steam OpenID 2.0, the `guard` on every router, match scope | `apps/api/app/auth/` |
+| Admin API (`/admin/*`) and its services | `apps/api/app/admin/` |
+| Own matches: rename, delete, progress, Ask history, feedback, versions, share links | `apps/api/app/api/account.py` |
+| One GPU queue for select, explain, review and Ask | `apps/api/app/services/gpu.py` |
+| MCP HTTP token check | `apps/api/app/coach/mcp_http.py` |
+| Sign in, welcome, account menu, Settings sections, share page | `apps/web/src/app/{signin,welcome,r,settings}`, `components/auth`, `components/settings` |
+| Admin panel (13 sections, the Lab at `/admin/lab`) | `apps/web/src/app/admin/`, `components/admin/` |
+
+### How it differs from the plan
+
+- **No loopback check with auth off (§3.3).** Everyone who reaches the API is the local admin, as before accounts. The Docker ports are bound to 127.0.0.1 instead (AD00), and `RUN-LOCALLY.md` says to turn accounts on before opening the port to the network.
+- **The Lab API kept its paths.** The pages moved to `/admin/lab`, and `/lab` redirects there, but the API stayed at `/lab/*`. The `guard` gives it to admins and labellers (labellers cannot export the dataset), and `RR_LAB_ENABLED` is now a switch in Admin, Settings.
+- **No route group.** The panel is `app/admin/` with its own sidebar under the app's top bar, so the brand, theme and account menu stay in one place.
+- **Roles are checked by path in one place.** `guard` in `auth/deps.py` handles sign-in, `/admin/*`, `/lab/*`, `POST /knowledge/notes`, read-only tokens and match ownership (other people's matches answer 404; a labeller may read them). A test walks every route with a `{match_id}` and checks that another player gets 403 or 404.
+- **Settings the panel changes** (model, sampling, clips, Lab, sign-up, limits, share links, study mode) are stored in `app_settings` and win over `.env` from the next job. Settings that need a restart are shown read-only.
+- **Deleted matches' traces** are blanked in place (`{"deleted": true}`), so the line numbers the Lab links to stay valid.
+- **The coach language and starting speed** are stored on the account and copied to the browser, so the coach answers in the same language on every device.
+
+### Not done
+
+- Real sign-in has only been checked by the tests here, not on Pawel's PC with a real Steam account.
+- A labeller sees all matches read-only; there is no per-match assignment.
+- There is no email; reset codes are made by the admin and passed on by hand.
+
