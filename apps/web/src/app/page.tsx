@@ -3,10 +3,11 @@ import Link from "next/link";
 export default function HomePage() {
   return (
     <main className="main">
-      <h1>Review a match on Radar</h1>
+      <h1>Review your match with a coach</h1>
       <p className="lede">
-        Upload a FACEIT <code>.dem.zst</code> or a CS Demo Manager <code>.dem</code>. Parsing
-        produces round replays you can scrub on a shared playback clock.
+        Upload a FACEIT <code>.dem.zst</code> or a CS Demo Manager <code>.dem</code> and choose whose game to
+        review. The coach picks five or six moments, good and bad, and explains each one with the radar and a clip
+        from that player&apos;s view.
       </p>
       <p>
         <Link className="btn btn-fill" href="/upload">
@@ -14,9 +15,7 @@ export default function HomePage() {
         </Link>
       </p>
       <p className="meta" style={{ marginTop: 24 }}>
-        After parsing you choose a player. The coach then finds that player's mistakes and good
-        plays and picks five or six moments to review. The fixture sample match has no Radar
-        positions, so use a real upload.
+        Mirage and Anubis only for now. Everything runs on this computer, including the coach model.
       </p>
     </main>
   );

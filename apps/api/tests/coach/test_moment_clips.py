@@ -65,7 +65,7 @@ def test_every_moment_gets_its_window_with_a_margin(analysed):
         assert c["t0"] == round(max(0.0, m.t0 - 1.0), 1)
         assert round(m.t1, 1) < c["t1"] <= round(m.t1 + 3.0, 1)
     # Recording is off by default: queued jobs read as skipped with a reason, never as ready
-    assert all(c["status"] == "skipped" and "RR_CSDM_ENABLED" in c["error"] for c in clips)
+    assert all(c["status"] == "skipped" and c["error"] == moment_clips.DISABLED for c in clips)
 
 
 def test_queueing_again_does_not_duplicate(analysed):

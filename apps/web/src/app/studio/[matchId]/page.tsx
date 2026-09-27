@@ -61,6 +61,7 @@ import { RadarView } from "@/components/replay/RadarView";
 import { ReplayTimeline } from "@/components/replay/ReplayTimeline";
 import { CoachExplanation } from "@/components/coach/CoachExplanation";
 import { CoachPanel } from "@/components/coach/CoachPanel";
+import { NotFound, isNotFound } from "@/components/NotFound";
 import { useCoachLanguage } from "@/lib/coach/language";
 
 const RATES: PlaybackRate[] = [1, 2, 4, 0.5];
@@ -430,7 +431,7 @@ export default function StudioPage() {
       return activeClip.error ?? "Gameplay recording failed for this round.";
     }
     if (activeClip.status === "skipped") {
-      return activeClip.error ?? "Gameplay recording is disabled on this server.";
+      return activeClip.error ?? "Clips are off on this computer, so the radar is shown instead.";
     }
     return "Gameplay clip is not ready.";
   }, [activeClip, gameplayReady, clipManifest, povClip, analysis]);
@@ -835,6 +836,10 @@ export default function StudioPage() {
     players: roster.filter((p) => p.team === side),
   }));
 
+
+  if (!loadingMatch && !match && isNotFound(loadError)) {
+    return <NotFound title="This match isn't here" detail="It may have been deleted, or the link is wrong." />;
+  }
   return (
     <main className={`studio${panelOn ? "" : " panel-off"}`}>
       {barSlot && match
@@ -852,7 +857,7 @@ export default function StudioPage() {
             {loadingMatch
               ? "Loading…"
               : moments.length
-                ? `${moments.length} moments`
+                ? `${moments.length} ${moments.length === 1 ? "moment" : "moments"}`
                 : `${rounds.length} rounds`}
           </b>
           {moments.length ? (
@@ -933,10 +938,8 @@ export default function StudioPage() {
                       data-round={r.id}
                     >
                       {current ? <span className="rail-ind" aria-hidden /> : null}
-                      <i
-                        className={`g ${r.winner === "T" ? "g-t" : r.winner === "CT" ? "g-ct" : "g-none"}`}
-                        aria-hidden
-                      />
+                      {/* Neutral mark: triangle and circle mean mistake and good play (decision 4) */}
+                      <i className="g g-round" aria-hidden />
                       <span className="mom-title">Round {r.number}</span>
                       <span className="mom-meta">
                         <span className="when">
@@ -1305,7 +1308,7 @@ export default function StudioPage() {
               ? cited(
                   activeMoment.source === "agent"
                     ? `${kindLabel(activeMoment.kind)}. Picked by the coach: ${activeMoment.pickedBecause}`
-                    : `${kindLabel(activeMoment.kind)}. Ranked ${ordinal(momentRank)} of ${moments.length} by the code ranker, from ${activeMoment.findingIds
+                    : `${kindLabel(activeMoment.kind)}, ${momentRank === 1 ? "the most important" : `the ${ordinal(momentRank)} most important`} of ${moments.length} ${moments.length === 1 ? "moment" : "moments"}. Evidence: ${activeMoment.findingIds
                         .map((id) => `[${id}]`)
                         .join(" ")}.`,
                 )

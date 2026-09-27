@@ -179,7 +179,7 @@ export function CoachPanel({
               )}
             </div>
             {!x.pending && x.source === "template" ? (
-              <div className="aa-note">From the finding templates: the coach model is off or its answer failed the checks.</div>
+              <div className="aa-note">Written from the findings: the coach model is off or its answer did not pass the checks.</div>
             ) : null}
           </div>
         ))}

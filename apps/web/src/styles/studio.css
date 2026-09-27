@@ -1638,6 +1638,20 @@
   display: block;
 }
 
+/* The Ask block lives only in the Ask tab, so the analysis keeps the full panel height */
+.ctx:not(.asking) .coach {
+  display: none;
+}
+
+/* Before the first question the prompts sit at the top instead of under an empty thread */
+.ctx.asking .thread:empty {
+  display: none;
+}
+
+.ctx.asking .coach {
+  border-top: 0;
+}
+
 .qa {
   padding: 10px 0;
   border-top: 1px solid var(--border-soft);
@@ -1834,4 +1848,11 @@
   display: block;
   color: var(--text-3);
   margin-top: 2px;
+}
+
+/* Round rows: a neutral dash, since triangle and circle mean mistake and good play */
+.moments .mom .g.g-round {
+  height: 2px;
+  margin-top: 8px;
+  background: var(--text-3);
 }
