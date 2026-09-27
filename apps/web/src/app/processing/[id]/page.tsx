@@ -92,6 +92,10 @@ export default function ProcessingPage() {
   const awaiting = status?.status === "awaiting_player";
 
   useEffect(() => {
+    document.title = `${awaiting ? "Choose a player" : error ? "Processing failed" : "Processing demo"} · Round Reviewer`;
+  }, [awaiting, error]);
+
+  useEffect(() => {
     if (!awaiting || loadedPlayers.current) return;
     loadedPlayers.current = true;
     (async () => {

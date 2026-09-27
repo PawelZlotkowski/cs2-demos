@@ -11,7 +11,7 @@ import "@/styles/tokens.css";
 import "@/styles/studio.css";
 
 export const metadata = {
-  title: "Round Reviewer",
+  title: { default: "Round Reviewer", template: "%s · Round Reviewer" },
   description: "Pick a player in a CS2 demo and review their best and worst moments with a self-hosted coach.",
 };
 

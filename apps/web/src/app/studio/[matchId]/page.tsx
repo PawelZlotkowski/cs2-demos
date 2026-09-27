@@ -39,6 +39,7 @@ import {
   type Box,
 } from "@/lib/replay/camera";
 import {
+  LANE_ORDER,
   eventTitle,
   glyphForEvent,
   laneMarks,
@@ -62,6 +63,8 @@ import { ReplayTimeline } from "@/components/replay/ReplayTimeline";
 import { CoachExplanation } from "@/components/coach/CoachExplanation";
 import { CoachPanel } from "@/components/coach/CoachPanel";
 import { NotFound, isNotFound } from "@/components/NotFound";
+import { RoundStrip } from "@/components/review/RoundStrip";
+import { ReviewOverview, ReviewWrapUpPanel } from "@/components/review/ReviewPanels";
 import { useCoachLanguage } from "@/lib/coach/language";
 
 const RATES: PlaybackRate[] = [1, 2, 4, 0.5];
@@ -117,10 +120,14 @@ export default function StudioPage() {
   const [seen, setSeen] = useState<Set<string>>(() => new Set());
   const [panelOn, setPanelOn] = useState(true);
   const [ctxOpen, setCtxOpen] = useState(false);
+  const grabY = useRef<number | null>(null);
+  const grabDragged = useRef(false);
   const [whole, setWhole] = useState(false);
   const [asking, setAsking] = useState(false);
   const [analysis, setAnalysis] = useState<PlayerAnalysisView | null>(null);
   const [momentId, setMomentId] = useState<string | null>(null);
+  /** Design plan items 2 and 3: the opening overview and the closing wrap-up take the panel. */
+  const [review, setReview] = useState<"overview" | "wrapup" | null>(null);
   const [seenMoments, setSeenMoments] = useState<Set<string>>(() => new Set());
   const [coachLang, setCoachLang] = useCoachLanguage();
   /** Clock time to seek to once the next round replay has loaded (moment jumps across rounds). */
@@ -151,6 +158,7 @@ export default function StudioPage() {
     setSeen(new Set());
     setAnalysis(null);
     setMomentId(null);
+    setReview(null);
     setSeenMoments(new Set());
     try {
       setFocusId(window.localStorage.getItem(focusKey(matchId)));
@@ -180,12 +188,17 @@ export default function StudioPage() {
         setRounds(rs);
         setAnalysis(view);
         if (pid) setFocusId(pid);
-        const first = view?.moments[0];
+        // Deep link (?m=m3&t=41.5) opens that moment; otherwise the overview, with moment 1 behind it.
+        const q = new URLSearchParams(window.location.search);
+        const linked = view?.moments.find((x) => x.id === q.get("m"));
+        const first = linked ?? view?.moments[0];
         const firstRound = first ? rs.find((r) => r.number === first.round) : undefined;
+        const linkedT = Number(q.get("t"));
         if (first && firstRound) {
-          pendingSeek.current = first.t0;
+          pendingSeek.current = linked && Number.isFinite(linkedT) && q.get("t") ? linkedT : first.t0;
           setMomentId(first.id);
           setRoundId(firstRound.id);
+          setReview(linked ? null : "overview");
         } else if (rs.length) setRoundId(rs[0].id);
         else if (!REPLAY_READY_STATUSES.has(m.status)) setLoadError("Match is still processing.");
         else setLoadError("No round replays for this match.");
@@ -373,8 +386,21 @@ export default function StudioPage() {
   const roundStats = analysis?.stats.find((r) => r.round === roundNumber);
 
   useEffect(() => {
-    if (momentId) setSeenMoments((s) => (s.has(momentId) ? s : new Set(s).add(momentId)));
-  }, [momentId]);
+    if (momentId && !review) setSeenMoments((s) => (s.has(momentId) ? s : new Set(s).add(momentId)));
+  }, [momentId, review]);
+
+  // Keep ?m=&t= in the address so a moment can be sent to a teammate (design plan item 3).
+  const pausedAt = clock.playing ? null : Math.round(clock.t * 10) / 10;
+  useEffect(() => {
+    if (loadingMatch) return;
+    const url = new URL(window.location.href);
+    const inMoment = Boolean(momentId && !review && activeMoment);
+    if (inMoment) url.searchParams.set("m", momentId!);
+    else url.searchParams.delete("m");
+    if (inMoment && pausedAt != null && pausedAt > 0) url.searchParams.set("t", String(pausedAt));
+    else url.searchParams.delete("t");
+    if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
+  }, [loadingMatch, momentId, review, activeMoment, pausedAt]);
 
   const momentRounds = useMemo(
     () =>
@@ -467,7 +493,11 @@ export default function StudioPage() {
   const tlRef = useRef<HTMLDivElement>(null);
   const [laneH, setLaneH] = useState(LANE_BASE);
   const [stageSize, setStageSize] = useState({ w: 640, h: 360 });
-  const laneCount = useMemo(() => new Set(marks.map((m) => m.lane)).size || 1, [marks]);
+  // A fixed lane set for the whole match, so rows don't jump between rounds (U13).
+  // The Coach lane appears once the coach has findings for this player.
+  const hasCoach = (analysis?.findings.length ?? 0) > 0;
+  const lanes = useMemo(() => LANE_ORDER.filter((l) => l !== "coach" || hasCoach), [hasCoach]);
+  const laneCount = lanes.length;
 
   const fitStage = useCallback(() => {
     const work = workRef.current;
@@ -572,6 +602,7 @@ export default function StudioPage() {
   const selectRound = useCallback(
     (id: string) => {
       animateCam.current = true;
+      setReview(null);
       setMomentId(null);
       setRoundId(id);
     },
@@ -582,6 +613,7 @@ export default function StudioPage() {
     (t: number, eventId?: string) => {
       clock.seek(t);
       setSelectedEventId(eventId ?? null);
+      setReview(null);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [clock.seek],
@@ -592,6 +624,7 @@ export default function StudioPage() {
       const target = rounds.find((r) => r.number === m.round);
       if (!target) return;
       clock.pause();
+      setReview(null);
       setMomentId(m.id);
       const lead = m.findingIds[0] ?? null;
       if (target.id === roundId && replay) {
@@ -612,6 +645,7 @@ export default function StudioPage() {
       const target = rounds.find((r) => r.number === f.round);
       if (!target) return;
       clock.pause();
+      setReview(null);
       if (target.id === roundId && replay) {
         seekTo(f.t, f.id);
       } else {
@@ -702,6 +736,11 @@ export default function StudioPage() {
         window.setTimeout(() => askRef.current?.focus(), 0);
       } else if (e.key === "Escape" && ctxOpen) {
         setCtxOpen(false);
+      } else if (e.key === "n" || e.key === "N") {
+        // Next moment; after the last one, the wrap-up (design plan item 3)
+        if (review === "overview" && moments[0]) selectMoment(moments[0]);
+        else if (nextMoment) selectMoment(nextMoment);
+        else if (activeMoment) setReview("wrapup");
       } else if (e.key === "v" || e.key === "V") {
         e.preventDefault();
         setMode(stageMode === "radar" ? "gameplay" : "radar");
@@ -720,7 +759,7 @@ export default function StudioPage() {
 
   useEffect(() => {
     document.title = activeRound
-      ? `Round ${activeRound.number}, ${mapLabel}, Round Reviewer`
+      ? `Round ${activeRound.number}, ${mapLabel} · Round Reviewer`
       : "Round Reviewer";
   }, [activeRound, mapLabel]);
 
@@ -837,6 +876,30 @@ export default function StudioPage() {
   }));
 
 
+  // ---- Review overview (design plan item 2): numbers only from RoundStats ----
+  const statRows = analysis ? [...analysis.stats].sort((a, b) => a.round - b.round) : [];
+  const wonByRound = new Map(statRows.filter((r) => r.won != null).map((r) => [r.round, Boolean(r.won)]));
+  const roundsWon = [...wonByRound.values()].filter(Boolean).length;
+  const roundsLost = wonByRound.size - roundsWon;
+  const kills = statRows.reduce((n, r) => n + r.kills, 0);
+  const deaths = statRows.reduce((n, r) => n + r.deaths, 0);
+  const damage = statRows.reduce((n, r) => n + r.damage, 0);
+  const overviewFacts = [
+    wonByRound.size
+      ? `${roundsWon === roundsLost ? "Drew" : roundsWon > roundsLost ? "Won" : "Lost"} ${roundsWon} to ${roundsLost}`
+      : null,
+    match?.when ?? null,
+    statRows[0]?.side ? `Started ${statRows[0].side}` : null,
+    statRows.length ? `K/D ${kills}/${deaths}` : null,
+    statRows.length ? `ADR ${Math.round(damage / statRows.length)}` : null,
+  ].filter((f): f is string => Boolean(f));
+  const momentTitle = (m: SelectedMoment) => {
+    const f = leadFinding(m, findingsById);
+    return `${f ? findingLabel(f) : kindLabel(m.kind)}${f?.zone ? ` in ${f.zone}` : ""}`;
+  };
+  const momentIdx = activeMoment ? moments.findIndex((m) => m.id === activeMoment.id) : -1;
+  const unreviewedRound = rounds.find((r) => !momentRounds.has(r.number));
+
   if (!loadingMatch && !match && isNotFound(loadError)) {
     return <NotFound title="This match isn't here" detail="It may have been deleted, or the link is wrong." />;
   }
@@ -878,8 +941,23 @@ export default function StudioPage() {
           <div className="rail-scroll">
             {moments.length ? (
               <ol className="moments" aria-label={`Moments for ${analysedName}`}>
+                <li>
+                  <button
+                    type="button"
+                    className="mom mom-overview"
+                    aria-current={review === "overview" ? "true" : "false"}
+                    onClick={() => setReview("overview")}
+                  >
+                    {review === "overview" ? <span className="rail-ind" aria-hidden /> : null}
+                    <i className="g g-round" aria-hidden />
+                    <span className="mom-title">Match overview</span>
+                    <span className="mom-meta">
+                      <span className="when">Summary and rounds</span>
+                    </span>
+                  </button>
+                </li>
                 {moments.map((m) => {
-                  const current = m.id === activeMoment?.id;
+                  const current = m.id === activeMoment?.id && !review;
                   const lead = leadFinding(m, findingsById);
                   const title = lead ? findingLabel(lead) : kindLabel(m.kind);
                   const reason = pickedBecause(m);
@@ -1197,6 +1275,7 @@ export default function StudioPage() {
               duration={replay.durationSec}
               t={clock.t}
               marks={marks}
+              lanes={lanes}
               rounds={rounds}
               won={match?.won ?? []}
               momentRounds={momentRounds}
@@ -1221,14 +1300,45 @@ export default function StudioPage() {
         id="ctx"
         aria-label="Analysis of this round"
       >
-        <div className={`p-head${panelLive ? " live" : ""}`}>
-          {headFinding ? (
+        {/* Phone only: the sheet's grab handle. Tap or drag up to open, drag down to close (U15). */}
+        <button
+          type="button"
+          className="sheet-grab"
+          aria-expanded={ctxOpen}
+          aria-controls="ctx"
+          aria-label={ctxOpen ? "Close the analysis" : "Open the analysis"}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            grabY.current = e.clientY;
+            grabDragged.current = false;
+          }}
+          onPointerUp={(e) => {
+            const dy = grabY.current == null ? 0 : e.clientY - grabY.current;
+            grabY.current = null;
+            if (Math.abs(dy) < 24) return;
+            grabDragged.current = true;
+            setCtxOpen(dy < 0);
+          }}
+          onClick={() => {
+            // A drag already decided; a tap or the keyboard toggles.
+            if (grabDragged.current) grabDragged.current = false;
+            else setCtxOpen((o) => !o);
+          }}
+        >
+          <span aria-hidden />
+        </button>
+        <div className={`p-head${panelLive && !review ? " live" : ""}`}>
+          {review ? null : headFinding ? (
             <i className={`g g-${kindGlyph(headFinding.kind)}`} aria-hidden />
           ) : selected ? (
             <i className={`d d-${glyphForEvent(selected.type)}`} aria-hidden />
           ) : null}
           <span className="lab">
-            {headFinding
+            {review === "overview"
+              ? "Match overview"
+              : review === "wrapup"
+                ? "Wrap-up"
+                : headFinding
               ? findingLabel(headFinding)
               : selected
                 ? typeLabel(selected.type)
@@ -1237,7 +1347,7 @@ export default function StudioPage() {
                   : "Round"}
           </span>
           {/* A finding's time is on its row and the timeline; its label needs the room here. */}
-          {headFinding ? null : (
+          {headFinding || review ? null : (
             <span>
               {activeRound ? `R${activeRound.number} ` : ""}
               {formatClock(headT ?? clock.t)}
@@ -1294,6 +1404,55 @@ export default function StudioPage() {
         </div>
 
         <div className="insight" id="insight" role="tabpanel" aria-labelledby="tab-insight">
+          {review === "overview" && analysis ? (
+            <ReviewOverview
+              matchId={matchId}
+              playerId={analysis.playerId}
+              language={coachLang}
+              onLanguage={setCoachLang}
+              heading={`${analysedName} on ${mapLabel}`}
+              facts={overviewFacts}
+              strip={
+                <RoundStrip
+                  rounds={rounds}
+                  won={wonByRound}
+                  moments={momentRounds}
+                  currentRoundId={null}
+                  onSelect={selectRound}
+                />
+              }
+              start={
+                moments[0] ? (
+                  <button type="button" className="btn btn-fill btn-wrap" onClick={() => selectMoment(moments[0])}>
+                    Review moment 1: {momentTitle(moments[0])}
+                  </button>
+                ) : null
+              }
+              {...coachCites}
+            />
+          ) : review === "wrapup" && analysis ? (
+            <ReviewWrapUpPanel
+              matchId={matchId}
+              playerId={analysis.playerId}
+              language={coachLang}
+              onLanguage={setCoachLang}
+              total={moments.length}
+              actions={
+                <>
+                  <button type="button" className="btn btn-line" onClick={() => setReview("overview")}>
+                    Back to the overview
+                  </button>
+                  {unreviewedRound ? (
+                    <button type="button" className="btn btn-line" onClick={() => selectRound(unreviewedRound.id)}>
+                      Analyse round {unreviewedRound.number}
+                    </button>
+                  ) : null}
+                </>
+              }
+              {...coachCites}
+            />
+          ) : (
+          <>
           <h2 className="ins-head">
             {headFinding
               ? headFinding.summary
@@ -1331,6 +1490,33 @@ export default function StudioPage() {
               onLanguage={setCoachLang}
               {...coachCites}
             />
+          ) : null}
+
+          {activeMoment && momentIdx >= 0 ? (
+            <div className="moment-step">
+              <span className="meta">
+                Moment {momentIdx + 1} of {moments.length}
+              </span>
+              {nextMoment ? (
+                <button
+                  type="button"
+                  className="btn btn-line btn-wrap"
+                  title="Next moment (N)"
+                  onClick={() => selectMoment(nextMoment)}
+                >
+                  Next: {momentTitle(nextMoment)}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-fill"
+                  title="Finish the review (N)"
+                  onClick={() => setReview("wrapup")}
+                >
+                  Finish the review
+                </button>
+              )}
+            </div>
           ) : null}
 
           {momentFindings.length > 1 ? (
@@ -1485,29 +1671,23 @@ export default function StudioPage() {
             </div>
           ) : null}
 
-          <div className="next-row">
-            {nextMoment ? (
-              <button type="button" className="link" onClick={() => selectMoment(nextMoment)}>
-                Next moment:{" "}
-                {(() => {
-                  const f = leadFinding(nextMoment, findingsById);
-                  return `${f ? findingLabel(f) : kindLabel(nextMoment.kind)}, round ${nextMoment.round}`;
-                })()}
-              </button>
-            ) : moments.length && activeMoment ? (
-              <span style={{ color: "var(--text-3)", fontSize: 13 }}>
-                That was the last of the {moments.length} moments.
-              </span>
-            ) : nextRound ? (
-              <button type="button" className="link" onClick={() => selectRound(nextRound.id)}>
-                Next round: Round {nextRound.number}
-              </button>
-            ) : rounds.length ? (
-              <span style={{ color: "var(--text-3)", fontSize: 13 }}>
-                That was the last of the {rounds.length} rounds.
-              </span>
-            ) : null}
-          </div>
+          {activeMoment ? null : (
+            <div className="next-row">
+              {nextMoment ? (
+                <button type="button" className="link" onClick={() => selectMoment(nextMoment)}>
+                  Next moment: {momentTitle(nextMoment)}, round {nextMoment.round}
+                </button>
+              ) : nextRound ? (
+                <button type="button" className="link" onClick={() => selectRound(nextRound.id)}>
+                  Next round: Round {nextRound.number}
+                </button>
+              ) : rounds.length ? (
+                <span style={{ color: "var(--text-3)", fontSize: 13 }}>
+                  That was the last of the {rounds.length} rounds.
+                </span>
+              ) : null}
+            </div>
+          )}
 
           {debug && replay ? (
             <pre className="debug-block">
@@ -1527,6 +1707,8 @@ export default function StudioPage() {
               )}
             </pre>
           ) : null}
+          </>
+          )}
         </div>
 
         {activeRound ? (

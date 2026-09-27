@@ -86,6 +86,15 @@ Not checked: the Gameplay view with a real clip (CS Demo Manager needs Windows a
 - Player names: real demos already show player names. `P0` to `P9` come from the synthetic test match, so nothing changed.
 - Still open from the UI check: U2 (upload progress bar), U13 (fixed timeline lanes), U14 ("0 s after first contact", a template change that needs the verifier kept happy), U15 (mobile sheet, item 10), U17 (page titles outside the Studio).
 
+**27 Sep 2026, second pass (the rest of the UI check, items 2 and 3):**
+
+- UI check, all closed: a byte-accurate upload bar (U2, XHR upload progress); one fixed lane set for the whole match, with the Coach lane once the coach has findings (U13); "almost at once after first contact" under 0.5 s via a `dry_peek.instant` template in en, pl and nl (U14); a bottom sheet on phones that shows the moment's label and key finding when collapsed, with a grab handle (tap or drag), and the transport kept on one row at 390 (U15); page titles for Upload and Processing via a title template (U17).
+- Item 2, match overview: the Studio opens on it, with the first moment paused behind it. Key facts (score from the player's own rounds, date, starting side, K/D, ADR, all from `RoundStats`), a `RoundStrip` (filled = won, outlined = lost, ▲/● under rounds with a moment, click to open the round), the coach's summary (new `match_summary.v1` job through the verifier, with an en/pl/nl template fallback), and one filled "Review moment 1: …" button. "Match overview" is the first row of the rail.
+- Item 3, review flow: "Moment N of M" with a "Next: …" line button under the explanation, `N` for the next moment, "Finish the review" after the last one. The wrap-up (new `review_wrapup.v1` job) says what went well and what to fix first, then lists one drill per mistake type from the new `data/knowledge/general/practice.md` with `[K..]` sources. Deep links: `?m=m3&t=41.5` opens a moment at a time, and the address follows the moment you are on.
+- API: `GET /matches/{id}/players/{pid}/review/summary` and `/review/wrapup`; both are written during the explaining stage and stored per language.
+- Adding `practice.md` shifts the ids of the Liquipedia passages by nine; explanations stored before this cite the old ids.
+- Still open: items 4 to 11, including the "how this was written" disclosure and feedback buttons (item 4) and the moment playback rules in item 3 (play the clip once and pause on the key tick).
+
 ## Recommendations, ordered by impact
 
 Each item lists what it touches. "API" means `apps/api`; web paths are under `apps/web/src/`.

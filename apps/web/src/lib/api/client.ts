@@ -14,6 +14,7 @@ import type {
   Moment,
   MomentExplanation,
   PatternsResponse,
+  ReviewWrapUp,
   RoundClip,
   RoundReplay,
   RoundStats,
@@ -55,11 +56,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   baseUrl: API_URL,
   health: () => request<{ status: string }>("/health"),
-  upload: (file: File) => {
-    const form = new FormData();
-    form.append("file", file);
-    return request<UploadResponse>("/matches/upload", { method: "POST", body: form });
-  },
+  /** XHR rather than fetch, because fetch cannot report upload progress. */
+  upload: (file: File, onProgress?: (sent: number, total: number) => void) =>
+    new Promise<UploadResponse>((resolve, reject) => {
+      const form = new FormData();
+      form.append("file", file);
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${API_URL}/matches/upload`);
+      xhr.responseType = "json";
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress?.(e.loaded, e.total);
+      };
+      xhr.onload = () => {
+        const body = xhr.response as (UploadResponse & { detail?: string }) | null;
+        if (xhr.status >= 200 && xhr.status < 300 && body) resolve(body);
+        else reject(new Error(body?.detail ?? (xhr.statusText || "Upload failed.")));
+      };
+      xhr.onerror = () => reject(new Error("The upload stopped. Check that the API is running."));
+      xhr.send(form);
+    }),
   getMatch: (id: string) => request<Match>(`/matches/${id}`),
   getStatus: (id: string) => request<StatusResponse>(`/matches/${id}/status`),
   getRounds: (id: string) => request<RoundSummary[]>(`/matches/${id}/rounds`),
@@ -125,6 +140,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ language }),
     }),
+  getReviewSummary: (matchId: string, playerId: string, lang: CoachLanguage) =>
+    request<MomentExplanation>(`/matches/${matchId}/players/${playerId}/review/summary?lang=${lang}`),
+  getReviewWrapUp: (matchId: string, playerId: string, lang: CoachLanguage) =>
+    request<ReviewWrapUp>(`/matches/${matchId}/players/${playerId}/review/wrapup?lang=${lang}`),
   getPlayerClips: (matchId: string, playerId: string) =>
     request<MomentClip[]>(`/matches/${matchId}/players/${playerId}/clips`),
   retryPlayerClip: (matchId: string, playerId: string, clipId: string) =>
