@@ -33,3 +33,6 @@ lerna-debug.log*
 # Testing
 coverage
 .nyc_output
+
+# QA screenshots
+qa/out
