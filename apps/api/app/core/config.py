@@ -3,6 +3,9 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+BUNDLED_FIXTURE = Path(__file__).resolve().parents[2] / "data" / "fixtures" / "sample-match.json"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="RR_", env_file=".env", extra="ignore")
 
@@ -87,7 +90,11 @@ class Settings(BaseSettings):
         return path
 
     def resolved_fixture_path(self) -> Path:
-        return self.fixture_path or (self.data_dir / "fixtures" / "sample-match.json")
+        if self.fixture_path:
+            return self.fixture_path
+        path = self.data_dir / "fixtures" / "sample-match.json"
+        # A fresh RR_DATA_DIR has no fixtures folder: use the one in the repo
+        return path if path.exists() else BUNDLED_FIXTURE
 
 
 settings = Settings()
