@@ -25,46 +25,48 @@ Sizes: S ≈ half a day, M ≈ 1–2 days, L ≈ 3–5 days. Status: `todo`, `do
 
 | ID | Task | Depends | Paths | Done when | Size | Owner | Status |
 |---|---|---|---|---|---|---|---|
-| T10 | Extended parse: events + props from plan §4.1, dense window around kills/shots | – | `apps/api/app/processing/parse_demo.py`, `normalize.py` | tests on the real sample demo; blob size increase measured and noted | M | | todo |
-| T11 | Map zones for Mirage + Anubis (callout polygons) + `zone_at(x, y)` | – | `apps/api/app/maps/zones/` | unit test: known spots map to right callouts; overlay check on radar | M | | todo |
-| T12 | `Finding` + `RoundStats` contracts (Pydantic + TS), storage in SQLite, `/matches/{id}/players/{pid}/findings` | – | `contracts.py`, `lib/contracts/`, repositories, routes | contract tests; [16](../handoff/16-DATA-CONTRACTS.md) updated with migration note | M | | todo |
-| T13 | Player selection step: `awaiting_player` state, `POST /matches/{id}/player` | T12 | pipeline, routes, contracts | state machine test; Radar still loads before selection | S | | todo |
-| T14 | Detectors D1–D5 | T10 T11 T12 | `apps/api/app/analysis/detectors/` | unit tests per detector on labelled rounds | L | | todo |
-| T15 | Detectors D6–D10 | T14 | same | unit tests; D10 yields ≥ 1 good play in most matches | L | | todo |
-| T16 | Round stats + code ranker (severity × diversity fallback) | T12 | `apps/api/app/analysis/` | tests; ranker returns 5–6 moments with mix | S | | todo |
-| T17 | Labelling tool/format + first 150 labelled rounds; κ on shared 30 | T14 | `data/labels/`, `eval/label_tool.py` | labels committed; agreement reported | M | | todo |
+| T10 | Extended parse: events + props from plan §4.1, dense window around kills/shots | – | `apps/api/app/processing/parse_demo.py`, `normalize.py` | tests on the real sample demo; blob size increase measured and noted | M | | review |
+| T11 | Map zones for Mirage + Anubis (callout polygons) + `zone_at(x, y)` | – | `apps/api/app/maps/zones/` | unit test: known spots map to right callouts; overlay check on radar | M | | review |
+| T12 | `Finding` + `RoundStats` contracts (Pydantic + TS), storage in SQLite, `/matches/{id}/players/{pid}/findings` | – | `contracts.py`, `lib/contracts/`, repositories, routes | contract tests; [16](../handoff/16-DATA-CONTRACTS.md) updated with migration note | M | | review |
+| T13 | Player selection step: `awaiting_player` state, `POST /matches/{id}/player` | T12 | pipeline, routes, contracts | state machine test; Radar still loads before selection | S | | review |
+| T14 | Detectors D1–D5 | T10 T11 T12 | `apps/api/app/analysis/detectors/` | unit tests per detector on labelled rounds | L | | review |
+| T15 | Detectors D6–D10 | T14 | same | unit tests; D10 yields ≥ 1 good play in most matches | L | | review |
+| T16 | Round stats + code ranker (severity × diversity fallback) | T12 | `apps/api/app/analysis/` | tests; ranker returns 5–6 moments with mix | S | | review |
+| T17 | Labelling tool/format + first 150 labelled rounds; κ on shared 30 | T14 | `data/labels/`, `eval/label_tool.py` | labels committed; agreement reported | M | | doing |
 
 ## Phase 2 — tools, MCP, agent
 
+Built 26 Sep 2026 in one draft PR (branch `claude/coach-phase-2-r2gzvt`, on top of phase 1). Tested with a scripted model only: the checks that need llama.cpp on the 5080 or real demos (T22 live test, T23 one real match, T25 five matches, T26 < 20 s) are still open; see [23 Agent log](../handoff/23-AGENT-LOG.md).
+
 | ID | Task | Depends | Paths | Done when | Size | Owner | Status |
 |---|---|---|---|---|---|---|---|
-| T20 | Tool functions (plan §5) with typed args and compact JSON | T12 T16 | `apps/api/app/coach/tools.py` | unit tests per tool; result sizes logged | M | | todo |
-| T21 | `cs2-demo` MCP server wrapping T20 (stdio + streamable HTTP) | T20 | `apps/mcp/` | MCP inspector lists tools; integration test calls each | M | | todo |
-| T22 | `LLMClient` (OpenAI-compatible, tools, JSON schema, streaming) | T02 | `apps/api/app/coach/llm_client.py` | test against llama.cpp; mock for CI | S | | todo |
-| T23 | Agent loop (MCP client, max steps, thinking on/off, trace logging) | T21 T22 | `apps/api/app/coach/agent.py` | traces saved as JSONL; runs one match end-to-end | M | | todo |
-| T24 | Verifier (citations, numbers, language) + repair + template fallback in en/pl/nl | T12 | `apps/api/app/coach/verify.py`, `templates/` | unit tests with good and bad answers | M | | todo |
-| T25 | Moment-selection job (`selecting` state) | T23 T24 T16 | agent prompts, pipeline | 5–6 valid moments on 5 matches; fallback path tested | M | | todo |
-| T26 | Explanation job (`explaining` state) + on-demand round endpoint | T25 | pipeline, routes | Analysis text stored per moment; on-demand round < 20 s on 5080 | M | | todo |
-| T27 | Ask endpoint over SSE, replacing mocked `services/coach.py` on the real path | T23 T24 | routes, `coach/` | streaming works; mock kept for tests | M | | todo |
+| T20 | Tool functions (plan §5) with typed args and compact JSON | T12 T16 | `apps/api/app/coach/tools.py` | unit tests per tool; result sizes logged | M | | review |
+| T21 | `cs2-demo` MCP server wrapping T20 (stdio + streamable HTTP) | T20 | `apps/mcp/` | MCP inspector lists tools; integration test calls each | M | | review |
+| T22 | `LLMClient` (OpenAI-compatible, tools, JSON schema, streaming) | T02 | `apps/api/app/coach/llm_client.py` | test against llama.cpp; mock for CI | S | | review |
+| T23 | Agent loop (MCP client, max steps, thinking on/off, trace logging) | T21 T22 | `apps/api/app/coach/agent.py` | traces saved as JSONL; runs one match end-to-end | M | | review |
+| T24 | Verifier (citations, numbers, language) + repair + template fallback in en/pl/nl | T12 | `apps/api/app/coach/verify.py`, `templates/` | unit tests with good and bad answers | M | | review |
+| T25 | Moment-selection job (`selecting` state) | T23 T24 T16 | agent prompts, pipeline | 5–6 valid moments on 5 matches; fallback path tested | M | | review |
+| T26 | Explanation job (`explaining` state) + on-demand round endpoint | T25 | pipeline, routes | Analysis text stored per moment; on-demand round < 20 s on 5080 | M | | review |
+| T27 | Ask endpoint over SSE, replacing mocked `services/coach.py` on the real path | T23 T24 | routes, `coach/` | streaming works; mock kept for tests | M | | review |
 
 ## Phase 3 — RAG
 
 | ID | Task | Depends | Paths | Done when | Size | Owner | Status |
 |---|---|---|---|---|---|---|---|
-| T30 | Knowledge base content: Mirage + Anubis notes, fundamentals, licensed excerpts with attribution | – | `data/knowledge/` | ≥ 40 sections per map; sources listed | M | | todo |
-| T31 | Ingest + index (FTS5 + sqlite-vec, bge-m3) | T30 | `apps/api/app/rag/` | re-index command; test retrieval | M | | todo |
-| T32 | `search_knowledge` + player-memory retrieval wired into tools | T31 T20 | `rag/`, `coach/tools.py` | `[K..]` citations resolve in verifier | S | | todo |
+| T30 | Knowledge base content: Mirage + Anubis notes, fundamentals, licensed excerpts with attribution | – | `data/knowledge/` | ≥ 40 sections per map; sources listed | M | | review (58 Mirage, 49 Anubis, 25 fundamentals; draft notes need an in-game check; Liquipedia via `fetch_liquipedia.py`, run locally) |
+| T31 | Ingest + index (FTS5 + sqlite-vec, bge-m3) | T30 | `apps/api/app/rag/` | re-index command; test retrieval | M | | review (FTS5 BM25 plus optional dense vectors from `RR_EMBED_URL`, fused by RRF; vectors stored in SQLite rows, not sqlite-vec yet; `python -m app.rag.index`) |
+| T32 | `search_knowledge` + player-memory retrieval wired into tools | T31 T20 | `rag/`, `coach/tools.py` | `[K..]` citations resolve in verifier | S | | review (player memory is `get_player_history`) |
 
 ## Phase 4 — clips and UI
 
 | ID | Task | Depends | Paths | Done when | Size | Owner | Status |
 |---|---|---|---|---|---|---|---|
-| T40 | CS:DM per-moment recording with focus player; queue priority; `request_clip` tool | T00 T25 | `processing/video_clips.py`, tools | real clip recorded on Windows host; timings noted | M | | todo |
-| T41 | Player picker UI on processing page | T13 | `apps/web/src/app/processing/` | screenshots at six sizes; keyboard path | S | | todo |
-| T42 | Studio moment rail (selected moments primary, all rounds secondary) | T25 | `apps/web/src/app/studio/` | screenshots; seek sync checks pass | M | | todo |
-| T43 | Panel tabs Analysis + Ask; citation tokens seek the clock | T26 T27 | Studio components | [09](../handoff/09-AI-COACH.md) rules met; overlay sync checks | M | | todo |
-| T44 | Coach lane on timeline with finding markers | T42 | timeline components | colours/shapes per decision 4 | S | | todo |
-| T45 | Language setting (en/pl/nl) end to end | T26 T27 | web settings, API param | answers in chosen language; UI copy stays English | S | | todo |
+| T40 | CS:DM per-moment recording with focus player; queue priority; `request_clip` tool | T00 T25 | `processing/video_clips.py`, tools | real clip recorded on Windows host; timings noted | M | | doing (`request_clip` tool and clip queue done; the CS:DM recorder is not connected) |
+| T41 | Player picker UI on processing page | T13 | `apps/web/src/app/processing/` | screenshots at six sizes; keyboard path | S | | review |
+| T42 | Studio moment rail (selected moments primary, all rounds secondary) | T25 | `apps/web/src/app/studio/` | screenshots; seek sync checks pass | M | | review (code ranker moments until T25) |
+| T43 | Panel tabs Analysis + Ask; citation tokens seek the clock | T26 T27 | Studio components | [09](../handoff/09-AI-COACH.md) rules met; overlay sync checks | M | | review (coach explanation per moment or round, Ask over SSE with tool steps, `[F]` `[t:]` `[m]` `[K]` tokens seek or open the passage; template answers are labelled) |
+| T44 | Coach lane on timeline with finding markers | T42 | timeline components | colours/shapes per decision 4 | S | | review |
+| T45 | Language setting (en/pl/nl) end to end | T26 T27 | web settings, API param | answers in chosen language; UI copy stays English | S | | review (set on the processing page and in the Analysis tab, stored per browser, sent with selection, explanations and Ask) |
 
 ## Phase 5 — fine-tuning and bigger model
 

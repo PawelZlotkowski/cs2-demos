@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cs2-demo-mcp"
+version = "0.1.0"
+description = "cs2-demo MCP server: the Round Reviewer coach tools over MCP (stdio and streamable HTTP)"
+requires-python = ">=3.11"
+# The tools live in the API package (apps/api/app/coach/tools.py); install it first:
+#   pip install -e apps/api -e apps/mcp
+dependencies = [
+  "round-reviewer-api",
+  "mcp>=2.2,<3",
+]
+
+[project.scripts]
+cs2-demo-mcp = "cs2_demo_mcp.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cs2_demo_mcp*"]

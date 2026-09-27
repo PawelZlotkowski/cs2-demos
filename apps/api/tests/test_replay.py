@@ -152,7 +152,7 @@ def test_real_dem_zst_e2e(client: TestClient, tmp_path, monkeypatch):
     status = client.get(f"/matches/{match_id}/status")
     assert status.status_code == 200
     body = status.json()
-    assert body["status"] == "complete", body.get("error")
+    assert body["status"] == "awaiting_player", body.get("error")
 
     match = client.get(f"/matches/{match_id}").json()
     assert match["map"] == "Mirage"

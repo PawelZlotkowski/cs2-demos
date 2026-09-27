@@ -336,6 +336,87 @@
   transform: scale(0.94);
 }
 
+.seg {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--border-soft);
+  border-radius: var(--r-ctl);
+  padding: 2px;
+  margin-left: auto;
+}
+
+.seg button {
+  position: relative;
+  z-index: 1;
+  padding: 4px 12px;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-2);
+  transition: color 160ms ease;
+}
+
+.seg button[aria-pressed="true"] {
+  color: var(--text);
+}
+
+.seg button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.seg-pill {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  background: var(--surface-raised);
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  transition: transform 200ms var(--ease-out);
+  pointer-events: none;
+}
+
+.seg.is-radar .seg-pill {
+  transform: translateX(100%);
+}
+
+.clip-progress {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.stage .surface {
+  position: absolute;
+  inset: 0;
+}
+
+.stage .surface.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.gameplay-surface {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #000;
+}
+
+.gameplay-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.gameplay-msg {
+  padding: 24px;
+}
+
 .clock {
   display: flex;
   align-items: baseline;
@@ -757,6 +838,7 @@
 
 .p-head > * {
   white-space: nowrap;
+  flex: none;
 }
 
 .p-head .lab {
@@ -767,6 +849,10 @@
   border-radius: 3px;
   padding: 1px 5px;
   margin-left: -6px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .p-head.live .lab {
@@ -775,7 +861,7 @@
 }
 
 .p-head .sp {
-  flex: 1;
+  flex: 1 1 0;
 }
 
 .insight {
@@ -993,6 +1079,193 @@
 }
 
 /* ---- Tablet: panel becomes a drawer, rounds go horizontal ---- */
+/* ---- Coach analysis: moment glyphs, rail sections, Coach lane, findings (T42-T44) ----
+   Decision 4: orange triangle = mistake, blue circle = good play; shape carries it as well as colour. */
+
+.g-mistake {
+  background: var(--negative);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.g-strength {
+  background: var(--positive);
+  border-radius: 50%;
+}
+
+.g-note {
+  border: 1.5px solid var(--text-3);
+  border-radius: 1px;
+}
+
+.rail-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.rail-scroll .moments {
+  flex: none;
+  overflow: visible;
+}
+
+.rail-sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 6px 12px 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.rail-sub span {
+  font-weight: 400;
+}
+
+/* Rounds are the secondary list once there are moments: one line each. */
+.moments.secondary .mom {
+  padding: 4px 6px;
+}
+
+.moments.secondary .mom-title {
+  font-weight: 400;
+}
+
+.moments.secondary .mom .g {
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+}
+
+.rcell .rmark {
+  position: absolute;
+  left: 50%;
+  bottom: 9px;
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
+}
+
+.lane-n.l-coach,
+.lane-t.l-coach {
+  height: calc(var(--lane-h) + 8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.lane-n.l-coach {
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.mk-ins {
+  width: auto;
+  height: 22px;
+  margin: -11px 0 0 -9px;
+  padding: 0 7px 0 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.mk-ins .g {
+  width: 9px;
+  height: 9px;
+}
+
+.mk-ins.live {
+  border-color: var(--text);
+  background: var(--surface-raised);
+  z-index: 3;
+}
+
+.find-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+}
+
+.find-row {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 7px 4px;
+  border-top: 1px solid var(--border-soft);
+  align-items: start;
+}
+
+.find-row .g {
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+}
+
+.find-row b {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.find-row .ev-v {
+  color: var(--text-2);
+}
+
+.find-row p {
+  grid-column: 2 / -1;
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.4;
+}
+
+.find-row.linked {
+  background: var(--border-soft);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .find-row:hover {
+    background: var(--border-soft);
+  }
+}
+
+.cite {
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 2px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 6px 0 0;
+}
+
+.stat-grid div {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-grid dt {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.stat-grid dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 1180px) {
   .studio,
   .studio.panel-off {
@@ -1017,6 +1290,32 @@
   }
 
   .rail-h {
+    display: none;
+  }
+
+  .rail-scroll {
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .rail-scroll .moments {
+    overflow: visible;
+  }
+
+  .rail-sub {
+    flex: none;
+    margin: 0 4px;
+    padding: 0 0 0 10px;
+    border-top: 0;
+    border-left: 1px solid var(--border);
+    align-self: stretch;
+    align-items: center;
+  }
+
+  .rail-sub span {
     display: none;
   }
 
@@ -1312,4 +1611,75 @@
   .field {
     font-size: 16px;
   }
+}
+
+/* Coach explanation in the Analysis tab (T43): the Coach's voice, so Newsreader. */
+.coach-expl-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lang-pick select,
+.lang-row select {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-2);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  padding: 1px 4px;
+}
+
+.lang-pick select:focus-visible,
+.lang-row select:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 0;
+}
+
+.coach-expl .expl {
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 2px 0 4px;
+}
+
+.coach-expl .err {
+  color: var(--negative);
+}
+
+.expl-note,
+.qa .aa-note {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+/* A [K7] citation opens the passage it came from. */
+.k-passage {
+  display: block;
+  margin: 6px 0;
+  padding: 6px 10px;
+  border-left: 2px solid var(--border);
+  font-family: var(--ui);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.k-passage b {
+  display: block;
+  color: var(--text);
+}
+
+.k-passage .k-text {
+  display: block;
+  white-space: pre-line;
+}
+
+.k-passage .k-src {
+  display: block;
+  color: var(--text-3);
+  margin-top: 2px;
 }

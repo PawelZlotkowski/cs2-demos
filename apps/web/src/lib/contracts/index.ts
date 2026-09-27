@@ -8,13 +8,23 @@ export type MatchStatus =
   | "decompressed"
   | "parsing"
   | "normalizing"
-  | "reconstructing"
+  | "awaiting_player"
   | "detecting"
-  | "ranking"
-  | "rendering"
-  | "analyzing"
+  | "selecting"
+  | "recording"
+  | "explaining"
   | "complete"
   | "failed";
+
+/** Statuses in which round replays exist and the Radar can load. */
+export const REPLAY_READY_STATUSES: ReadonlySet<MatchStatus> = new Set<MatchStatus>([
+  "awaiting_player",
+  "detecting",
+  "selecting",
+  "recording",
+  "explaining",
+  "complete",
+]);
 
 export type MomentKind = "mistake" | "strength" | "opportunity";
 export type Side = "T" | "CT";
@@ -48,6 +58,7 @@ export interface Match {
   mapName?: string | null;
   tickRate?: number | null;
   players?: ReplayPlayer[] | null;
+  selectedPlayerId?: string | null;
 }
 
 export interface ReplayPlayer {
@@ -64,11 +75,33 @@ export interface ProcessingStage {
   progress?: { done: number; total: number } | null;
 }
 
+export type ClipStatus = "queued" | "recording" | "ready" | "failed" | "skipped";
+
+export interface RoundClip {
+  roundId: string;
+  status: ClipStatus;
+  url?: string | null;
+  startTick: number;
+  endTick: number;
+  durationSec: number;
+  focusSteamid?: string | null;
+  error?: string | null;
+}
+
+export interface ClipManifest {
+  matchId: string;
+  focusSteamid?: string | null;
+  clips: RoundClip[];
+  done: number;
+  total: number;
+}
+
 export interface StatusResponse {
   id: string;
   status: MatchStatus;
   stages: ProcessingStage[];
   error?: string | null;
+  clips?: ClipManifest | null;
 }
 
 export interface Track {
@@ -152,14 +185,131 @@ export interface RadarState {
   players: Record<string, unknown>[];
 }
 
+// --- Coach analysis (AI Coach plan §4.4) ---
+
+export type FindingKind = "mistake" | "good" | "context" | "pattern";
+
+/** What happened, stated by a detector (ENGINE). */
 export interface Finding {
-  id: string;
-  type: string;
+  id: string; // "F12", unique within a match + player
+  detector: string;
+  kind: FindingKind;
   round: number;
+  t: number; // round clock seconds, same clock as the replay
   tick: number;
-  clipTime?: number;
-  players: string[];
-  metrics: Record<string, number | string>;
+  playerId: string;
+  otherIds: string[];
+  zone?: string | null;
+  severity: number; // 0..1
+  evidence: Record<string, number | string>;
+  summary: string; // templated English fallback
+  template: string;
+}
+
+export interface RoundStats {
+  round: number;
+  playerId: string;
+  side?: Side | null;
+  won?: boolean | null;
+  kills: number;
+  deaths: number;
+  assists: number;
+  flashAssists: number;
+  headshotKills: number;
+  damage: number;
+  utilityDamage: number;
+  utilityThrown: number;
+  enemiesFlashed: number;
+  teammatesFlashed: number;
+  moneyStart?: number | null;
+  equipValue?: number | null;
+  survived: boolean;
+  openingKill: boolean;
+  openingDeath: boolean;
+  tradeKills: number;
+  deathTraded?: boolean | null;
+  timeAliveS?: number | null;
+}
+
+export interface SelectedMoment {
+  id: string; // "m1"
+  round: number;
+  t0: number;
+  t1: number;
+  findingIds: string[];
+  kind: "mistake" | "good";
+  pickedBecause: string;
+  score?: number | null;
+  source: "ranker" | "agent";
+}
+
+export type CoachLanguage = "en" | "pl" | "nl";
+
+export interface PlayerSelectRequest {
+  playerId: string;
+  /** Language the stored explanations are written in (default "en"). */
+  language?: CoachLanguage;
+}
+
+/** Analysis-tab text for a moment ("m3") or an on-demand round ("r12"). */
+export interface MomentExplanation {
+  target: string;
+  lang: CoachLanguage;
+  text: string; // with [F..] [t:..] [m..] [K..] tokens
+  citations: string[];
+  findingIds: string[];
+  /** "agent": model text that passed the verifier; "template": finding templates. */
+  source: "agent" | "template";
+  verifierErrors: string[];
+  model?: string | null;
+  promptVersion?: string | null;
+}
+
+export interface ExplainRequest {
+  language?: CoachLanguage;
+}
+
+/** Ask tab question with the Studio's context line. */
+export interface AskRequest {
+  question: string;
+  language?: CoachLanguage;
+  round?: number | null;
+  t?: number | null;
+  momentId?: string | null;
+  view?: StageView | null;
+}
+
+/** Server-sent events of POST /matches/{id}/players/{pid}/ask. */
+export type AskEvent =
+  | { event: "step"; data: { tool: string; ms: number; error: string | null } }
+  | {
+      event: "answer";
+      data: { answer: string; citations: string[]; source: "agent" | "template"; verified: boolean };
+    }
+  | { event: "error"; data: { detail: string } };
+
+export interface KnowledgePassage {
+  id: string; // "K7"
+  title: string;
+  map: string;
+  source: string;
+  text: string;
+}
+
+export interface ClipJob {
+  clipJobId: string;
+  round: number;
+  t0: number;
+  t1: number;
+  status: string;
+}
+
+export interface PlayerAnalysis {
+  matchId: string;
+  playerId: string;
+  findings: Finding[];
+  roundStats: RoundStats[];
+  moments: SelectedMoment[];
 }
 
 export interface CoachRequest {
@@ -207,6 +357,7 @@ export interface RoundSummary {
   startTick: number;
   endTick: number;
   durationSec: number;
+  clip?: RoundClip | null;
 }
 
 export interface ReplayEventPos {
@@ -257,6 +408,7 @@ export interface RoundReplay {
   players: ReplayPlayer[];
   samples: ReplaySample[];
   events: ReplayEvent[];
+  clip?: RoundClip | null;
 }
 
 export interface EventsPage {

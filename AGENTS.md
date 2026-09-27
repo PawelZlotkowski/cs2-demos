@@ -1,31 +1,32 @@
 # Agent guide — Round Reviewer
 
 British spelling. Handoff docs in `docs/handoff/` are the source of truth for product/design.
-**Demo Replay MVP:** landed — real `.dem.zst` → demoparser2 → Radar playback. See [docs/replay-architecture.md](docs/replay-architecture.md), [docs/demo-parser.md](docs/demo-parser.md), and [docs/handoff/18-CURRENT-STATE.md](docs/handoff/18-CURRENT-STATE.md).
+**Demo Replay MVP:** landed — real `.dem.zst` → demoparser2 → Radar playback. See [docs/replay/replay-architecture.md](docs/replay/replay-architecture.md), [docs/replay/demo-parser.md](docs/replay/demo-parser.md), and [docs/handoff/18-CURRENT-STATE.md](docs/handoff/18-CURRENT-STATE.md).
+**Gameplay clips:** optional CS Demo Manager / stub worker after parse — [docs/replay/csdm-video.md](docs/replay/csdm-video.md). Radar ready first; clips fill asynchronously.
 **Current milestone (kicked off 26 Sep 2026): AI Coach.** Detectors → findings → LLM moment selection → CS:DM clips → Analysis/Ask with a self-hosted Qwen3-14B agent (tools via MCP, RAG, verifier, later QLoRA fine-tuning). Plan: [docs/coach/AI-COACH-PLAN.md](docs/coach/AI-COACH-PLAN.md) · tasks: [docs/coach/TASKS.md](docs/coach/TASKS.md) · proposal: [docs/coach/PROPOSAL.md](docs/coach/PROPOSAL.md). Work only on tasks the owner assigned.
 
 ## Monorepo layout
 
 | Path | Owner | Purpose |
 |---|---|---|
-| `apps/web/` | Demo Replay + Frontend | Next.js App Router — upload, processing, **Radar replay studio** |
-| `apps/api/` | Demo Replay + FastAPI | Real zstd/demoparser2 pipeline + replay APIs |
+| `apps/web/` | Demo Replay + Frontend | Next.js App Router — upload, processing, **Radar / Gameplay studio** |
+| `apps/api/` | Demo Replay + FastAPI | Real zstd/demoparser2 pipeline + replay + clip APIs |
+| `docs/` | All agents | Index of every doc: [docs/README.md](docs/README.md) |
+| `docs/replay/csdm-video.md` | Demo Replay | CS:DM worker, env, storage |
 | `apps/tracker/` | Owner | Coach task board (Vercel) seeded from `docs/coach/TASKS.md` |
-| `packages/shared/` | Foundation | Shared JSON fixtures (moments stub) |
 | `docs/handoff/` | All agents (read-first) | Product, design, contracts, decisions |
-| `docs/demo-parser.md` | Demo Replay | Parser research |
-| `docs/replay-architecture.md` | Demo Replay | Time model, sampling, API, persistence |
+| `docs/replay/` | Demo Replay | Parser research, time model, sampling, API, persistence, performance |
 | `docs/coach/` | AI Coach (read-first for this milestone) | Plan, task board, school proposal |
-| `apps/api/app/analysis/` | AI Coach (planned) | Extended parse helpers, detectors, zones, round stats |
-| `apps/api/app/coach/` | AI Coach (planned) | LLM client, agent loop, tools, verifier, prompts |
+| `apps/api/app/analysis/` | AI Coach | Analysis extract, detectors D1–D10, round stats, code ranker |
+| `apps/api/app/coach/` | AI Coach | LLM client, agent loop, tools, MCP server factory, verifier, prompts, jobs |
 | `apps/api/app/rag/` | AI Coach (planned) | Knowledge ingest, hybrid index, retrieval |
-| `apps/mcp/` | AI Coach (planned) | `cs2-demo` MCP server wrapping `coach/tools.py` |
+| `apps/mcp/` | AI Coach | `python -m cs2_demo_mcp` entry point for the `cs2-demo` MCP server (stdio / HTTP) |
 | `ml/` | AI Coach (planned) | llama.cpp serving notes, fine-tuning (QLoRA) |
 | `eval/` | AI Coach (planned) | Evaluation datasets, runner, reports |
-| `data/knowledge/`, `data/labels/` | AI Coach (planned) | RAG sources and hand labels (never raw demos) |
-| `prototype/` | Reference only | Analysis Studio HTML — do not port wholesale |
-| `tools/qa/` | Agent E (QA) | Playwright / overlay sync / smoke |
-| `tests/` | Agent E | Cross-cutting / e2e placeholders |
+| `apps/api/app/maps/zones/` | AI Coach | Callout polygons per map + `zone_at` |
+| `data/knowledge/`, `data/labels/` | AI Coach (labels format landed) | RAG sources and hand labels (never raw demos) |
+| `prototype/` | Reference only | Analysis Studio HTML — do not port wholesale. `qa/` holds its Playwright checks, `fixtures/` the sample match it was extracted into |
+| `tools/` | Dev scripts | `zones_overlay.py` redraws the zone overlays in `docs/coach/zones/` |
 | `docker/` | Infra | Dockerfiles; root [`compose.yaml`](compose.yaml) runs api + web |
 
 ## Contract ownership
@@ -38,9 +39,9 @@ British spelling. Handoff docs in `docs/handoff/` are the source of truth for pr
 
 ## Processing states (replay)
 
-Current: `uploaded` → `decompressing` → `decompressed` → `parsing` → `normalizing` → `complete` | `failed`
+Current: `uploaded` → `decompressing` → `decompressed` → `parsing` → `normalizing` → `awaiting_player` → `detecting` → `complete` | `failed`. Radar works from `awaiting_player`.
 
-Planned for the coach (plan §3): `… → normalizing` → `awaiting_player` → `detecting` → `selecting` → `recording` → `explaining` → `complete` | `failed`. Radar works from `awaiting_player`; clips may finish after `explaining`.
+Planned for the coach (plan §3): `detecting` → `selecting` → `recording` → `explaining` → `complete`. Clips may finish after `explaining`.
 
 ## Design direction (preserve)
 

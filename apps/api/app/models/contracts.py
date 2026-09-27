@@ -3,7 +3,7 @@
 Canonical shapes for Round Reviewer. Keep in sync with:
 - docs/handoff/16-DATA-CONTRACTS.md
 - apps/web/src/lib/contracts/
-- packages/shared/fixtures/sample-match.json
+- apps/api/data/fixtures/sample-match.json (source: prototype/fixtures/)
 """
 
 from __future__ import annotations
@@ -28,21 +28,38 @@ class CamelModel(BaseModel):
 
 
 class MatchStatus(str, Enum):
-    """Replay MVP stages (+ legacy coaching stubs kept for unused routes)."""
+    """Replay stages, then the coach stages (AI Coach plan §3).
+
+    Radar is usable from ``awaiting_player`` on. ``selecting``, ``recording`` and
+    ``explaining`` are reserved for phase 2 and 4; today ``detecting`` goes
+    straight to ``complete`` with the code ranker's moments.
+    """
 
     uploaded = "uploaded"
     decompressing = "decompressing"
     decompressed = "decompressed"
     parsing = "parsing"
     normalizing = "normalizing"
-    # Legacy analysis stubs (unused by real replay pipeline)
-    reconstructing = "reconstructing"
+    awaiting_player = "awaiting_player"
     detecting = "detecting"
-    ranking = "ranking"
-    rendering = "rendering"
-    analyzing = "analyzing"
+    selecting = "selecting"
+    recording = "recording"
+    explaining = "explaining"
     complete = "complete"
     failed = "failed"
+
+
+# Statuses in which round replays exist and the Radar can load
+REPLAY_READY_STATUSES = frozenset(
+    {
+        MatchStatus.awaiting_player,
+        MatchStatus.detecting,
+        MatchStatus.selecting,
+        MatchStatus.recording,
+        MatchStatus.explaining,
+        MatchStatus.complete,
+    }
+)
 
 
 class MomentKind(str, Enum):
@@ -119,6 +136,7 @@ class Match(CamelModel):
     map_name: str | None = Field(None, alias="mapName")
     tick_rate: int | None = Field(None, alias="tickRate")
     players: list[ReplayPlayer] | None = None
+    selected_player_id: str | None = Field(None, alias="selectedPlayerId")
 
 
 class ProcessingStage(CamelModel):
@@ -145,11 +163,39 @@ class MatchSummary(CamelModel):
     stages: list[ProcessingStage] | None = None
 
 
+class ClipStatus(str, Enum):
+    queued = "queued"
+    recording = "recording"
+    ready = "ready"
+    failed = "failed"
+    skipped = "skipped"
+
+
+class RoundClip(CamelModel):
+    round_id: str = Field(alias="roundId")
+    status: ClipStatus
+    url: str | None = None
+    start_tick: int = Field(alias="startTick")
+    end_tick: int = Field(alias="endTick")
+    duration_sec: float = Field(alias="durationSec")
+    focus_steamid: str | None = Field(None, alias="focusSteamid")
+    error: str | None = None
+
+
+class ClipManifest(CamelModel):
+    match_id: str = Field(alias="matchId")
+    focus_steamid: str | None = Field(None, alias="focusSteamid")
+    clips: list[RoundClip]
+    done: int = 0
+    total: int = 0
+
+
 class StatusResponse(CamelModel):
     id: str
     status: MatchStatus
     stages: list[ProcessingStage]
     error: str | None = None
+    clips: ClipManifest | None = None
 
 
 # --- Tracks / overlays ---
@@ -384,14 +430,128 @@ class TimelineEvent(CamelModel):
     finding_id: str | None = Field(None, alias="findingId")
 
 
+# --- Coach analysis (AI Coach plan §4.4) ---
+
+FindingKind = Literal["mistake", "good", "context", "pattern"]
+
+
 class Finding(CamelModel):
-    id: str
-    type: str
+    """What happened, stated by a detector. ENGINE provenance.
+
+    ``evidence`` holds every number a sentence may quote; the LLM may not
+    introduce numbers that are not here or in ``RoundStats``.
+    """
+
+    id: str  # "F12", unique within a match + player
+    detector: str  # module name, e.g. "untraded_death"
+    kind: FindingKind
     round: int
+    t: float  # round clock seconds, same clock as the replay
     tick: int
-    clip_time: float | None = Field(None, alias="clipTime")
-    players: list[str] = Field(default_factory=list)
-    metrics: dict[str, Union[int, float, str]] = Field(default_factory=dict)
+    player_id: str = Field(alias="playerId")
+    other_ids: list[str] = Field(default_factory=list, alias="otherIds")
+    zone: str | None = None
+    severity: float = Field(ge=0.0, le=1.0)
+    evidence: dict[str, Union[int, float, str]] = Field(default_factory=dict)
+    summary: str  # templated English sentence, the no-LLM fallback
+    template: str  # key in coach/templates/findings.<lang>.json (pl/nl fallback)
+
+
+class RoundStats(CamelModel):
+    """Per-round numbers for the coached player, computed in code."""
+
+    round: int
+    player_id: str = Field(alias="playerId")
+    side: Side | None = None
+    won: bool | None = None
+    kills: int = 0
+    deaths: int = 0
+    assists: int = 0
+    flash_assists: int = Field(0, alias="flashAssists")
+    headshot_kills: int = Field(0, alias="headshotKills")
+    damage: int = 0
+    utility_damage: int = Field(0, alias="utilityDamage")
+    utility_thrown: int = Field(0, alias="utilityThrown")
+    enemies_flashed: int = Field(0, alias="enemiesFlashed")
+    teammates_flashed: int = Field(0, alias="teammatesFlashed")
+    money_start: int | None = Field(None, alias="moneyStart")
+    equip_value: int | None = Field(None, alias="equipValue")
+    survived: bool = True
+    opening_kill: bool = Field(False, alias="openingKill")
+    opening_death: bool = Field(False, alias="openingDeath")
+    trade_kills: int = Field(0, alias="tradeKills")
+    death_traded: bool | None = Field(None, alias="deathTraded")
+    time_alive_s: float | None = Field(None, alias="timeAliveS")
+
+
+class SelectedMoment(CamelModel):
+    """One of the 5–6 moments for a player (plan §6.2).
+
+    ``source`` is ``ranker`` for the code fallback; the phase 2 agent writes
+    ``agent``. ``t0``/``t1`` are round clock seconds.
+    """
+
+    id: str  # "m1"
+    round: int
+    t0: float
+    t1: float
+    finding_ids: list[str] = Field(alias="findingIds")
+    kind: Literal["mistake", "good"]
+    picked_because: str = Field(alias="pickedBecause")
+    score: float | None = None
+    source: Literal["ranker", "agent"] = "ranker"
+
+
+CoachLanguage = Literal["en", "pl", "nl"]
+
+
+class PlayerSelectRequest(CamelModel):
+    player_id: str = Field(alias="playerId")
+    # Language of the stored explanations (plan §6.4); the UI copy stays English
+    language: CoachLanguage = "en"
+
+
+class MomentExplanation(CamelModel):
+    """Analysis-tab text for one moment ("m3") or an on-demand round ("r12").
+
+    ``source`` is ``agent`` when the model's text passed the verifier, and
+    ``template`` when it fell back to the finding templates (plan §6.3).
+    """
+
+    target: str
+    lang: CoachLanguage
+    text: str
+    citations: list[str] = Field(default_factory=list)
+    finding_ids: list[str] = Field(default_factory=list, alias="findingIds")
+    source: Literal["agent", "template"]
+    verifier_errors: list[str] = Field(default_factory=list, alias="verifierErrors")
+    model: str | None = None
+    prompt_version: str | None = Field(None, alias="promptVersion")
+
+
+class ExplainRequest(CamelModel):
+    language: CoachLanguage = "en"
+
+
+class AskRequest(CamelModel):
+    """Ask tab question with the Studio's context line (plan §6.2 job 3)."""
+
+    question: str = Field(min_length=1, max_length=500)
+    language: CoachLanguage = "en"
+    round: int | None = None
+    t: float | None = None
+    moment_id: str | None = Field(None, alias="momentId")
+    view: StageView | None = None
+
+
+class PlayerAnalysis(CamelModel):
+    """Everything the analysis layer produced for one player in one match."""
+
+    match_id: str = Field(alias="matchId")
+    player_id: str = Field(alias="playerId")
+    findings: list[Finding]
+    round_stats: list[RoundStats] = Field(alias="roundStats")
+    moments: list[SelectedMoment]
 
 
 # --- Coach / personalisation ---
@@ -461,6 +621,7 @@ class RoundSummary(CamelModel):
     start_tick: int = Field(alias="startTick")
     end_tick: int = Field(alias="endTick")
     duration_sec: float = Field(alias="durationSec")
+    clip: RoundClip | None = None
 
 
 class ReplayEventPos(CamelModel):
@@ -511,6 +672,7 @@ class RoundReplay(CamelModel):
     players: list[ReplayPlayer]
     samples: list[ReplaySample]
     events: list[ReplayEvent]
+    clip: RoundClip | None = None
 
 
 class EventsPage(CamelModel):

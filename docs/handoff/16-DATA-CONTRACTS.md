@@ -108,7 +108,28 @@ The `insight` events carry the moment `label`. The linked "live" state matches `
 
 ## Findings (engine, planned contract)
 
-**Superseded (26 Sep 2026):** the planned contract is in the [AI Coach plan §4.4](../coach/AI-COACH-PLAN.md#44-finding-contract) (Pydantic `Finding` with `evidence`, `severity`, `zone`, `summary`, plus `RoundStats`). Implementing it needs a migration note here. The older sketch below is kept for history.
+**Superseded (26 Sep 2026):** the planned contract is in the [AI Coach plan §4.4](../coach/AI-COACH-PLAN.md#44-finding-contract) (Pydantic `Finding` with `evidence`, `severity`, `zone`, `summary`, plus `RoundStats`). The older sketch below is kept for history.
+
+### Migration note (task T12, 26 Sep 2026)
+
+Implemented in `apps/api/app/models/contracts.py`, mirrored in `apps/web/src/lib/contracts/index.ts`.
+
+- **`Finding` replaced.** Old fields → new: `type` → `detector` (plus `kind`); `clipTime` → `t` (round clock seconds, the replay clock; clip time is derived per moment); `players` → `playerId` + `otherIds`; `metrics` → `evidence`. New: `zone`, `severity` (0..1), `summary` (English template), `template` (key of the en/pl/nl summary template, used for the fallback text). Nothing read the old model, so no data migration.
+- **New:** `RoundStats` (per round, coached player), `SelectedMoment` (`id`, `round`, `t0`, `t1`, `findingIds`, `kind`, `pickedBecause`, `score`, `source` = `ranker` | `agent`), `PlayerSelectRequest`, `PlayerAnalysis`. `Match.selectedPlayerId`.
+- **`MatchStatus`:** removed the unused legacy stubs `reconstructing`, `ranking`, `rendering`, `analyzing`; added `awaiting_player`, `selecting`, `recording`, `explaining` (plan §3). `REPLAY_READY_STATUSES` (both languages) lists the statuses in which the Radar can load.
+- **Provenance:** `Finding` and `RoundStats` are ENGINE; `SelectedMoment` is DERIVED when `source` is `ranker`, LLM-chosen (verified) when `agent`.
+- **Storage:** SQLite `findings`, `round_stats`, `moments`, `match_players` in `matches.db`; parse output for the detectors in `data/matches/<id>/analysis.json` (not served to the browser).
+- **Routes:** `POST /matches/{id}/player`, `GET /matches/{id}/players/{pid}/findings?round=&kind=&detector=`, `…/round-stats`, `…/moments`.
+
+### Migration note (tasks T24–T27, 26 Sep 2026)
+
+Pydantic only in `contracts.py`; the TypeScript mirror is left for the UI tasks (T42, T43, T45), because phase 2 did not touch `apps/web`.
+
+- **New:** `CoachLanguage` (`en` | `pl` | `nl`), `MomentExplanation` (`target` = `m3` or `r12`, `lang`, `text` with citation tokens, `citations`, `findingIds`, `source` = `agent` | `template`, `verifierErrors`, `model`, `promptVersion`), `ExplainRequest` (`language`), `AskRequest` (`question`, `language`, `round?`, `t?`, `momentId?`, `view?`).
+- **Changed:** `PlayerSelectRequest.language` (optional, default `en`): the language the stored explanations are written in.
+- **Provenance:** `MomentExplanation` with `source: agent` is LLM text that passed the verifier; `template` is the finding templates (ENGINE numbers, fixed wording).
+- **Storage:** SQLite `explanations` (match, player, target, lang). The agent's picks replace the ranker's rows in `moments` (`source: agent`) and clear the moment explanations.
+- **Routes:** `GET /matches/{id}/players/{pid}/moments/{mid}/explanation?lang=`, `POST …/rounds/{n}/explain` (`?refresh=true` to rewrite), `POST …/ask` (server-sent events: `step` per tool call, then one `answer` `{answer, citations, source, verified}`; `error` on failure). The legacy mocked `POST /matches/{id}/coach` is unchanged.
 
 According to project history, `cs2coach` detectors emit evidence-linked findings with IDs such as `F12` in `report.json`. Their exact schema is **unknown** (not inspected). Minimum needs of this UI:
 

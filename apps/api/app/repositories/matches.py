@@ -12,16 +12,9 @@ from typing import Any
 
 from app.core.config import settings
 from app.models.contracts import MatchStatus
+from app.repositories.analysis import AnalysisRepository
 
-
-PIPELINE_ORDER: list[MatchStatus] = [
-    MatchStatus.uploaded,
-    MatchStatus.decompressing,
-    MatchStatus.decompressed,
-    MatchStatus.parsing,
-    MatchStatus.normalizing,
-    MatchStatus.complete,
-]
+ANALYSIS_FILE = "analysis.json"
 
 STAGE_LABELS: dict[MatchStatus, str] = {
     MatchStatus.uploaded: "Upload received",
@@ -29,11 +22,11 @@ STAGE_LABELS: dict[MatchStatus, str] = {
     MatchStatus.decompressed: "Decompressed",
     MatchStatus.parsing: "Parse demo",
     MatchStatus.normalizing: "Normalise replay",
-    MatchStatus.reconstructing: "Reconstruct rounds",
-    MatchStatus.detecting: "Detect events",
-    MatchStatus.ranking: "Rank moments",
-    MatchStatus.rendering: "Render clips",
-    MatchStatus.analyzing: "Write explanations",
+    MatchStatus.awaiting_player: "Choose a player",
+    MatchStatus.detecting: "Find mistakes and good plays",
+    MatchStatus.selecting: "Pick moments",
+    MatchStatus.recording: "Record clips",
+    MatchStatus.explaining: "Write explanations",
     MatchStatus.complete: "Complete",
     MatchStatus.failed: "Failed",
 }
@@ -50,6 +43,7 @@ class MatchRepository:
         self._records: dict[str, dict[str, Any]] = {}
         self._fixture = self._load_fixture()
         self._init_db()
+        self.analysis = AnalysisRepository(self.db_path)
         self._seed_sample()
         self._hydrate_from_disk()
 
@@ -80,11 +74,13 @@ class MatchRepository:
                 )
                 match = payload.get("match") or {}
                 match["id"] = match_id
-                match["status"] = MatchStatus.complete.value
+                status = self._restored_status(match_dir, match_id)
+                match["status"] = status.value
+                match["selectedPlayerId"] = self.analysis.get_player(match_id)
                 record = {
                     "id": match_id,
                     "filename": f"{match_id}.dem.zst",
-                    "status": MatchStatus.complete,
+                    "status": status,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "error": None,
                     "match": match,
@@ -104,6 +100,15 @@ class MatchRepository:
                     self._upsert_row(record)
             except (OSError, json.JSONDecodeError, TypeError, ValueError):
                 continue
+
+    def _restored_status(self, match_dir: Path, match_id: str) -> MatchStatus:
+        """Matches parsed before the coach milestone have no analysis.json."""
+        if not (match_dir / ANALYSIS_FILE).exists():
+            return MatchStatus.complete
+        player = self.analysis.get_player(match_id)
+        if player and self.analysis.has_analysis(match_id, player):
+            return MatchStatus.complete
+        return MatchStatus.awaiting_player
 
     def _init_db(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
@@ -231,13 +236,24 @@ class MatchRepository:
         round_replays = normalised["round_replays"]
         perf = normalised.get("perf")
 
+        (out_dir / "events.json").write_text(json.dumps(events), encoding="utf-8")
+        replay_bytes = 0
+        for rid, replay in round_replays.items():
+            blob = json.dumps(replay)
+            replay_bytes += len(blob.encode("utf-8"))
+            (rounds_dir / f"{rid}.json").write_text(blob, encoding="utf-8")
+        analysis = normalised.get("analysis")
+        if analysis is not None:
+            blob = json.dumps(analysis, separators=(",", ":"))
+            (out_dir / ANALYSIS_FILE).write_text(blob, encoding="utf-8")
+            if perf is not None:
+                # Replay blobs are unchanged by the coach parse; analysis data is separate
+                perf["replayBytes"] = replay_bytes
+                perf["analysisBytes"] = len(blob.encode("utf-8"))
         (out_dir / "match.json").write_text(
             json.dumps({"match": match, "rounds": rounds, "perf": perf}, indent=2),
             encoding="utf-8",
         )
-        (out_dir / "events.json").write_text(json.dumps(events), encoding="utf-8")
-        for rid, replay in round_replays.items():
-            (rounds_dir / f"{rid}.json").write_text(json.dumps(replay), encoding="utf-8")
 
         with self._lock:
             record = self._records.get(match_id)
@@ -265,6 +281,27 @@ class MatchRepository:
         if path.exists():
             return json.loads(path.read_text(encoding="utf-8"))
         return None
+
+    def has_analysis_input(self, match_id: str) -> bool:
+        return (self.matches_dir / match_id / ANALYSIS_FILE).exists()
+
+    def load_analysis_input(self, match_id: str) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+        """``analysis.json`` plus every round replay blob, for ``build_match_data``."""
+        analysis = json.loads((self.matches_dir / match_id / ANALYSIS_FILE).read_text(encoding="utf-8"))
+        replays: dict[str, dict[str, Any]] = {}
+        for r in analysis.get("rounds") or []:
+            rid = f"r{r['number']}"
+            replay = self.get_round_replay(match_id, rid)
+            if replay:
+                replays[rid] = replay
+        return analysis, replays
+
+    def set_selected_player(self, match_id: str, player_id: str) -> None:
+        self.analysis.set_player(match_id, player_id)
+        with self._lock:
+            record = self._records.get(match_id)
+            if record:
+                record["match"]["selectedPlayerId"] = player_id
 
     def get(self, match_id: str) -> dict[str, Any] | None:
         with self._lock:

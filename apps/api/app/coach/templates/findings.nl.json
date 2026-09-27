@@ -1,0 +1,23 @@
+{
+ "_unknown_zone": "een naamloze plek",
+ "untraded_death": "Ging dood door {killerName} op {zone} en werd niet binnen {tradeWindowS} s getradet; de dichtstbijzijnde van {teammatesAlive} levende teamgenoten was {nearestTeammateM} m weg.",
+ "untraded_death.no_positions": "Ging dood door {killerName} op {zone} en werd niet binnen {tradeWindowS} s getradet terwijl {teammatesAlive} teamgenoten nog leefden.",
+ "shot_while_moving": "Schoot {movingShots} van {shots} kogels met de {weapon} in beweging, tot {speedUps} u/s, op {zone}; nauwkeurige snelheid is {accurateSpeedUps} u/s.",
+ "unused_utility": "Ging dood op {zone} na {timeAliveS} s met {grenadesUnused} ongebruikte granaten ({grenadeList}).",
+ "dry_peek": "Ging dood door {killerName} op {zone} {timeToDeathS} s na het eerste contact, zonder flash of smoke van het team voor het gevecht.",
+ "team_flash": "Eigen flash verblindde {teammatesBlinded} teamgenoten op {zone} (langste {longestBlindS} s) en {enemiesBlinded} tegenstanders.",
+ "team_flash.self": "Eigen flash verblindde de speler {longestBlindS} s op {zone} en {enemiesBlinded} tegenstanders.",
+ "opening_duel.won": "Won het openingsduel tegen {opponentName} op {zone} met de {weapon}.",
+ "opening_duel.lost": "Verloor het openingsduel van {opponentName} op {zone}.",
+ "economy_mismatch.saved_on_buy": "Begon ronde {round} met {equipValue} aan uitrusting en {balance} niet uitgegeven terwijl de teammediaan {teamMedianEquip} was.",
+ "economy_mismatch.forced_on_save": "Kocht {equipValue} aan uitrusting in ronde {round} terwijl de teammediaan {teamMedianEquip} was.",
+ "late_rotation": "Bereikte {site} {arrivalS} s na de plant, {delayS} s later dan de teammediaan van {teamMedianArrivalS} s.",
+ "late_rotation.never": "Bereikte {site} niet na de plant; teamgenoten kwamen aan na een mediaan van {teamMedianArrivalS} s.",
+ "repeated_death_zone": "Ging deze match {deathsInZone} keer dood op {zone} (rondes {rounds}).",
+ "good_plays.trade_kill": "Tradede {tradedName} door {victimName} {tradeTimeS} s later te doden op {zone}.",
+ "good_plays.entry_kill": "Opende de ronde door {victimName} te doden op {zone} met de {weapon}.",
+ "good_plays.multi_kill": "Maakte {kills} kills in {spanS} s, de laatste op {zone}.",
+ "good_plays.clutch": "Won de ronde als laatste levende speler tegen {enemiesAlive} tegenstanders, met {killsInClutch} kills.",
+ "good_plays.flash_assist": "Flashte {victimName} voor de kill van {killerName} op {zone}.",
+ "good_plays.utility_damage": "Deed {utilityDamage} granaat- en vuurschade aan {enemiesHit} tegenstanders."
+}

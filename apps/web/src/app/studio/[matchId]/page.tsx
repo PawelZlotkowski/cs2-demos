@@ -13,7 +13,19 @@ import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api/client";
-import type { Match, ReplayPlayer, RoundReplay, RoundSummary } from "@/lib/contracts";
+import {
+  REPLAY_READY_STATUSES,
+  type ClipManifest,
+  type Finding,
+  type Match,
+  type ReplayPlayer,
+  type RoundClip,
+  type RoundReplay,
+  type RoundStats,
+  type RoundSummary,
+  type SelectedMoment,
+  type StageView,
+} from "@/lib/contracts";
 import { usePlaybackClock, type PlaybackRate } from "@/lib/replay/usePlaybackClock";
 import { interpolateAt, samplesHaveRadarCoords } from "@/lib/replay/interpolate";
 import { getMapMeta } from "@/lib/replay/maps";
@@ -32,10 +44,22 @@ import {
   makeRosterLookup,
   reasonLabel,
   typeLabel,
+  type LaneMark,
 } from "@/lib/replay/roster";
+import { GameplayView } from "@/components/replay/GameplayView";
+import {
+  findingLabel,
+  kindGlyph,
+  kindLabel,
+  leadFinding,
+  pickedBecause,
+  splitCitations,
+} from "@/lib/coach/findings";
 import { RadarView } from "@/components/replay/RadarView";
 import { ReplayTimeline } from "@/components/replay/ReplayTimeline";
+import { CoachExplanation } from "@/components/coach/CoachExplanation";
 import { CoachPanel } from "@/components/coach/CoachPanel";
+import { useCoachLanguage } from "@/lib/coach/language";
 
 const RATES: PlaybackRate[] = [1, 2, 4, 0.5];
 const LANE_BASE = 22;
@@ -48,6 +72,19 @@ function scorePhrase(score: string): string {
   const b = Number(m[2]);
   if (a === b) return `drew ${a} to ${b}`;
   return `${a > b ? "won" : "lost"} ${a} to ${b}`;
+}
+
+type PlayerAnalysisView = {
+  playerId: string;
+  moments: SelectedMoment[];
+  findings: Finding[];
+  stats: RoundStats[];
+};
+
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
 }
 
 function focusKey(matchId: string) {
@@ -79,8 +116,16 @@ export default function StudioPage() {
   const [ctxOpen, setCtxOpen] = useState(false);
   const [whole, setWhole] = useState(false);
   const [asking, setAsking] = useState(false);
+  const [analysis, setAnalysis] = useState<PlayerAnalysisView | null>(null);
+  const [momentId, setMomentId] = useState<string | null>(null);
+  const [seenMoments, setSeenMoments] = useState<Set<string>>(() => new Set());
+  const [coachLang, setCoachLang] = useCoachLanguage();
+  /** Clock time to seek to once the next round replay has loaded (moment jumps across rounds). */
+  const pendingSeek = useRef<number | null>(null);
   const askRef = useRef<HTMLInputElement>(null);
   const [barSlot, setBarSlot] = useState<HTMLElement | null>(null);
+  const [stageMode, setStageMode] = useState<StageView>("radar");
+  const [clipManifest, setClipManifest] = useState<ClipManifest | null>(null);
   const clock = usePlaybackClock(0);
   const wasPlaying = useRef(false);
 
@@ -99,6 +144,9 @@ export default function StudioPage() {
     setRoundId(null);
     setReplay(null);
     setSeen(new Set());
+    setAnalysis(null);
+    setMomentId(null);
+    setSeenMoments(new Set());
     try {
       setFocusId(window.localStorage.getItem(focusKey(matchId)));
     } catch {
@@ -108,10 +156,33 @@ export default function StudioPage() {
       try {
         const [m, rs] = await Promise.all([api.getMatch(matchId), api.getRounds(matchId)]);
         if (cancelled) return;
+        let view: PlayerAnalysisView | null = null;
+        const pid = m.selectedPlayerId;
+        if (pid && m.status === "complete") {
+          try {
+            const [moments, findings, stats] = await Promise.all([
+              api.getPlayerMoments(matchId, pid),
+              api.getFindings(matchId, pid),
+              api.getRoundStats(matchId, pid),
+            ]);
+            view = { playerId: pid, moments, findings, stats };
+          } catch {
+            view = null; // no analysis stored: the replay still works
+          }
+        }
+        if (cancelled) return;
         setMatch(m);
         setRounds(rs);
-        if (rs.length) setRoundId(rs[0].id);
-        else if (m.status !== "complete") setLoadError("Match is still processing.");
+        setAnalysis(view);
+        if (pid) setFocusId(pid);
+        const first = view?.moments[0];
+        const firstRound = first ? rs.find((r) => r.number === first.round) : undefined;
+        if (first && firstRound) {
+          pendingSeek.current = first.t0;
+          setMomentId(first.id);
+          setRoundId(firstRound.id);
+        } else if (rs.length) setRoundId(rs[0].id);
+        else if (!REPLAY_READY_STATUSES.has(m.status)) setLoadError("Match is still processing.");
         else setLoadError("No round replays for this match.");
       } catch (e) {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : "Failed to load.");
@@ -135,6 +206,10 @@ export default function StudioPage() {
         if (cancelled) return;
         setReplay(r);
         clock.reset(r.durationSec);
+        if (pendingSeek.current != null) {
+          clock.seek(pendingSeek.current);
+          pendingSeek.current = null;
+        }
         setSelectedEventId(null);
         setLoadError(null);
       } catch (e) {
@@ -148,6 +223,32 @@ export default function StudioPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, roundId]);
+
+  // Poll clip manifest so Gameplay enables as rounds finish recording
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    async function poll() {
+      try {
+        const man = await api.getClips(matchId);
+        if (cancelled) return;
+        setClipManifest(man);
+        const pending = man.clips.some(
+          (c) => c.status === "queued" || c.status === "recording",
+        );
+        if (pending) timer = setTimeout(poll, 2000);
+      } catch {
+        if (!cancelled) timer = setTimeout(poll, 4000);
+      }
+    }
+
+    poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [matchId]);
 
   // ---- Derived replay state ----
 
@@ -183,7 +284,51 @@ export default function StudioPage() {
       (replay?.events ?? []).filter((e) => e.type !== "round_start" && e.type !== "round_end"),
     [replay],
   );
-  const marks = useMemo(() => laneMarks(events, lookup, focus), [events, lookup, focus]);
+  const findingsById = useMemo(
+    () => new Map((analysis?.findings ?? []).map((f) => [f.id, f])),
+    [analysis],
+  );
+  const roundNumber = replay?.roundNumber ?? null;
+  const roundFindings = useMemo(
+    () => (analysis?.findings ?? []).filter((f) => f.round === roundNumber).sort((a, b) => a.t - b.t),
+    [analysis, roundNumber],
+  );
+  const momentLeads = useMemo(
+    () => new Set((analysis?.moments ?? []).map((m) => m.findingIds[0]).filter(Boolean)),
+    [analysis],
+  );
+  const marks = useMemo(() => {
+    const coach: LaneMark[] = roundFindings
+      .filter((f) => f.kind === "mistake" || f.kind === "good")
+      .map((f) => ({
+        key: f.id,
+        eventId: f.id,
+        lane: "coach",
+        t: f.t,
+        glyph: kindGlyph(f.kind),
+        label: findingLabel(f),
+        detail: f.summary,
+        // Moment leads win a shared spot on the lane, then severity.
+        priority: (momentLeads.has(f.id) ? 1 : 0) + f.severity,
+      }));
+    return [...coach, ...laneMarks(events, lookup, focus)];
+  }, [roundFindings, momentLeads, events, lookup, focus]);
+  const moments = analysis?.moments ?? [];
+  const activeMoment = moments.find((m) => m.id === momentId && m.round === roundNumber);
+  const analysedName = analysis ? (lookup(analysis.playerId)?.name ?? "the selected player") : "";
+  const roundStats = analysis?.stats.find((r) => r.round === roundNumber);
+
+  useEffect(() => {
+    if (momentId) setSeenMoments((s) => (s.has(momentId) ? s : new Set(s).add(momentId)));
+  }, [momentId]);
+
+  const momentRounds = useMemo(
+    () =>
+      new Map(
+        (analysis?.moments ?? []).map((m) => [m.round, kindGlyph(m.kind) as "mistake" | "strength"]),
+      ),
+    [analysis],
+  );
 
   const liveEvent = useMemo(() => {
     let last = null;
@@ -191,13 +336,65 @@ export default function StudioPage() {
     return last;
   }, [events, clock.t]);
   const nowEvent = liveEvent && clock.t - liveEvent.t < LIVE_SEC ? liveEvent : null;
-  const selected = (selectedEventId && events.find((e) => e.id === selectedEventId)) || liveEvent;
+  const selectedFinding = selectedEventId ? findingsById.get(selectedEventId) : undefined;
+  const selected =
+    (selectedEventId && events.find((e) => e.id === selectedEventId)) || (selectedFinding ? null : liveEvent);
 
   const roundIdx = rounds.findIndex((r) => r.id === roundId);
   const activeRound = roundIdx >= 0 ? rounds[roundIdx] : undefined;
   const nextRound = roundIdx >= 0 ? rounds[roundIdx + 1] : undefined;
   const mapMeta = getMapMeta(replay?.map ?? match?.map ?? "");
   const mapLabel = mapMeta?.displayName ?? match?.map?.replace(/^de_/, "") ?? "—";
+
+  const activeClip: RoundClip | null = useMemo(() => {
+    if (!roundId) return null;
+    const fromReplay = replay?.clip ?? null;
+    const fromMan = clipManifest?.clips.find((c) => c.roundId === roundId) ?? null;
+    const fromRound = activeRound?.clip ?? null;
+    return fromMan ?? fromReplay ?? fromRound;
+  }, [roundId, replay, clipManifest, activeRound]);
+
+  const gameplayReady = activeClip?.status === "ready" && Boolean(activeClip.url);
+  const gameplaySrc = gameplayReady && roundId ? api.clipUrl(matchId, roundId) : null;
+  const gameplayDisabledReason = useMemo(() => {
+    if (gameplayReady) return null;
+    if (!activeClip) return "Gameplay clips are not available for this match yet.";
+    if (activeClip.status === "queued" || activeClip.status === "recording") {
+      const done = clipManifest?.done ?? 0;
+      const total = clipManifest?.total ?? 0;
+      return total
+        ? `Recording gameplay… ${done} of ${total} clips ready.`
+        : "Recording gameplay…";
+    }
+    if (activeClip.status === "failed") {
+      return activeClip.error ?? "Gameplay recording failed for this round.";
+    }
+    if (activeClip.status === "skipped") {
+      return activeClip.error ?? "Gameplay recording is disabled on this server.";
+    }
+    return "Gameplay clip is not ready.";
+  }, [activeClip, gameplayReady, clipManifest]);
+
+  // Keep clock master in sync with stage mode
+  useEffect(() => {
+    if (stageMode === "gameplay" && gameplayReady) {
+      clock.setMaster("video");
+    } else {
+      clock.setMaster("raf");
+      if (stageMode === "gameplay" && !gameplayReady) {
+        setStageMode("radar");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stageMode, gameplayReady]);
+
+  const setMode = useCallback(
+    (mode: StageView) => {
+      if (mode === "gameplay" && !gameplayReady) return;
+      setStageMode(mode);
+    },
+    [gameplayReady],
+  );
 
   // ---- Stage fitting (prototype fitStage): 16:9 stage, spare height to the lanes ----
 
@@ -313,6 +510,7 @@ export default function StudioPage() {
   const selectRound = useCallback(
     (id: string) => {
       animateCam.current = true;
+      setMomentId(null);
       setRoundId(id);
     },
     [],
@@ -325,6 +523,44 @@ export default function StudioPage() {
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [clock.seek],
+  );
+
+  const selectMoment = useCallback(
+    (m: SelectedMoment) => {
+      const target = rounds.find((r) => r.number === m.round);
+      if (!target) return;
+      clock.pause();
+      setMomentId(m.id);
+      const lead = m.findingIds[0] ?? null;
+      if (target.id === roundId && replay) {
+        clock.seek(m.t0);
+        setSelectedEventId(lead);
+      } else {
+        animateCam.current = true;
+        pendingSeek.current = m.t0;
+        setRoundId(target.id);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rounds, roundId, replay, clock.pause, clock.seek],
+  );
+
+  const seekFinding = useCallback(
+    (f: Finding) => {
+      const target = rounds.find((r) => r.number === f.round);
+      if (!target) return;
+      clock.pause();
+      if (target.id === roundId && replay) {
+        seekTo(f.t, f.id);
+      } else {
+        animateCam.current = true;
+        pendingSeek.current = f.t;
+        setMomentId(null);
+        setRoundId(target.id);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rounds, roundId, replay, clock.pause, seekTo],
   );
 
   const stepEvent = useCallback(
@@ -404,6 +640,9 @@ export default function StudioPage() {
         window.setTimeout(() => askRef.current?.focus(), 0);
       } else if (e.key === "Escape" && ctxOpen) {
         setCtxOpen(false);
+      } else if (e.key === "v" || e.key === "V") {
+        e.preventDefault();
+        setMode(stageMode === "radar" ? "gameplay" : "radar");
       }
     }
     window.addEventListener("keydown", onKey);
@@ -413,9 +652,9 @@ export default function StudioPage() {
   useEffect(() => {
     if (!roundId) return;
     document
-      .querySelector(`.mom[data-round="${roundId}"]`)
+      .querySelector(momentId ? `.mom[data-moment="${momentId}"]` : `.mom[data-round="${roundId}"]`)
       ?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [roundId, loadingMatch]);
+  }, [roundId, momentId, loadingMatch]);
 
   useEffect(() => {
     document.title = activeRound
@@ -427,24 +666,109 @@ export default function StudioPage() {
 
   // ---- Panel content ----
 
-  const panelLive = Boolean(selected && clock.t >= selected.t && clock.t - selected.t < LIVE_SEC);
+  const headFinding =
+    selectedFinding ??
+    (activeMoment && !selectedEventId ? leadFinding(activeMoment, findingsById) : undefined);
+  const headT = headFinding?.t ?? selected?.t;
+  const panelLive = headT != null && clock.t >= headT && clock.t - headT < LIVE_SEC;
+  const momentRank = activeMoment
+    ? [...moments].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).findIndex((m) => m.id === activeMoment.id) + 1
+    : 0;
+  const momentFindings = activeMoment
+    ? activeMoment.findingIds.map((id) => findingsById.get(id)).filter((f): f is Finding => Boolean(f))
+    : [];
+  const nextMoment = activeMoment
+    ? moments[moments.findIndex((m) => m.id === activeMoment.id) + 1]
+    : moments.find((m) => roundNumber != null && m.round > roundNumber);
+  const cited = (text: string) =>
+    splitCitations(text).map((part, i) =>
+      "cite" in part ? (
+        findingsById.get(part.cite) ? (
+          <button
+            key={i}
+            type="button"
+            className="cite"
+            title={`Jump to ${part.cite}`}
+            onClick={() => seekFinding(findingsById.get(part.cite)!)}
+          >
+            {part.cite}
+          </button>
+        ) : (
+          <span key={i}>{part.cite}</span>
+        )
+      ) : (
+        <span key={i}>{part.text}</span>
+      ),
+    );
+  const findingRows = (list: Finding[]) => (
+    <ul className="find-list">
+      {list.map((f) => (
+        <li key={f.id}>
+          <button
+            type="button"
+            className={`find-row${headFinding?.id === f.id ? " linked" : ""}`}
+            onClick={() => seekFinding(f)}
+          >
+            <i className={`g g-${kindGlyph(f.kind)}`} aria-hidden />
+            <b>{findingLabel(f)}</b>
+            <span className="ev-v">{formatClock(f.t)}</span>
+            <p>{f.summary}</p>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
   const killsThisRound = events.filter((e) => e.type === "kill").length;
   const hpById = new Map(players.map((p) => [p.id, p]));
   // What the coach will be given as context; shown so the viewer knows what it can see.
   const knows = activeRound
-    ? `Knows round ${activeRound.number} at ${formatClock(clock.t)}, the radar view${
-        selected ? `, the ${typeLabel(selected.type).toLowerCase()} at ${formatClock(selected.t)}` : ""
-      }${focus ? ` and that you are following ${focus.name}` : ""}.`
+    ? analysis
+      ? `Knows ${analysedName}'s findings and stats, round ${activeRound.number} at ${formatClock(clock.t)}${
+          activeMoment ? `, the picked moment` : ""
+        } and the map notes. Answers cite what they use.`
+      : `Knows round ${activeRound.number} at ${formatClock(clock.t)}, the radar view${
+          selected ? `, the ${typeLabel(selected.type).toLowerCase()} at ${formatClock(selected.t)}` : ""
+        }${focus ? ` and that you are following ${focus.name}` : ""}.`
     : "";
   const suggestions = activeRound
-    ? [
-        `Why did ${activeRound.winner ?? "this side"} win round ${activeRound.number}?`,
-        selected?.type === "kill" && lookup(selected.victimId)
-          ? `Could ${lookup(selected.victimId)!.name} have avoided that death?`
-          : `What should ${focus?.name ?? "I"} have done differently here?`,
-        `Where was ${focus ? `${focus.name}'s` : "my"} team out of position?`,
-      ]
+    ? analysis
+      ? [
+          headFinding
+            ? kindGlyph(headFinding.kind) === "strength"
+              ? `Why did this work for ${analysedName}?`
+              : `Why is ${findingLabel(headFinding).toLowerCase()} a problem here?`
+            : `What was ${analysedName}'s biggest mistake in round ${activeRound.number}?`,
+          headFinding
+            ? `What should ${analysedName} have done instead?`
+            : `What did ${analysedName} do well in round ${activeRound.number}?`,
+          `Does this happen in other rounds too?`,
+        ]
+      : [
+          `Why did ${activeRound.winner ?? "this side"} win round ${activeRound.number}?`,
+          selected?.type === "kill" && lookup(selected.victimId)
+            ? `Could ${lookup(selected.victimId)!.name} have avoided that death?`
+            : `What should ${focus?.name ?? "I"} have done differently here?`,
+          `Where was ${focus ? `${focus.name}'s` : "my"} team out of position?`,
+        ]
     : [];
+  const coachCites = {
+    onFinding: (id: string) => {
+      const f = findingsById.get(id);
+      if (f) seekFinding(f);
+    },
+    onSeek: (t: number) => {
+      clock.pause();
+      seekTo(t);
+    },
+    onMoment: (id: string) => {
+      const m = moments.find((x) => x.id === id);
+      if (m) selectMoment(m);
+    },
+    momentLabel: (id: string) => {
+      const m = moments.find((x) => x.id === id);
+      return m ? `round ${m.round} moment` : undefined;
+    },
+  };
   const teams = (["CT", "T"] as const).map((side) => ({
     side,
     players: roster.filter((p) => p.team === side),
@@ -461,10 +785,20 @@ export default function StudioPage() {
           )
         : null}
 
-      <aside className="rail" aria-label="Rounds in this match">
+      <aside className="rail" aria-label={moments.length ? "Moments and rounds" : "Rounds in this match"}>
         <div className="rail-h">
-          <b>{loadingMatch ? "Loading…" : `${rounds.length} rounds`}</b>
-          {rounds.length ? (
+          <b>
+            {loadingMatch
+              ? "Loading…"
+              : moments.length
+                ? `${moments.length} moments`
+                : `${rounds.length} rounds`}
+          </b>
+          {moments.length ? (
+            <span>
+              {seenMoments.size} of {moments.length} seen
+            </span>
+          ) : rounds.length ? (
             <span>
               {seen.size} of {rounds.length} seen
             </span>
@@ -475,39 +809,84 @@ export default function StudioPage() {
             {loadError ?? "No rounds yet. Upload a real demo; the fixture sample has no Radar replays."}
           </p>
         ) : (
-          <ol className="moments">
-            {rounds.map((r) => {
-              const current = r.id === roundId;
-              return (
-                <li key={r.id}>
-                  <button
-                    type="button"
-                    className="mom"
-                    aria-current={current ? "true" : "false"}
-                    aria-label={`Round ${r.number}. ${r.winner ?? "No"} win, ${reasonLabel(r.reason)}.`}
-                    onClick={() => selectRound(r.id)}
-                    data-round={r.id}
-                  >
-                    {current ? <span className="rail-ind" aria-hidden /> : null}
-                    <i
-                      className={`g ${r.winner === "T" ? "g-t" : r.winner === "CT" ? "g-ct" : "g-none"}`}
-                      aria-hidden
-                    />
-                    <span className="mom-title">Round {r.number}</span>
-                    <span className="mom-meta">
-                      <span className="when">
-                        {r.winner ? `${r.winner} win` : "—"}, {Math.round(r.durationSec)} s
+          <div className="rail-scroll">
+            {moments.length ? (
+              <ol className="moments" aria-label={`Moments for ${analysedName}`}>
+                {moments.map((m) => {
+                  const current = m.id === activeMoment?.id;
+                  const lead = leadFinding(m, findingsById);
+                  const title = lead ? findingLabel(lead) : kindLabel(m.kind);
+                  const reason = pickedBecause(m);
+                  return (
+                    <li key={m.id}>
+                      <button
+                        type="button"
+                        className="mom"
+                        aria-current={current ? "true" : "false"}
+                        aria-label={`${kindLabel(m.kind)}: ${title}. Round ${m.round}, ${formatClock(lead?.t ?? m.t0)}. ${reason}`}
+                        onClick={() => selectMoment(m)}
+                        data-moment={m.id}
+                      >
+                        {current ? <span className="rail-ind" aria-hidden /> : null}
+                        <i className={`g g-${kindGlyph(m.kind)}`} aria-hidden />
+                        <span className="mom-title">{title}</span>
+                        <span className="mom-meta">
+                          <span className="when">
+                            R{m.round} {formatClock(lead?.t ?? m.t0)}
+                          </span>
+                          <span className="reason">{reason.charAt(0).toUpperCase() + reason.slice(1)}</span>
+                          <span className="seen" title={seenMoments.has(m.id) && !current ? "Seen" : undefined}>
+                            {seenMoments.has(m.id) && !current ? "✓" : ""}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : null}
+            {moments.length ? (
+              <div className="rail-sub">
+                All rounds
+                <span>
+                  {seen.size} of {rounds.length} seen
+                </span>
+              </div>
+            ) : null}
+            <ol className={`moments${moments.length ? " secondary" : ""}`} aria-label="All rounds">
+              {rounds.map((r) => {
+                const current = r.id === roundId && !activeMoment;
+                return (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      className="mom"
+                      aria-current={current ? "true" : "false"}
+                      aria-label={`Round ${r.number}. ${r.winner ?? "No"} win, ${reasonLabel(r.reason)}.`}
+                      onClick={() => selectRound(r.id)}
+                      data-round={r.id}
+                    >
+                      {current ? <span className="rail-ind" aria-hidden /> : null}
+                      <i
+                        className={`g ${r.winner === "T" ? "g-t" : r.winner === "CT" ? "g-ct" : "g-none"}`}
+                        aria-hidden
+                      />
+                      <span className="mom-title">Round {r.number}</span>
+                      <span className="mom-meta">
+                        <span className="when">
+                          {r.winner ? `${r.winner} win` : "—"}, {Math.round(r.durationSec)} s
+                        </span>
+                        <span className="reason">{reasonLabel(r.reason)}</span>
+                        <span className="seen" title={seen.has(r.id) && !current ? "Seen" : undefined}>
+                          {seen.has(r.id) && !current ? "✓" : ""}
+                        </span>
                       </span>
-                      <span className="reason">{reasonLabel(r.reason)}</span>
-                      <span className="seen" title={seen.has(r.id) && !current ? "Seen" : undefined}>
-                        {seen.has(r.id) && !current ? "✓" : ""}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
         )}
       </aside>
 
@@ -523,55 +902,78 @@ export default function StudioPage() {
 
         <div className="stage-wrap" ref={wrapRef} hidden={empty}>
           <div className="stage" ref={stageRef}>
-            {replay && hasRadar ? (
+            {replay ? (
               <>
-                <RadarView
-                  mapName={replay.map}
-                  t={clock.t}
-                  players={players}
-                  lookup={lookup}
-                  focus={focus}
-                  tracks={tracks}
-                  utility={utility}
-                  viewBox={viewBox}
-                  pxPerUnit={pxPerUnit}
-                />
-                <div className="legend" aria-hidden>
-                  <span>
-                    <i style={{ background: "#fff", boxShadow: "0 0 0 1.5px #8FA9FF" }} />
-                    {focus?.name ?? "You"}
-                  </span>
-                  <span>
-                    <i style={{ background: "#9AA4AE" }} />
-                    Team
-                  </span>
-                  <span>
-                    <i style={{ background: "#F28C4C" }} />
-                    Enemy
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="zoom"
-                  aria-pressed={whole}
-                  onClick={() => {
-                    animateCam.current = true;
-                    setWhole((w) => !w);
-                  }}
+                <div
+                  className={`surface${stageMode === "gameplay" ? " is-main" : " is-hidden"}`}
+                  data-mode="gameplay"
+                  hidden={stageMode !== "gameplay"}
                 >
-                  {whole ? "This round" : "Whole map"}
-                </button>
+                  <GameplayView
+                    src={gameplaySrc}
+                    active={stageMode === "gameplay"}
+                    disabledReason={gameplayDisabledReason}
+                    onBind={clock.bindVideo}
+                  />
+                </div>
+                <div
+                  className={`surface${stageMode === "radar" ? " is-main" : " is-hidden"}`}
+                  data-mode="radar"
+                  hidden={stageMode !== "radar"}
+                >
+                  {hasRadar ? (
+                    <>
+                      <RadarView
+                        mapName={replay.map}
+                        t={clock.t}
+                        players={players}
+                        lookup={lookup}
+                        focus={focus}
+                        tracks={tracks}
+                        utility={utility}
+                        viewBox={viewBox}
+                        pxPerUnit={pxPerUnit}
+                      />
+                      <div className="legend" aria-hidden>
+                        <span>
+                          <i style={{ background: "#fff", boxShadow: "0 0 0 1.5px #8FA9FF" }} />
+                          {focus?.name ?? "You"}
+                        </span>
+                        <span>
+                          <i style={{ background: "#9AA4AE" }} />
+                          Team
+                        </span>
+                        <span>
+                          <i style={{ background: "#F28C4C" }} />
+                          Enemy
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="zoom"
+                        aria-pressed={whole}
+                        onClick={() => {
+                          animateCam.current = true;
+                          setWhole((w) => !w);
+                        }}
+                      >
+                        {whole ? "This round" : "Whole map"}
+                      </button>
+                    </>
+                  ) : (
+                    <div className="stage-msg">
+                      <p>
+                        Radar positions are not available for <strong>{mapLabel}</strong> yet.
+                        Timeline playback still works. Overview metadata exists for Mirage and
+                        Anubis.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <div className="stage-msg">
-                {replay && !hasRadar ? (
-                  <p>
-                    Radar positions are not available for <strong>{mapLabel}</strong> yet. Timeline
-                    playback still works. Overview metadata exists for Mirage and Anubis.
-                  </p>
-                ) : (
-                  <p>{loadingReplay || loadingMatch ? "Loading radar…" : "No replay loaded."}</p>
-                )}
+                <p>{loadingReplay || loadingMatch ? "Loading radar…" : "No replay loaded."}</p>
               </div>
             )}
           </div>
@@ -627,6 +1029,37 @@ export default function StudioPage() {
           <div className="now" aria-live="off">
             {nowEvent ? eventTitle(nowEvent, lookup) : ""}
           </div>
+          <div
+            className={`seg${stageMode === "radar" ? " is-radar" : ""}`}
+            role="group"
+            aria-label="View"
+            title="Switch view (V)"
+          >
+            <span className="seg-pill" aria-hidden />
+            <button
+              type="button"
+              data-mode="gameplay"
+              aria-pressed={stageMode === "gameplay"}
+              disabled={!gameplayReady}
+              title={gameplayReady ? "Gameplay" : (gameplayDisabledReason ?? "Gameplay unavailable")}
+              onClick={() => setMode("gameplay")}
+            >
+              Gameplay
+            </button>
+            <button
+              type="button"
+              data-mode="radar"
+              aria-pressed={stageMode === "radar"}
+              onClick={() => setMode("radar")}
+            >
+              Radar
+            </button>
+          </div>
+          {clipManifest && clipManifest.total > 0 && clipManifest.done < clipManifest.total ? (
+            <span className="clip-progress" title="Gameplay clip recording">
+              Clips {clipManifest.done}/{clipManifest.total}
+            </span>
+          ) : null}
           <button
             type="button"
             className="t-opt"
@@ -680,6 +1113,7 @@ export default function StudioPage() {
               marks={marks}
               rounds={rounds}
               won={match?.won ?? []}
+              momentRounds={momentRounds}
               roundId={roundId}
               selectedEventId={selectedEventId}
               laneH={laneH}
@@ -702,14 +1136,27 @@ export default function StudioPage() {
         aria-label="Analysis of this round"
       >
         <div className={`p-head${panelLive ? " live" : ""}`}>
-          {selected ? <i className={`d d-${glyphForEvent(selected.type)}`} aria-hidden /> : null}
+          {headFinding ? (
+            <i className={`g g-${kindGlyph(headFinding.kind)}`} aria-hidden />
+          ) : selected ? (
+            <i className={`d d-${glyphForEvent(selected.type)}`} aria-hidden />
+          ) : null}
           <span className="lab">
-            {selected ? typeLabel(selected.type) : activeRound ? `Round ${activeRound.number}` : "Round"}
+            {headFinding
+              ? findingLabel(headFinding)
+              : selected
+                ? typeLabel(selected.type)
+                : activeRound
+                  ? `Round ${activeRound.number}`
+                  : "Round"}
           </span>
-          <span>
-            {activeRound ? `R${activeRound.number} ` : ""}
-            {formatClock(selected ? selected.t : clock.t)}
-          </span>
+          {/* A finding's time is on its row and the timeline; its label needs the room here. */}
+          {headFinding ? null : (
+            <span>
+              {activeRound ? `R${activeRound.number} ` : ""}
+              {formatClock(headT ?? clock.t)}
+            </span>
+          )}
           <span className="sp" />
           <div className="ctx-tabs" role="tablist" aria-label="Panel">
             <button
@@ -762,19 +1209,84 @@ export default function StudioPage() {
 
         <div className="insight" id="insight" role="tabpanel" aria-labelledby="tab-insight">
           <h2 className="ins-head">
-            {selected
+            {headFinding
+              ? headFinding.summary
+              : selected
               ? eventTitle(selected, lookup)
               : activeRound
                 ? `${activeRound.winner ?? "No"} win, ${reasonLabel(activeRound.reason).toLowerCase()}`
                 : "Pick a round"}
           </h2>
           <p className="picked">
-            {selected
-              ? `${typeLabel(selected.type)} at ${formatClock(selected.t)}, tick ${selected.tick}.`
-              : replay
-                ? "Play, scrub the timeline or pick an event."
-                : "Coaching moments are not part of this milestone."}
+            {headFinding && activeMoment && activeMoment.findingIds[0] === headFinding.id
+              ? cited(
+                  `${kindLabel(activeMoment.kind)}. Ranked ${ordinal(momentRank)} of ${moments.length} by the code ranker, from ${activeMoment.findingIds
+                    .map((id) => `[${id}]`)
+                    .join(" ")}.`,
+                )
+              : headFinding
+                ? cited(`${kindLabel(headFinding.kind)} for ${analysedName}, finding [${headFinding.id}].`)
+                : selected
+                  ? `${typeLabel(selected.type)} at ${formatClock(selected.t)}, tick ${selected.tick}.`
+                  : replay
+                    ? "Play, scrub the timeline or pick an event."
+                    : "Pick a moment or a round."}
           </p>
+
+          {analysis && activeRound ? (
+            <CoachExplanation
+              matchId={matchId}
+              playerId={analysis.playerId}
+              momentId={activeMoment?.id ?? null}
+              round={activeRound.number}
+              language={coachLang}
+              onLanguage={setCoachLang}
+              {...coachCites}
+            />
+          ) : null}
+
+          {momentFindings.length > 1 ? (
+            <section className="layer">
+              <h3>In this moment</h3>
+              {findingRows(momentFindings)}
+            </section>
+          ) : null}
+
+          {roundStats && activeRound ? (
+            <section className="layer">
+              <h3>
+                {analysedName} in round {activeRound.number}
+                {roundStats.side ? `, ${roundStats.side} side` : ""}
+                {roundStats.won != null ? (roundStats.won ? ", won" : ", lost") : ""}
+              </h3>
+              <dl className="stat-grid">
+                <div>
+                  <dt>Kills</dt>
+                  <dd>{roundStats.kills}</dd>
+                </div>
+                <div>
+                  <dt>Deaths</dt>
+                  <dd>{roundStats.deaths}</dd>
+                </div>
+                <div>
+                  <dt>Assists</dt>
+                  <dd>{roundStats.assists}</dd>
+                </div>
+                <div>
+                  <dt>Damage</dt>
+                  <dd>{roundStats.damage}</dd>
+                </div>
+                <div>
+                  <dt>Utility thrown</dt>
+                  <dd>{roundStats.utilityThrown}</dd>
+                </div>
+                <div>
+                  <dt>Equipment</dt>
+                  <dd>{roundStats.equipValue != null ? `$${roundStats.equipValue}` : "—"}</dd>
+                </div>
+              </dl>
+            </section>
+          ) : null}
 
           {activeRound ? (
             <section className="layer">
@@ -798,7 +1310,24 @@ export default function StudioPage() {
 
           {replay ? (
             <div className="more">
-              <details className="ev" open>
+              {analysis ? (
+                <details className="ev" open={roundFindings.length > 0}>
+                  <summary>
+                    Findings this round
+                    <span className="aside">
+                      {roundFindings.length} <Chev />
+                    </span>
+                  </summary>
+                  {roundFindings.length ? (
+                    findingRows(roundFindings)
+                  ) : (
+                    <p className="meta" style={{ margin: "4px 0 6px" }}>
+                      Nothing found for {analysedName} in this round.
+                    </p>
+                  )}
+                </details>
+              ) : null}
+              <details className="ev" open={!analysis}>
                 <summary>
                   Events
                   <span className="aside">
@@ -869,7 +1398,19 @@ export default function StudioPage() {
           ) : null}
 
           <div className="next-row">
-            {nextRound ? (
+            {nextMoment ? (
+              <button type="button" className="link" onClick={() => selectMoment(nextMoment)}>
+                Next moment:{" "}
+                {(() => {
+                  const f = leadFinding(nextMoment, findingsById);
+                  return `${f ? findingLabel(f) : kindLabel(nextMoment.kind)}, round ${nextMoment.round}`;
+                })()}
+              </button>
+            ) : moments.length && activeMoment ? (
+              <span style={{ color: "var(--text-3)", fontSize: 13 }}>
+                That was the last of the {moments.length} moments.
+              </span>
+            ) : nextRound ? (
               <button type="button" className="link" onClick={() => selectRound(nextRound.id)}>
                 Next round: Round {nextRound.number}
               </button>
@@ -904,17 +1445,18 @@ export default function StudioPage() {
           <CoachPanel
             key={activeRound.id}
             matchId={matchId}
+            playerId={analysis?.playerId ?? null}
             contextId={activeRound.id}
+            round={activeRound.number}
+            momentId={activeMoment?.id ?? null}
+            language={coachLang}
             t={clock.t}
             knows={knows}
             suggestions={suggestions}
             inputRef={askRef}
             placeholder={`Ask about round ${activeRound.number} at ${formatClock(clock.t)}`}
             onAsk={() => setAsking(true)}
-            onSeek={(t) => {
-              clock.pause();
-              seekTo(t);
-            }}
+            {...coachCites}
           />
         ) : null}
       </aside>

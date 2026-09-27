@@ -2,7 +2,7 @@
 
 Status: **planned, owner-approved direction.** Nothing in this document is implemented yet unless [18 Current state](../handoff/18-CURRENT-STATE.md) says so. Tasks live in [TASKS.md](./TASKS.md); the school proposal draft is [PROPOSAL.md](./PROPOSAL.md).
 
-Related: [09 AI Coach](../handoff/09-AI-COACH.md), [16 Data contracts](../handoff/16-DATA-CONTRACTS.md), [19 Decisions](../handoff/19-DECISIONS.md), [replay architecture](../replay-architecture.md), [CS:DM video (branch `cursor/csdm-gameplay-video`)](https://github.com/PawelZlotkowski/cs2-demos/blob/cursor/csdm-gameplay-video/docs/csdm-video.md).
+Related: [09 AI Coach](../handoff/09-AI-COACH.md), [16 Data contracts](../handoff/16-DATA-CONTRACTS.md), [19 Decisions](../handoff/19-DECISIONS.md), [replay architecture](../replay/replay-architecture.md), [CS:DM video](../replay/csdm-video.md).
 
 ## 0. Owner decisions (26 Sep 2026)
 
@@ -71,9 +71,13 @@ Add to `parse_demo.py` (all supported by demoparser2):
 - Tick props: `velocity_X`, `velocity_Y`, `pitch`, `balance`, `current_equip_value`, `armor_value`, `has_helmet`, `active_weapon_name`, `inventory`, `flash_duration`.
 - Full 64 Hz only in a window of about 3 s before each kill and each shot burst of the chosen player, so detectors like "shot while moving" have resolution without bloating replay blobs.
 
+*As built (T10):* `weapon_fire` carries the shooter's velocity at the shot tick, so shots need no dense window. The 3 s full-rate window is kept before **every kill** (the player is not chosen yet at parse time); tracks are stored for the victim and the killer, plus an inventory/weapon/flash snapshot of everyone on the last tick before the kill. Economy props are read once per round at the end of buy time. All of it goes to `analysis.json`, not the replay blobs.
+
 ### 4.2 Map zones
 
-Callout polygons per map in `apps/api/app/maps/zones/de_mirage.json` and `de_anubis.json` (world coordinates). Findings and the LLM say "A ramp", never raw coordinates.
+Callout polygons per map in `apps/api/app/maps/zones/de_mirage.json` and `de_anubis.json`. Findings and the LLM say "A ramp", never raw coordinates.
+
+*As built (T11):* polygons are stored in radar pixel space (the 1024 px overview) so they can be drawn and checked over the radar image; `zone_at(map, x, y)` takes world coordinates and converts them. Overlays: `docs/coach/zones/`, redrawn with `python tools/zones_overlay.py <map> <png>`. First draft, no height separation.
 
 ### 4.3 Detectors
 
@@ -91,6 +95,8 @@ Each detector is a pure function `(match_data, round, player_id) -> list[Finding
 | D8 | Late rotation | time from plant / first contact to arrival vs team median | mistake |
 | D9 | Repeated death zone | death in the same zone in ≥ 3 rounds of the match | pattern |
 | D10 | Good plays | successful trade, entry kill, clutch, multi-kill, flash assist, utility damage | good |
+
+*As built (T14–T15):* thresholds, severity formulas and known false positives are documented at the top of each module in `apps/api/app/analysis/detectors/`. Differences from the table: D4 has no view angles, so "first contact" is the player's first shot or first damage exchanged with the killer; D5 reports flashes **thrown by the player** that blinded teammates or themselves; D8 covers the CT side after a plant only; D10 counts entry kills on the T side only (D6 records every opening duel as context). D2 checks rifles, snipers and pistols only.
 
 ### 4.4 Finding contract
 
@@ -110,6 +116,7 @@ class Finding(CamelModel):
     severity: float           # 0..1, code-computed
     evidence: dict[str, float | int | str]   # every number the LLM may quote
     summary: str              # templated English sentence, the no-LLM fallback
+    template: str             # summary template key, for the pl/nl fallback (added in T12)
 ```
 
 Plus `RoundStats` per round (kills, deaths, damage, utility thrown, money, survival, trade stats), computed in code.
@@ -138,6 +145,8 @@ Because only local models are allowed, MCP's value here is: a standard, inspecta
 
 Resources: `match://{id}/overview`. Prompts: `select_moments`, `explain_moment`, `answer_question`.
 
+*As built (T20–T21):* the tools take `match_id` and `player_id` explicitly (finding ids are only unique per match and player); the agent binds both and hides them from the model. `get_player_history` takes an optional `exclude_match_id`. `search_knowledge` and `request_clip` are not built yet (T32, T40). The server factory is `apps/api/app/coach/mcp_server.py` (so the agent can run it in-process over MCP); `apps/mcp/` is the runnable entry point. The official SDK is now 2.x (`MCPServer`).
+
 ## 6. Coach agent
 
 ### 6.1 Serving
@@ -153,6 +162,8 @@ Resources: `match://{id}/overview`. Prompts: `select_moments`, `explain_moment`,
 2. **Moment explanation** (`explaining`). Per moment: 2–4 sentences for the Analysis tab, in the user's language, citing `[F..]`, `[t:..]` and `[K..]`, using `get_player_state`, `get_round_timeline`, `search_knowledge`, `get_player_history` as needed. Max 6 tool steps.
 3. **Ask** (interactive). Same tools, context line from the Studio (match, round, time, moment, view, findings in view), 1–3 sentence answers. Streams over SSE.
 4. **On-demand round.** Same as 2 for a round the user opens; also calls `request_clip`.
+
+*As built (T22–T27):* selection is one JSON-schema call with thinking on, no tool loop; the picks are stored through the `select_moments` tool. Explanations and Ask run the tool loop with thinking off. Ask streams `step` events while tools run and sends the answer only after the verifier passes it. The model is off unless `RR_LLM_ENABLED=true`; then the ranker's moments and the templates stand in.
 
 ### 6.3 Verifier (code)
 

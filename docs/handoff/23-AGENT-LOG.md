@@ -2,6 +2,102 @@
 
 Concise log for the next engineer or agent. British spelling.
 
+## 26 September 2026 — Knowledge search, clip queue and the coach in the Studio (T30–T32, T40, T43, T45), same branch
+
+Owner asked to finish the MCP tools and the rest of the coach UI. The coordinator moved the Ask tab, the Analysis explanation and the language setting to this thread.
+
+### Done
+
+- `search_knowledge` and `request_clip` tools, so the MCP server now serves all ten tools of plan §5.
+- RAG v1 in `app/rag/`: `data/knowledge/*.md` split by `##` into `K..` passages, FTS5 plus optional dense vectors (`RR_EMBED_URL`), RRF. Starter notes for fundamentals, Mirage and Anubis. `GET /knowledge/{id}`.
+- Clip queue table and `GET …/clips`; an on-demand round explanation queues a clip around the round's top finding.
+- Verifier accepts numbers from cited `K..` passages that a tool actually returned in the run.
+- Web: TS mirror of the coach contracts; `CoachExplanation` in the Analysis tab (moment on open, round on request); `CoachPanel` asks over SSE, shows the coach's lookups, labels template answers; `CoachText` renders `[F]` `[t:]` `[m]` `[K]` tokens; language setting (`rr.coachLanguage`) on the processing page and in the Analysis tab.
+
+### Tested
+
+- API `pytest`: 179 passed, 4 skipped (live model and real demo tests).
+- Web `typecheck`, `lint`, `build` clean.
+- Browser check on the synthetic analysed match with the model off: explanation in English and Polish, Ask answer in Polish with the template note, citations seek.
+
+### Uncertain / limitations
+
+- Nothing has run on llama.cpp yet, so the agent path in the UI (tool steps, `[K..]` passages) is covered by tests only.
+- Knowledge base is a starter set, far below T30's 40 sections per map; no Liquipedia excerpts yet.
+- Clips are queued but never recorded.
+
+## 26 September 2026 — AI Coach phase 2 (T20–T27), branch `claude/coach-phase-2-r2gzvt`
+
+Owner asked for phase two (tools, MCP, agent). Built on the phase 1 branch, one draft PR for the phase. `apps/web` was not changed: the phase 1 thread owns the UI work.
+
+### Done
+
+- T20 tools in `app/coach/tools.py`; T21 `cs2-demo` MCP server (`app/coach/mcp_server.py`, entry point and README in `apps/mcp/`). The server factory lives in the API package so the agent can run it in-process over MCP without a second install; `apps/mcp` holds no logic.
+- T22 `LLMClient` + `MockLLMClient`; T23 agent loop + JSONL traces; T24 verifier + template fallback; T25–T27 jobs, pipeline states `selecting` and `explaining`, routes for moment/round explanations and Ask over SSE.
+- Defaults taken: the model is off by default (`RR_LLM_ENABLED=false`) so the app still runs without a GPU; Ask sends one verified answer after `step` events instead of streaming tokens, so the user never sees a claim the verifier later removes; moment selection is one JSON-schema call (no tool loop) that stores its picks through the `select_moments` tool; the language check is a stopword score, not lingua/fastText (no extra dependency yet).
+- The `mcp` SDK is 2.x (`MCPServer`, `mcp.Client`); `FastMCP` examples from older docs do not apply.
+
+### Tested
+
+- `cd apps/api && pytest` — 167 passed, 4 skipped (3 real-demo tests, 1 live llama.cpp test). The new tests use a synthetic match and a scripted model: every tool, MCP in-process and over stdio (`python -m cs2_demo_mcp` subprocess), same results as in-process, agent loop, repair and fallback paths, pipeline states, routes, SSE.
+- `ruff check --select F,E9` on the new Python — clean.
+
+### Not done / not verified
+
+- Nothing ran against llama.cpp: tool-call formatting of Qwen3-14B, grammar-constrained JSON together with thinking mode, latency and VRAM. Run `RR_LLM_LIVE=1 pytest tests/coach/test_llm_client.py -k live` on the 5080 first (T02), then one real match with `RR_LLM_ENABLED=true`.
+- T25's "5–6 valid moments on 5 matches" and T26's "< 20 s per round on the 5080" need real demos and the GPU.
+- Prompts are v1 and untuned; Polish and Dutch output needs a native speaker's check.
+- The TypeScript mirror of the new contracts and the UI that calls the new routes (explanation text in the Analysis tab, the Ask tab, the language setting) are the rest of T43 and T45.
+
+## 26 September 2026 — Player picker and Studio coach UI (T41, T42, T44, part of T43), same branch
+
+### Done
+
+- Processing page stops at `awaiting_player` and shows a player picker: two teams, name and K/D from the kill events, arrow keys and Enter, the last picked player focused first. Picking calls `POST /matches/{id}/player`, shows the detecting stage and opens the Studio when the analysis completes. "Watch the replay without analysis" skips it.
+- Studio loads the selected player's moments, findings and round stats. The rail lists the moments first (glyph, label, round clock, pick reason on the current one) and all rounds below; picking a moment loads its round and seeks to its start.
+- Timeline: a Coach lane on top with labelled markers (orange ▲ mistake, blue ● good play); findings at one spot share a marker led by the moment's lead finding. The match strip marks rounds that hold a moment.
+- Analysis tab: lead finding, kind and rank with finding citations that seek, the moment's findings, the player's round stats, and all findings in the round. The Ask tab is unchanged until the coach model exists.
+- Home page text no longer says analysis is out of scope.
+
+### Tested
+
+- `npm run typecheck`, `npm run lint`, `npm run build`, API `pytest` (92 passed, 3 skipped).
+- Playwright on the synthetic two-round demo at 1440, 1920, 1024, 834, 390 and 430 px: keyboard pick through to the Studio, and a moment jump across rounds landing on the moment's start. Screenshots in `docs/coach/screenshots/`.
+
+### Not done / not verified
+
+- Not checked on a real demo in the cloud session; needs a run on the owner's PC.
+- Labels on the Coach lane drop to glyphs when markers are closer than 120 px; the tooltip carries them.
+
+## 26 September 2026 — AI Coach phase 1 (T10–T17), branch `claude/coach-phase-1-hrt6pm`
+
+Owner asked for phase one of the plan. One branch and one draft PR for all of phase 1 instead of one per task (owner's request covered the whole phase); commits are split by task.
+
+### Done
+
+- T10 extended parse → `analysis.json` (events, buy-time economy, 3 s full-rate windows before kills). SteamIDs kept exact (the old `_sid` went through `float`, which loses digits of a SteamID64).
+- T11 first-draft zones for Mirage and Anubis + overlays in `docs/coach/zones/`.
+- T12 `Finding` / `RoundStats` / `SelectedMoment` contracts (Pydantic + TS), SQLite storage, findings routes; migration note in [16](./16-DATA-CONTRACTS.md).
+- T13 `awaiting_player` → `POST /matches/{id}/player` → `detecting` → `complete`; web processing page and Studio treat `awaiting_player` as replay-ready.
+- T14–T15 detectors D1–D10, T16 round stats + code ranker, finding templates en/pl/nl.
+- Knife rounds for sides (all kills and shots with knives, first round only) are flagged `knifeRound` in `analysis.json` and skipped by detectors, stats and the ranker. Found by running phase 1 on the sample demo locally (11 real-demo tests passed there).
+- T17 label format (`data/labels/README.md`) and `eval/label_tool.py` (label, Cohen's κ, precision/recall).
+
+### Tested
+
+- `cd apps/api && pytest` — 90 passed, 3 skipped (real-demo tests; no demo in the cloud session).
+- `ruff check --select F,E9` on the new Python — clean.
+- `cd apps/web && npm run typecheck && npm run build` — pass.
+- Zone overlays inspected visually; the Mirage CT spawn and Anubis CT/T spawn world positions from real demos land in the right zones.
+
+### Not done / not verified
+
+- Nothing ran on a real demo: demoparser2 field names for the new events and the `analysisBytes` size are unchecked. Run `pytest tests/analysis/test_real_demo.py tests/test_replay.py` with the sample demo in the repo root.
+- Zone names and borders need a pass by someone who knows the callouts.
+- T17's 150 labelled rounds and the κ on 30 shared rounds need both students; only the tool exists.
+- Detector thresholds are guesses documented per module; tune them on labelled rounds (train/val matches only).
+- Polish and Dutch templates need a native speaker's review.
+
 ## 26 September 2026 — AI Coach milestone planned
 
 ### Done
@@ -14,6 +110,27 @@ Concise log for the next engineer or agent. British spelling.
 
 - Docs only; no code changed, nothing run. Hardware figures (VRAM, Unsloth fitting 14B QLoRA in 16 GB) are from published numbers and must be checked in T02/T52.
 - Root `18-CURRENT-STATE.md` is an older copy of the handoff file and was left as is.
+## 26 September 2026 — CS Demo Manager gameplay video
+
+### Shipped
+
+- Contracts: `ClipStatus`, `RoundClip`, `ClipManifest`; attached on rounds/replay/status.
+- Storage: `data/matches/{id}/clips/rN.mp4` + `clips.json`; stream with Range (`GET …/clips/{roundId}.mp4`).
+- Worker: `app/processing/video_clips.py` — analyze once, video per round, concurrency 1; `RR_CSDM_MODE=stub|csdm`.
+- Pipeline enqueues clips after Radar `complete`; Docker keeps `RR_CSDM_ENABLED=0`.
+- Studio: Gameplay|Radar seg control, `usePlaybackClock` video master, disabled Gameplay with reason, clip progress poll.
+- Docs: [csdm-video.md](../replay/csdm-video.md), replay-architecture, 18, AGENTS.
+
+### Verified
+
+- `pytest` — **24 passed** (incl. stub clips + Range).
+- `npm run typecheck` / `npm run build` — pass.
+- Real `csdm` not on PATH here — spike documented; stub covers API/UI path.
+
+### Next
+
+1. On a Windows host with CS2 + CS:DM: `RR_CSDM_ENABLED=1` `RR_CSDM_MODE=csdm` `RR_CSDM_MAX_ROUNDS=1` and record one round.
+2. Analysis milestone when kicked off.
 
 ## 25 September 2026 — Lead verification (Demo Replay follow-up)
 
@@ -143,3 +260,27 @@ Highest-value items from [21-CURSOR-HANDOFF](./21-CURSOR-HANDOFF.md): broken emp
 2. Wire one real match / `Finding` contract from the engine.
 3. Continue a11y (streaming announce-once, stage text alternative, arrow-key tabs).
 4. React port only after data contract is stable.
+
+## 2026-09-26 — AI Coach phase 3: knowledge base (T30)
+
+**Branch:** `claude/coach-phase-3-6tsf72` (on `claude/coach-phase-2-r2gzvt`)
+
+### Done
+
+- `data/knowledge/`: Mirage (callouts, T side, CT side, utility, rotations; 58 sections), Anubis (same topics; 49 sections), `general/fundamentals.md` (25 sections, every detector covered), `README.md`, `SOURCES.md`.
+- `data/knowledge/fetch_liquipedia.py`: downloads Liquipedia map pages with CC BY-SA attribution frontmatter, split by heading, respecting the API rate limit.
+- `apps/api/tests/knowledge/test_knowledge_base.py`: frontmatter, section size, zone and detector names, ≥ 40 sections per map, parser attribution.
+
+### Why
+
+T31 and T32 (index and `search_knowledge`) were already being built in the phase 2 thread, so phase 3 here is the content they index.
+
+### Tested
+
+- `pytest tests/knowledge` — 16 passed; full `pytest` — 183 passed, 4 skipped.
+
+### Uncertain / limitations
+
+- Notes are a first draft from general CS2 knowledge; Anubis sub-callouts and the Mirage Stairs zone polygon need an in-game check.
+- Liquipedia was not fetched (liquipedia.net is blocked from the cloud session); the parser is only tested on sample HTML.
+- Notes are English only; Polish and Dutch questions rely on the multilingual embedding model.

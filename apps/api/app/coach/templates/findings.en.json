@@ -1,0 +1,23 @@
+{
+ "_unknown_zone": "an unnamed area",
+ "untraded_death": "Died to {killerName} in {zone} and was not traded within {tradeWindowS} s; the nearest of {teammatesAlive} living teammates was {nearestTeammateM} m away.",
+ "untraded_death.no_positions": "Died to {killerName} in {zone} and was not traded within {tradeWindowS} s while {teammatesAlive} teammates were alive.",
+ "shot_while_moving": "Fired {movingShots} of {shots} shots with the {weapon} while moving at up to {speedUps} u/s in {zone}; accurate speed is {accurateSpeedUps} u/s.",
+ "unused_utility": "Died in {zone} after {timeAliveS} s with {grenadesUnused} unused grenades ({grenadeList}).",
+ "dry_peek": "Died to {killerName} in {zone} {timeToDeathS} s after first contact, with no flash or smoke from the team before the fight.",
+ "team_flash": "Own flash blinded {teammatesBlinded} teammates in {zone} (longest {longestBlindS} s) and {enemiesBlinded} enemies.",
+ "team_flash.self": "Own flash blinded the player for {longestBlindS} s in {zone} and {enemiesBlinded} enemies.",
+ "opening_duel.won": "Won the opening duel against {opponentName} in {zone} with the {weapon}.",
+ "opening_duel.lost": "Lost the opening duel to {opponentName} in {zone}.",
+ "economy_mismatch.saved_on_buy": "Went into round {round} with {equipValue} of equipment and {balance} unspent while the team median was {teamMedianEquip}.",
+ "economy_mismatch.forced_on_save": "Bought {equipValue} of equipment in round {round} while the team median was {teamMedianEquip}.",
+ "late_rotation": "Reached {site} {arrivalS} s after the plant, {delayS} s behind the team median of {teamMedianArrivalS} s.",
+ "late_rotation.never": "Did not reach {site} after the plant; teammates arrived after a median of {teamMedianArrivalS} s.",
+ "repeated_death_zone": "Died in {zone} {deathsInZone} times this match (rounds {rounds}).",
+ "good_plays.trade_kill": "Traded {tradedName} by killing {victimName} {tradeTimeS} s later in {zone}.",
+ "good_plays.entry_kill": "Opened the round by killing {victimName} in {zone} with the {weapon}.",
+ "good_plays.multi_kill": "Got {kills} kills in {spanS} s, the last in {zone}.",
+ "good_plays.clutch": "Won the round as the last player alive against {enemiesAlive} enemies, with {killsInClutch} kills.",
+ "good_plays.flash_assist": "Flashed {victimName} for {killerName}'s kill in {zone}.",
+ "good_plays.utility_damage": "Dealt {utilityDamage} grenade and fire damage to {enemiesHit} enemies."
+}
