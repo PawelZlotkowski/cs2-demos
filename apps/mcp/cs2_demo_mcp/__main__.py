@@ -3,6 +3,9 @@
     python -m cs2_demo_mcp                      # stdio (MCP inspector, local clients)
     python -m cs2_demo_mcp --transport http     # streamable HTTP on 127.0.0.1:8765/mcp
 
+With accounts on (RR_AUTH_ENABLED=true) the HTTP server needs an API token from
+the admin panel, sent as ``Authorization: Bearer rr_...``.
+
 It reads the same data as the API (``RR_DATA_DIR``, default ``apps/api/data``),
 so matches uploaded through the web app are visible to any MCP client.
 """
@@ -24,13 +27,16 @@ def main(argv: list[str] | None = None) -> None:
     # stdout carries the protocol on stdio; logs go to stderr
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 
-    from app.coach.mcp_server import build_server
-
-    server = build_server()
     if args.transport == "stdio":
-        server.run("stdio")
+        from app.coach.mcp_server import build_server
+
+        build_server().run("stdio")
     else:
-        server.run("streamable-http", host=args.host, port=args.port)
+        import uvicorn
+
+        from app.coach.mcp_http import http_app
+
+        uvicorn.run(http_app(args.host), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

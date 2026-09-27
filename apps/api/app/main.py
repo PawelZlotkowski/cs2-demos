@@ -70,9 +70,10 @@ def _same_origin(origin: str, request: Request) -> bool:
     return host in {forwarded, request.headers.get("host")} - {None}
 
 
-protected = [Depends(guard)]
-for r in (auth_router, router, account_router, lab_router, roadmap_router, admin_router):
-    app.include_router(r, dependencies=protected)
+# Every API route sits behind ``guard`` (sign-in, roles, match ownership)
+ROUTERS = (auth_router, router, account_router, lab_router, roadmap_router, admin_router)
+for r in ROUTERS:
+    app.include_router(r, dependencies=[Depends(guard)])
 
 
 @app.get("/")

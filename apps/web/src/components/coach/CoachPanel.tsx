@@ -51,6 +51,7 @@ export const STEP_LABELS: Record<string, string> = {
   request_clip: "Queueing a clip",
   list_matches: "Listing your matches",
   find_moments: "Looking through your matches",
+  queue: "Waited for the GPU",
 };
 
 export function CoachPanel({

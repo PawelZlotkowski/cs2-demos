@@ -27,6 +27,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app.auth.scope import allowed, can_write
 from app.analysis.detectors import DETECTORS
 from app.analysis.match_data import MatchData, RoundData, build_match_data
 from app.maps.zones import zone_at
@@ -72,6 +73,8 @@ class _Data:
             self._cache.clear()
 
     def match(self, match_id: str) -> MatchData:
+        if not allowed(match_id):
+            raise ToolError(f"Unknown match_id {match_id!r}.")
         with self._lock:
             if match_id in self._cache:
                 self._cache.move_to_end(match_id)
@@ -89,12 +92,19 @@ class _Data:
         return data
 
     def findings(self, match_id: str, player_id: str, **filters: Any) -> list[Finding]:
+        if not allowed(match_id):
+            raise ToolError(f"Unknown match_id {match_id!r}.")
         if not self.repo.analysis.has_analysis(match_id, player_id):
             raise ToolError("No analysis for that player in this match.")
         return self.repo.analysis.findings(match_id, player_id, **filters)
 
 
 data = _Data()
+
+
+def _check_write() -> None:
+    if not can_write.get():
+        raise ToolError("This app's token can only read. Ask the admin for a token that can write.")
 
 
 def use_repository(repository: Any) -> None:
@@ -395,6 +405,7 @@ def select_moments(
     the match has them, no two moments within 10 s in the same round."""
     from app.coach.verify import verify_moments
 
+    _check_write()
     findings = data.findings(match_id, player_id)
     result = verify_moments([m.model_dump() if isinstance(m, BaseModel) else m for m in moments], findings)
     if not result.ok:
@@ -436,6 +447,7 @@ def request_clip(
 ) -> dict[str, Any]:
     """Queue a gameplay clip of the coached player's view for a round window (at most 60 s).
     Returns the clip job id and status. The radar replay is available meanwhile."""
+    _check_write()
     if t1 <= t0 or t1 - t0 > 60:
         raise ToolError("Use 0 <= t0 < t1 with a window of at most 60 s.")
     match = data.match(match_id)

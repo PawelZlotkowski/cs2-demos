@@ -36,3 +36,7 @@ def scope_for_match(match_id: str) -> frozenset[str] | None:
     if not settings.auth_enabled:
         return None
     return owner_scope(users().owner(match_id))
+
+
+# MCP clients with a read-only token may not call the two tools that write
+can_write: ContextVar[bool] = ContextVar("can_write", default=True)
