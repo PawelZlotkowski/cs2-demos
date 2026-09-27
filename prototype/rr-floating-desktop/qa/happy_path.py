@@ -66,19 +66,35 @@ async def main():
         async def upload():
             await win("matches").get_by_role("button", name="Add match").click()
             add = win("addMatch")
+            await add.get_by_text("Welcome to Add Match").wait_for(timeout=5_000)
+            await shot("02a-installer-intro")
+            await add.get_by_role("button", name="Continue").click()
             await add.locator('input[type="file"]').set_input_files(demo)
+            await shot("02b-installer-demo")
+            await add.get_by_role("button", name="Upload").click()
+            await add.locator(".inst-bar").wait_for(timeout=10_000)
+            await shot("02c-installer-reading")
             await add.get_by_text("Who should the coach review?").wait_for(timeout=120_000)
-            await shot("02-picker")
-            return "uploaded, parsed, player list shown"
+            await add.locator(".inst-tr.pick-row").first.wait_for(timeout=10_000)
+            await page.wait_for_timeout(600)  # kill counts fill in
+            await shot("02d-installer-player")
+            return "installer: intro, demo, reading progress, player list"
 
         await step("Upload and parse a demo", upload)
 
         async def pick():
             add = win("addMatch")
-            await add.locator(".pick-row").first.click()
+            await add.locator(".inst-tr.pick-row").first.click()
+            await add.get_by_role("button", name="Review", exact=True).click()
+            try:
+                await add.get_by_text("Reviewing").wait_for(timeout=3_000)
+                await shot("03a-installer-review")
+            except Exception:  # noqa: BLE001 - with templates the review can finish before the step shows
+                pass
             await add.get_by_role("button", name="Open in Studio").wait_for(timeout=MODEL_WAIT)
-            await shot("03-pipeline-done")
-            return "detectors, moments, clips and review finished"
+            summary = await add.locator(".inst-done p").first.inner_text()
+            await shot("03b-installer-summary")
+            return summary
 
         await step("Pick a player and run the coach", pick)
 

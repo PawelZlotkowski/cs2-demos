@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { api } from '@/lib/api/client';
 import { WindowFrame } from '../desktop/WindowFrame';
 import { BUSY, errorText, type Match, type MatchStatus } from '../data/model';
@@ -22,29 +22,13 @@ export function MatchesWindow() {
   const s = useStore();
   const [confirm, setConfirm] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const rerunning = useRef(new Set<string>());
   const served = s.system?.checks.find((c) => c.name === 'llm')?.state === 'ok' ? s.system.llmModel : null;
-
-  // A re-run finishes in the background; say so when its row turns complete again
-  useEffect(() => {
-    for (const m of s.matches) {
-      if (!rerunning.current.has(m.id) || BUSY.has(m.status)) continue;
-      rerunning.current.delete(m.id);
-      if (m.status === 'complete')
-        s.notify({
-          title: `Review ready: ${m.mapLabel} ${m.score}`,
-          body: `Written again by ${m.model ?? 'the templates'}. The earlier review is kept.`,
-          action: { label: 'Open in Studio', run: () => s.openStudio(m.id) },
-        });
-    }
-  }, [s.matches, s]);
 
   async function rerun(m: Match) {
     setConfirm(null);
     setError(null);
     try {
       await api.rerunCoach(m.id, s.language);
-      rerunning.current.add(m.id);
       await s.refreshMatches();
     } catch (e) {
       setError(`${m.mapLabel} ${m.score}: ${errorText(e)}`);
@@ -58,7 +42,7 @@ export function MatchesWindow() {
       id="matches"
       subtitle={s.matchesError ? 'The API is not answering' : `${s.matches.length} ${s.matches.length === 1 ? 'match' : 'matches'} on this computer, ${done} reviewed`}
       toolbar={
-        <button type="button" className="btn btn-default" onClick={() => s.openPicker(null)}>
+        <button type="button" className="btn btn-default" onClick={() => s.openInstaller(null)}>
           Add match
         </button>
       }
@@ -83,7 +67,7 @@ export function MatchesWindow() {
         {!s.matchesError && s.matches.length === 0 ? (
           <p className="empty">
             No matches yet.{' '}
-            <button type="button" className="link" onClick={() => s.openPicker(null)}>
+            <button type="button" className="link" onClick={() => s.openInstaller(null)}>
               Add a demo
             </button>{' '}
             to review it.
@@ -119,9 +103,9 @@ export function MatchesWindow() {
                         <button
                           type="button"
                           className="row-open"
-                          disabled={busy || m.status === 'failed'}
-                          onClick={() => (ready ? s.openStudio(m.id) : s.openPicker(m.id))}
-                          title={ready ? 'Open in the Studio' : m.status === 'awaiting_player' ? 'Pick the player to review' : undefined}
+                          disabled={m.status === 'failed'}
+                          onClick={() => (ready ? s.openStudio(m.id) : s.openInstaller(m.id))}
+                          title={ready ? 'Open in the Studio' : m.status === 'awaiting_player' ? 'Pick the player to review' : busy ? 'Show the progress' : undefined}
                         >
                           {m.mapLabel}
                         </button>
@@ -130,14 +114,14 @@ export function MatchesWindow() {
                       <td className="num">{m.when}</td>
                       <td>
                         {busy ? (
-                          <span className="status-busy thinking">
+                          <button type="button" className="link status-busy thinking" onClick={() => s.openInstaller(m.id)}>
                             {m.playerName ? `${m.playerName}, ` : ''}
                             {STATUS_LABEL[m.status]}
-                          </span>
+                          </button>
                         ) : m.playerName && ready ? (
                           m.playerName
                         ) : m.status === 'awaiting_player' ? (
-                          <button type="button" className="link" onClick={() => s.openPicker(m.id)}>
+                          <button type="button" className="link" onClick={() => s.openInstaller(m.id)}>
                             Pick a player
                           </button>
                         ) : (

@@ -18,13 +18,17 @@ Open **http://localhost:5173**. The dev server proxies `/api` to `http://127.0.0
 
 The coach model, CS Demo Manager clips and the Lab follow the API's `.env` exactly as in `apps/web`: with `RR_LLM_ENABLED` off the coach writes from the finding templates, with `RR_CSDM_ENABLED` off moments have no clip and the radar takes the stage, and the Lab window needs `RR_LAB_ENABLED=1`.
 
+## Add Match
+
+Add match opens a separate, fixed-size window that works like a macOS installer: the steps down the left (Introduction, Demo file, Reading the demo, Player, Coach review, Summary), one step on the right, Go Back and Continue at the bottom. The introduction shows which coach model and clip recorder the API will use. Reading and Coach review each have a progress bar driven by the API's stages (clip recording counts clip by clip) with the stage list under Show details. Closing the window never stops the work: Matches shows the progress, clicking a busy or waiting match reopens the installer on its step, and a notification says when a pick is waiting or a review is ready.
+
 ## What each window calls
 
 | Window | API |
 |---|---|
 | Matches | `GET /matches` (polled while a match is processing), `POST /matches/{id}/rerun`, `GET /system` for the served model |
-| Add match | `POST /matches/upload` with progress, `GET /matches/{id}/status` stages, `GET /matches/{id}` roster, `POST /matches/{id}/player` |
-| Studio | match, rounds, round replays (one round at a time), findings, round stats, moments, moment clips (`.mp4` played on the shared clock), summary, moment explanations, explain round, wrap-up and drills, done well, Ask (server-sent events), bookmarks and "Ask about this" |
+| Add Match (installer) | `POST /matches/upload` with progress, `GET /matches/{id}/status` stages for both progress bars, `GET /matches/{id}` roster with kills and deaths from `GET /matches/{id}/events`, `POST /matches/{id}/player` with the coach language, `GET …/clips` for the summary |
+| Studio | match, rounds, round replays (one round at a time), findings, round stats, moments, moment clips (`.mp4` played on the shared clock, "Record again" on a failed one, downloads under the API's readable name), whole-round CS:DM clips when a round has no player clip, a clip queued when a round is explained on demand, summary, moment explanations, explain round, wrap-up and drills, done well, Ask (server-sent events), bookmarks and "Ask about this" |
 | Coach | `POST /players/{id}/ask` (events, `[M2:F3]` citations open the Studio), plan `GET/POST/PUT /players/{id}/plan`, knowledge browse, flag and admin notes |
 | Progress | `GET /players/{id}/progress` |
 | Settings | `GET /system`, `GET /features` |
@@ -41,7 +45,7 @@ cd apps/api
 RR_LAB_ENABLED=1 RR_CSDM_ENABLED=1 RR_CSDM_MODE=stub .venv/bin/python ../../prototype/rr-floating-desktop/qa/dev_api.py
 ```
 
-Then upload any file that starts with the demo magic, for example `printf 'PBDEMS2\0' > fake.dem`.
+Then upload any file that starts with the demo magic, for example `printf 'PBDEMS2\0' > fake.dem`. The scripted parse waits 4 seconds so the installer's progress can be seen; `RR_DEV_PARSE_SEC` changes that.
 
 ## Check the main flows in a browser
 

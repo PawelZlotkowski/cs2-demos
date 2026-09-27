@@ -7,7 +7,7 @@ export type WinId = 'matches' | 'addMatch' | 'studio' | 'progress' | 'coach' | '
 
 export const WIN_TITLE: Record<WinId, string> = {
   matches: 'Matches',
-  addMatch: 'Add match',
+  addMatch: 'Add Match',
   studio: 'Studio',
   progress: 'Progress',
   coach: 'Coach',
@@ -17,7 +17,7 @@ export const WIN_TITLE: Record<WinId, string> = {
 
 const SIZE: Record<WinId, [number, number]> = {
   matches: [900, 560],
-  addMatch: [520, 600],
+  addMatch: [700, 480],
   studio: [1320, 820],
   progress: [900, 660],
   coach: [780, 720],
@@ -28,7 +28,7 @@ const SIZE: Record<WinId, [number, number]> = {
 /** Where each window first appears, as a share of the free desktop, so first opens cascade instead of stacking. */
 const PLACE: Record<WinId, [number, number]> = {
   matches: [0.1, 0.08],
-  addMatch: [0.62, 0.14],
+  addMatch: [0.5, 0.3],
   studio: [0.5, 0.5],
   progress: [0.3, 0.2],
   coach: [0.7, 0.3],
@@ -122,8 +122,12 @@ type Store = {
   playerId: string | null;
   pickPlayer: (id: string) => void;
   /** The match the Add match window should ask a player for (from Matches' "Pick a player"). */
-  pickFor: string | null;
-  openPicker: (matchId: string | null) => void;
+  /** The match the Add Match installer follows; null for a fresh upload. */
+  installFor: string | null;
+  /** Open the installer on a match (picks up at its current step), or on a new upload. */
+  openInstaller: (matchId: string | null) => void;
+  /** The installer says which match it follows now, without raising the window. */
+  followInstall: (matchId: string | null) => void;
   studio: StudioTarget | null;
   openStudio: (matchId: string, findingId?: string) => void;
 
@@ -159,7 +163,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [players, setPlayers] = useState<CoachedPlayer[]>([]);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [studio, setStudio] = useState<StudioTarget | null>(null);
-  const [pickFor, setPickFor] = useState<string | null>(null);
+  const [installFor, setInstallFor] = useState<string | null>(null);
   const [lab, setLabState] = useState(() => labFromUrl() ?? false);
   const [language, setLanguage] = useState<CoachLanguage>('en');
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -242,8 +246,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'open', id: 'studio' });
   }, []);
 
-  const openPicker = useCallback((matchId: string | null) => {
-    setPickFor(matchId);
+  const openInstaller = useCallback((matchId: string | null) => {
+    setInstallFor(matchId);
     dispatch({ type: 'open', id: 'addMatch' });
   }, []);
 
@@ -268,6 +272,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
 
+  // Say when a match finishes in the background: a pick is waiting, or its review is ready.
+  // The installer shows both itself while it follows that match.
+  const lastStatus = useRef(new Map<string, Match['status']>());
+  const installerOn = wm.wins.addMatch.open && !wm.wins.addMatch.minimized;
+  useEffect(() => {
+    const prev = lastStatus.current;
+    for (const m of matches) {
+      const was = prev.get(m.id);
+      prev.set(m.id, m.status);
+      if (!was || was === m.status || !BUSY.has(was)) continue;
+      if (installerOn && installFor === m.id) continue;
+      if (m.status === 'awaiting_player')
+        notify({
+          title: `${m.mapLabel} ${m.score} is ready for a player`,
+          body: 'The demo has been read. Pick whose game the coach should review.',
+          action: { label: 'Pick a player', run: () => openInstaller(m.id) },
+        });
+      else if (m.status === 'complete')
+        notify({
+          title: `Review ready: ${m.mapLabel} ${m.score}`,
+          body: `${m.playerName ?? 'The player'}, written by ${m.model ?? 'the templates'}.${m.versions ? ' The earlier review is kept.' : ''}`,
+          action: { label: 'Open in Studio', run: () => openStudio(m.id) },
+        });
+      else if (m.status === 'failed')
+        notify({ title: `${m.mapLabel}: the demo could not be processed`, body: m.error ?? 'Open Matches for details.' });
+    }
+  }, [matches, installerOn, installFor, notify, openInstaller, openStudio]);
+
   const focused = useMemo(() => {
     let best: Win | null = null;
     for (const w of Object.values(wm.wins)) if (w.open && !w.minimized && (!best || w.z > best.z)) best = w;
@@ -291,8 +323,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     players,
     playerId,
     pickPlayer,
-    pickFor,
-    openPicker,
+    installFor,
+    openInstaller,
+    followInstall: setInstallFor,
     studio,
     openStudio,
     lab,

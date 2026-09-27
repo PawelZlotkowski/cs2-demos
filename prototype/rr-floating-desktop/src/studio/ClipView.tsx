@@ -14,10 +14,11 @@ type Props = {
   playing: boolean;
   rate: number;
   onSeek: (t: number) => void;
+  onRetry?: () => void;
 };
 
 /** The recorded first-person clip, driven by the shared clock: video time is round time minus the clip's start. */
-export function ClipView({ you, round, clip, t, main, sound, playing, rate, onSeek }: Props) {
+export function ClipView({ you, round, clip, t, main, sound, playing, rate, onSeek, onRetry }: Props) {
   const ref = useRef<HTMLVideoElement>(null);
   const inside = t >= clip.t0 && t <= clip.t1;
   const local = Math.min(Math.max(t, clip.t0), clip.t1) - clip.t0;
@@ -53,6 +54,11 @@ export function ClipView({ you, round, clip, t, main, sound, playing, rate, onSe
             ? `The clip could not be recorded${clip.error ? `: ${clip.error}` : ''}.`
             : `No clip of ${clip.label}. Clips need CS Demo Manager on this computer (RR_CSDM_ENABLED=1); the radar covers it.`}
         </span>
+        {clip.status === 'failed' && onRetry ? (
+          <button type="button" className="btn" onClick={onRetry}>
+            Record again
+          </button>
+        ) : null}
       </div>
     );
   }

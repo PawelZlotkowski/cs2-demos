@@ -226,7 +226,10 @@ function StudioBody({ match, data, target, panelOn }: { match: Match; data: Stud
 
   const lead = moment ? (findings.find((f) => f.id === moment.findingIds[0]) ?? null) : null;
   const inMoment = moment && !review && moment.round === round.number;
-  const clipState = inMoment ? moment.clip : roundClip(round.number, data.clips, round.duration, api.mediaUrl);
+  const clipState =
+    inMoment && moment.clip.status !== 'none'
+      ? moment.clip
+      : roundClip(round.number, clk.t, data.clips, data.roundClips, data.roundIdOf(round.number), round.duration, api.mediaUrl, (id) => api.clipUrl(match.id, id));
   const clip = { ...clipState, t1: Math.min(clipState.t1, round.duration), label: inMoment && lead ? findingLabel(lead.template) : `round ${round.number}` };
   const chip =
     moment && !review
@@ -248,9 +251,17 @@ function StudioBody({ match, data, target, panelOn }: { match: Match; data: Stud
     const t = lead?.t ?? clip.t0;
     const name = `${match.mapLabel.toLowerCase()}_${slug(you)}_r${String(round.number).padStart(2, '0')}_${slug(clip.label)}_${Math.floor(t / 60)}m${String(Math.round(t % 60)).padStart(2, '0')}s.mp4`;
     const a = document.createElement('a');
-    a.href = clip.url;
+    a.href = clip.download ?? clip.url;
     a.download = name;
     a.click();
+  }
+
+  function retryClip() {
+    if (!clip.id) return;
+    void api
+      .retryPlayerClip(match.id, data.playerId, clip.id)
+      .catch(() => undefined)
+      .finally(() => data.refreshClips());
   }
 
   const ctx: PanelCtx = {
@@ -314,6 +325,7 @@ function StudioBody({ match, data, target, panelOn }: { match: Match; data: Stud
           chip={chip}
           onSeek={(t) => clk.seek(t)}
           onDownload={download}
+          onRetry={clip.id ? retryClip : undefined}
         />
         <div className="transport">
           <button type="button" className="play" aria-label={clk.playing ? 'Pause' : 'Play'} title={clk.playing ? 'Pause (Space)' : 'Play (Space)'} onClick={clk.toggle}>

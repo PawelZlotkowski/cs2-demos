@@ -9,6 +9,7 @@ import type {
   MatchStatus,
   MomentClip,
   ReplayPlayer,
+  RoundClip,
   RoundReplay,
   RoundStats as ApiRoundStats,
   RoundSummary,
@@ -130,6 +131,10 @@ export type ClipState = {
   t0: number;
   t1: number;
   error?: string | null;
+  /** The player clip's id, for a retry; absent for a whole-round clip. */
+  id?: string;
+  /** Saves the file under a readable name (?download=1). */
+  download?: string | null;
 };
 
 export type Moment = {
@@ -146,7 +151,8 @@ export type Moment = {
 function clipState(c: MomentClip | undefined, t0: number, t1: number, mediaUrl: (p: string) => string): ClipState {
   if (!c) return { status: 'none', url: null, t0, t1 };
   const status = c.status === 'ready' && c.url ? 'ready' : c.status === 'queued' || c.status === 'recording' ? 'recording' : c.status === 'failed' ? 'failed' : 'none';
-  return { status, url: c.url ? mediaUrl(c.url) : null, t0: c.t0, t1: c.t1, error: c.error };
+  const url = c.url ? mediaUrl(c.url) : null;
+  return { status, url, t0: c.t0, t1: c.t1, error: c.error, id: c.id, download: url ? `${url}${url.includes('?') ? '&' : '?'}download=1` : null };
 }
 
 export function fromMoment(m: SelectedMoment, clips: MomentClip[], mediaUrl: (p: string) => string): Moment {
@@ -163,10 +169,34 @@ export function fromMoment(m: SelectedMoment, clips: MomentClip[], mediaUrl: (p:
   };
 }
 
-/** A clip for a round the user opened outside the coach's moments (recorded on request). */
-export function roundClip(round: number, clips: MomentClip[], duration: number, mediaUrl: (p: string) => string): ClipState {
-  const c = clips.find((x) => x.round === round && !x.momentId && x.t0 <= 0.5 && x.t1 >= duration - 0.5);
-  return clipState(c, 0, duration, mediaUrl);
+/**
+ * The clip for a round outside the coach's moments, picked as the web Studio picks it: a ready player clip
+ * covering the clock, else any ready one in the round (rounds explained on demand queue one around their main
+ * finding), else the newest; then CS:DM's whole-round clip, whose video time is round time.
+ */
+export function roundClip(
+  round: number,
+  t: number,
+  clips: MomentClip[],
+  roundClips: RoundClip[],
+  roundId: string | null,
+  duration: number,
+  mediaUrl: (p: string) => string,
+  wholeUrl: (roundId: string) => string,
+): ClipState {
+  const here = clips.filter((c) => c.round === round);
+  const newest = (list: MomentClip[]) => list[list.length - 1];
+  const pov = newest(here.filter((c) => c.status === 'ready' && t >= c.t0 && t <= c.t1)) ?? here.find((c) => c.status === 'ready') ?? newest(here);
+  if (pov && pov.status !== 'failed') return clipState(pov, 0, duration, mediaUrl);
+  const whole = roundId ? roundClips.find((c) => c.roundId === roundId) : undefined;
+  if (whole && roundId && (whole.status !== 'skipped' || !pov)) {
+    const status = whole.status === 'ready' && whole.url ? 'ready' : whole.status === 'queued' || whole.status === 'recording' ? 'recording' : whole.status === 'failed' ? 'failed' : 'none';
+    if (status !== 'none' || !pov) {
+      const url = status === 'ready' ? wholeUrl(roundId) : null;
+      return { status, url, t0: 0, t1: whole.durationSec || duration, error: whole.error, download: url };
+    }
+  }
+  return clipState(pov, 0, duration, mediaUrl);
 }
 
 export type RoundStats = Omit<ApiRoundStats, 'round' | 'playerId'>;

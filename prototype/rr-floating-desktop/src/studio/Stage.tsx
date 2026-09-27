@@ -22,6 +22,7 @@ type Props = {
   chip: { glyph: FindingKind | 'round'; n: string; label: string };
   onSeek: (t: number) => void;
   onDownload: () => void;
+  onRetry?: () => void;
 };
 
 type Box = { left: number; top: number; width: number; height: number };
@@ -29,7 +30,7 @@ type Box = { left: number; top: number; width: number; height: number };
 const GAP = 12;
 
 /** Clip and radar share one stage: one fills it, the other peeks top right; a click on the peek swaps them. */
-export function Stage({ map, you, round, t, playing, rate, main, onMain, clip, focusFinding, selectedEventId, chip, onSeek, onDownload }: Props) {
+export function Stage({ map, you, round, t, playing, rate, main, onMain, clip, focusFinding, selectedEventId, chip, onSeek, onDownload, onRetry }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 800, h: 450 });
   const [whole, setWhole] = useState(false);
@@ -83,7 +84,7 @@ export function Stage({ map, you, round, t, playing, rate, main, onMain, clip, f
         onClick={clipMain ? undefined : () => onMain('gameplay')}
         title={clipMain ? undefined : 'Show the clip large (V)'}
       >
-        <ClipView you={you} round={round} clip={clip} t={t} main={clipMain} sound={sound} playing={playing} rate={rate} onSeek={onSeek} />
+        <ClipView you={you} round={round} clip={clip} t={t} main={clipMain} sound={sound} playing={playing} rate={rate} onSeek={onSeek} onRetry={onRetry} />
         {caption}
       </figure>
 

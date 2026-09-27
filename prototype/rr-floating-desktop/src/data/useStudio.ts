@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api/client';
-import type { Match as ApiMatch, MomentClip, RoundStats as ApiRoundStats, RoundSummary } from '@/lib/contracts';
+import type { Match as ApiMatch, MomentClip, RoundClip, RoundStats as ApiRoundStats, RoundSummary } from '@/lib/contracts';
 import { errorText, fromFinding, fromMoment, roundShell, withReplay, type Finding, type Moment, type RoundData } from './model';
 
 export type StudioData = {
@@ -10,12 +10,17 @@ export type StudioData = {
   findings: Finding[];
   moments: Moment[];
   clips: MomentClip[];
+  /** CS:DM's whole-round clips (the replay worker), used when a round has no player clip. */
+  roundClips: RoundClip[];
   rounds: RoundData[];
   /** Rounds won by the coached player's team, then lost, from RoundStats. */
   us: number;
   them: number;
   replayError: string | null;
   loadRound: (n: number) => void;
+  /** Fetch the clip lists again, after something queued a recording (a round explained on demand, a retry). */
+  refreshClips: () => void;
+  roundIdOf: (n: number) => string | null;
 };
 
 type Base = {
@@ -31,6 +36,7 @@ type Base = {
 export function useStudioData(matchId: string, rowPlayerId: string | null) {
   const [base, setBase] = useState<Base | null>(null);
   const [clips, setClips] = useState<MomentClip[]>([]);
+  const [roundClips, setRoundClips] = useState<RoundClip[]>([]);
   const [replays, setReplays] = useState<Record<number, RoundData>>({});
   const [error, setError] = useState<string | null>(null);
   const [replayError, setReplayError] = useState<string | null>(null);
@@ -57,6 +63,10 @@ export function useStudioData(matchId: string, rowPlayerId: string | null) {
         if (stop) return;
         setBase({ detail, playerId, findings: findings.map(fromFinding), stats, summaries, moments });
         setClips(clipList);
+        api
+          .getClips(matchId)
+          .then((m) => !stop && setRoundClips(m.clips))
+          .catch(() => undefined);
       } catch (e) {
         if (!stop) setError(errorText(e));
       }
@@ -66,18 +76,25 @@ export function useStudioData(matchId: string, rowPlayerId: string | null) {
     };
   }, [matchId, rowPlayerId]);
 
-  // Clips are recorded after the analysis opens for rounds picked on demand, and CS:DM can be slow: keep the list fresh
-  const pending = clips.some((c) => c.status === 'queued' || c.status === 'recording');
+  const refreshClips = useCallback(() => {
+    if (!base) return;
+    api
+      .getPlayerClips(matchId, base.playerId)
+      .then(setClips)
+      .catch(() => undefined);
+    api
+      .getClips(matchId)
+      .then((m) => setRoundClips(m.clips))
+      .catch(() => undefined);
+  }, [base, matchId]);
+
+  // Clips are recorded after the analysis opens for rounds picked on demand, and CS:DM can be slow: keep the lists fresh
+  const pending = [...clips, ...roundClips].some((c) => c.status === 'queued' || c.status === 'recording');
   useEffect(() => {
-    if (!base || !pending) return;
-    const t = window.setInterval(() => {
-      api
-        .getPlayerClips(matchId, base.playerId)
-        .then(setClips)
-        .catch(() => undefined);
-    }, 4000);
+    if (!pending) return;
+    const t = window.setInterval(refreshClips, 3000);
     return () => window.clearInterval(t);
-  }, [base, pending, matchId]);
+  }, [pending, refreshClips]);
 
   const you = base?.detail.players?.find((p) => p.id === base.playerId)?.name ?? 'You';
 
@@ -117,13 +134,16 @@ export function useStudioData(matchId: string, rowPlayerId: string | null) {
       findings: base.findings,
       moments: base.moments.map((m) => fromMoment(m, clips, api.mediaUrl)),
       clips,
+      roundClips,
       rounds,
       us,
       them: rounds.filter((r) => r.won === false).length,
       replayError,
       loadRound,
+      refreshClips,
+      roundIdOf: (n) => base.summaries.find((r) => r.number === n)?.id ?? null,
     };
-  }, [base, shells, replays, clips, you, replayError, loadRound]);
+  }, [base, shells, replays, clips, roundClips, you, replayError, loadRound, refreshClips]);
 
   return { data, error };
 }

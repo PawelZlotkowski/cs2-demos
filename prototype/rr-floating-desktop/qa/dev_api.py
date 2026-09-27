@@ -13,6 +13,7 @@ such as a cloud sandbox. With a real demo, run uvicorn as usual instead.
 from __future__ import annotations
 
 import os
+import time
 import sys
 from pathlib import Path
 
@@ -200,7 +201,12 @@ def build() -> ParsedDemo:
     )
 
 
+PARSE_SEC = float(os.environ.get("RR_DEV_PARSE_SEC", "4"))
+
+
 def fake_parse(dem_path: str, **_kw) -> ParsedDemo:
+    # A real parse takes about a minute; a short pause lets the installer's progress be seen
+    time.sleep(PARSE_SEC)
     return build()
 
 

@@ -12,6 +12,9 @@ type Props = {
   minW?: number;
   minH?: number;
   flush?: boolean;
+  /** A fixed-size panel, like an installer: no resizing and no zoom. */
+  fixed?: boolean;
+  className?: string;
   children: ReactNode;
 };
 
@@ -19,7 +22,7 @@ type Anim = 'none' | 'leaving' | 'minimizing' | 'restoring' | 'zooming';
 
 const INTERACTIVE = 'button, a, input, select, textarea, label, [role="tab"], .seg';
 
-export function WindowFrame({ id, title, subtitle, toolbar, centerToolbar, tall, minW = 360, minH = 240, flush, children }: Props) {
+export function WindowFrame({ id, title, subtitle, toolbar, centerToolbar, tall, minW = 360, minH = 240, flush, fixed, className, children }: Props) {
   const { wins, focused, focus, close, minimize, setRect, zoom } = useStore();
   const win = wins[id];
   const isFocused = focused === id;
@@ -82,7 +85,7 @@ export function WindowFrame({ id, title, subtitle, toolbar, centerToolbar, tall,
     '--my': `${window.innerHeight - 40 - (win.y + win.h / 2)}px`,
   } as CSSProperties;
 
-  const cls = ['win', entered ? 'entered' : '', isFocused ? 'focused' : '', win.minimized && anim !== 'restoring' ? 'minimized' : '', anim !== 'none' ? anim : ''].filter(Boolean).join(' ');
+  const cls = ['win', className ?? '', entered ? 'entered' : '', isFocused ? 'focused' : '', win.minimized && anim !== 'restoring' ? 'minimized' : '', anim !== 'none' ? anim : ''].filter(Boolean).join(' ');
 
   return (
     <div
@@ -102,7 +105,7 @@ export function WindowFrame({ id, title, subtitle, toolbar, centerToolbar, tall,
         onPointerUp={end}
         onPointerCancel={end}
         onDoubleClick={(e) => {
-          if ((e.target as HTMLElement).closest(INTERACTIVE)) return;
+          if (fixed || (e.target as HTMLElement).closest(INTERACTIVE)) return;
           setAnim('zooming');
           zoom(id);
         }}
@@ -122,6 +125,7 @@ export function WindowFrame({ id, title, subtitle, toolbar, centerToolbar, tall,
             type="button"
             className="light zoom"
             aria-label={win.zoomed ? 'Restore size' : 'Zoom'}
+            disabled={fixed}
             onClick={() => {
               setAnim('zooming');
               zoom(id);
@@ -139,9 +143,13 @@ export function WindowFrame({ id, title, subtitle, toolbar, centerToolbar, tall,
         {toolbar ? <div className={`toolbar${centerToolbar ? ' center' : ''}`}>{toolbar}</div> : null}
       </div>
       <div className={`win-body${flush ? ' flush' : ''}`}>{children}</div>
-      <div className="resize-r" onPointerDown={startSize('r')} onPointerMove={onSize} onPointerUp={end} />
-      <div className="resize-b" onPointerDown={startSize('b')} onPointerMove={onSize} onPointerUp={end} />
-      <div className="resize" onPointerDown={startSize('both')} onPointerMove={onSize} onPointerUp={end} />
+      {fixed ? null : (
+        <>
+          <div className="resize-r" onPointerDown={startSize('r')} onPointerMove={onSize} onPointerUp={end} />
+          <div className="resize-b" onPointerDown={startSize('b')} onPointerMove={onSize} onPointerUp={end} />
+          <div className="resize" onPointerDown={startSize('both')} onPointerMove={onSize} onPointerUp={end} />
+        </>
+      )}
     </div>
   );
 }

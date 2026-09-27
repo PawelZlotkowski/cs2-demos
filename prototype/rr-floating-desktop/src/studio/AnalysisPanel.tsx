@@ -147,7 +147,13 @@ function RoundExplain({ ctx }: { ctx: PanelCtx }) {
   const [asked, setAsked] = useState(false);
   useEffect(() => setAsked(false), [n, ctx.match.id]);
   const key = useKey(ctx, asked ? `r${n}` : null);
-  const res = useCached(key, () => api.explainRound(ctx.match.id, ctx.data.playerId, n, s.language));
+  // Explaining a round queues a clip of its main finding; fetch the clip list so the stage shows it recording
+  const res = useCached(key, () =>
+    api.explainRound(ctx.match.id, ctx.data.playerId, n, s.language).then((r) => {
+      ctx.data.refreshClips();
+      return r;
+    }),
+  );
   if (!asked)
     return (
       <CoachBlock expl={null}>
