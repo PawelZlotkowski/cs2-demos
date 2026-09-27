@@ -7,6 +7,8 @@ import { formatClock } from "@/lib/replay/time";
 type PovClipProps = {
   clip: MomentClip;
   src: string | null;
+  /** Fills the stage (Gameplay view) instead of sitting in the corner of the radar. */
+  main: boolean;
   playerName: string;
   /** Shared playback clock, round seconds. */
   t: number;
@@ -14,19 +16,19 @@ type PovClipProps = {
   rate: number;
   onSeek: (t: number) => void;
   onRetry: (clipId: string) => void;
+  onEnlarge: () => void;
 };
 
 /** Seconds the video may drift from the clock while playing before it is re-seeked. */
 const DRIFT = 0.25;
 
 /**
- * First-person clip of the coached player, docked on the Radar stage.
+ * First-person clip of the coached player: docked on the Radar stage, or filling it in the Gameplay view.
  * The clip covers round seconds t0..t1, so it follows the shared clock at `t - t0`:
  * it plays natively while the clock plays inside the window and holds its edge frame outside it.
  */
-export function PovClip({ clip, src, playerName, t, playing, rate, onSeek, onRetry }: PovClipProps) {
+export function PovClip({ clip, src, main, playerName, t, playing, rate, onSeek, onRetry, onEnlarge }: PovClipProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [big, setBig] = useState(false);
   const [muted, setMuted] = useState(true);
   const length = clip.t1 - clip.t0;
   const local = t - clip.t0;
@@ -68,7 +70,7 @@ export function PovClip({ clip, src, playerName, t, playing, rate, onSeek, onRet
   }
 
   return (
-    <figure className={`pov${big ? " is-big" : ""}${inside ? "" : " is-outside"}`}>
+    <figure className={`pov${main ? " is-main" : ""}${inside ? "" : " is-outside"}`}>
       <video
         ref={videoRef}
         src={src}
@@ -92,9 +94,11 @@ export function PovClip({ clip, src, playerName, t, playing, rate, onSeek, onRet
         <button type="button" aria-pressed={!muted} onClick={() => setMuted((m) => !m)}>
           {muted ? "Sound off" : "Sound on"}
         </button>
-        <button type="button" aria-pressed={big} onClick={() => setBig((b) => !b)}>
-          {big ? "Smaller" : "Larger"}
-        </button>
+        {main ? null : (
+          <button type="button" onClick={onEnlarge} title="Show the clip large (V)">
+            Enlarge
+          </button>
+        )}
       </figcaption>
     </figure>
   );

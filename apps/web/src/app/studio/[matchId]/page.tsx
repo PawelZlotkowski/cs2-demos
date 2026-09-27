@@ -407,10 +407,17 @@ export default function StudioPage() {
     return fromMan ?? fromReplay ?? fromRound;
   }, [roundId, replay, clipManifest, activeRound]);
 
-  const gameplayReady = activeClip?.status === "ready" && Boolean(activeClip.url);
-  const gameplaySrc = gameplayReady && roundId ? api.clipUrl(matchId, roundId) : null;
+  // The coached player's moment clip wins over a whole-round clip for the Gameplay view
+  const povSrc = povClip?.status === "ready" && povClip.url ? api.mediaUrl(povClip.url) : null;
+  const roundClipReady = activeClip?.status === "ready" && Boolean(activeClip.url);
+  const gameplayReady = Boolean(povSrc) || roundClipReady;
+  const gameplaySrc = !povSrc && roundClipReady && roundId ? api.clipUrl(matchId, roundId) : null;
+  const povMain = stageMode === "gameplay" && Boolean(povSrc);
   const gameplayDisabledReason = useMemo(() => {
     if (gameplayReady) return null;
+    if (povClip?.status === "queued" || povClip?.status === "recording") return "Recording this moment's clip…";
+    if (povClip?.status === "failed") return povClip.error ?? "Recording this moment's clip failed.";
+    if (analysis && !povClip) return "No clip for this round. Pick a moment to watch its clip.";
     if (!activeClip) return "Gameplay clips are not available for this match yet.";
     if (activeClip.status === "queued" || activeClip.status === "recording") {
       const done = clipManifest?.done ?? 0;
@@ -426,11 +433,12 @@ export default function StudioPage() {
       return activeClip.error ?? "Gameplay recording is disabled on this server.";
     }
     return "Gameplay clip is not ready.";
-  }, [activeClip, gameplayReady, clipManifest]);
+  }, [activeClip, gameplayReady, clipManifest, povClip, analysis]);
 
   // Keep clock master in sync with stage mode
   useEffect(() => {
-    if (stageMode === "gameplay" && gameplayReady) {
+    // A moment clip follows the shared clock; only a whole-round clip drives it
+    if (stageMode === "gameplay" && gameplayReady && !povSrc) {
       clock.setMaster("video");
     } else {
       clock.setMaster("raf");
@@ -439,7 +447,7 @@ export default function StudioPage() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stageMode, gameplayReady]);
+  }, [stageMode, gameplayReady, povSrc]);
 
   const setMode = useCallback(
     (mode: StageView) => {
@@ -963,9 +971,9 @@ export default function StudioPage() {
             {replay ? (
               <>
                 <div
-                  className={`surface${stageMode === "gameplay" ? " is-main" : " is-hidden"}`}
+                  className={`surface${stageMode === "gameplay" && !povSrc ? " is-main" : " is-hidden"}`}
                   data-mode="gameplay"
-                  hidden={stageMode !== "gameplay"}
+                  hidden={stageMode !== "gameplay" || Boolean(povSrc)}
                 >
                   <GameplayView
                     src={gameplaySrc}
@@ -975,9 +983,11 @@ export default function StudioPage() {
                   />
                 </div>
                 <div
-                  className={`surface${stageMode === "radar" ? " is-main" : " is-hidden"}`}
+                  className={`surface${stageMode === "radar" ? " is-main" : povMain ? " is-inset" : " is-hidden"}`}
                   data-mode="radar"
-                  hidden={stageMode !== "radar"}
+                  hidden={stageMode !== "radar" && !povMain}
+                  onClick={povMain ? () => setMode("radar") : undefined}
+                  title={povMain ? "Show the radar large (V)" : undefined}
                 >
                   {hasRadar ? (
                     <>
@@ -1017,18 +1027,6 @@ export default function StudioPage() {
                       >
                         {whole ? "This round" : "Whole map"}
                       </button>
-                      {povClip ? (
-                        <PovClip
-                          clip={povClip}
-                          src={povClip.status === "ready" && povClip.url ? api.mediaUrl(povClip.url) : null}
-                          playerName={analysedName}
-                          t={clock.t}
-                          playing={clock.playing}
-                          rate={clock.rate}
-                          onSeek={(t) => seekTo(t)}
-                          onRetry={retryPov}
-                        />
-                      ) : null}
                     </>
                   ) : (
                     <div className="stage-msg">
@@ -1040,6 +1038,20 @@ export default function StudioPage() {
                     </div>
                   )}
                 </div>
+                {povClip && (stageMode === "radar" || povMain) ? (
+                  <PovClip
+                    clip={povClip}
+                    src={povSrc}
+                    main={povMain}
+                    playerName={analysedName}
+                    t={clock.t}
+                    playing={clock.playing}
+                    rate={clock.rate}
+                    onSeek={(t) => seekTo(t)}
+                    onRetry={retryPov}
+                    onEnlarge={() => setMode("gameplay")}
+                  />
+                ) : null}
               </>
             ) : (
               <div className="stage-msg">
