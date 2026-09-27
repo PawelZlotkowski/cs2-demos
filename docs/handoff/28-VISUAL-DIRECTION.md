@@ -91,7 +91,7 @@ Mostly neutral graphite. Colour has one meaning each, and there are five of them
 
 The coached player's radar ring moved from blue to white, so blue now only means good play. Enemies moved from orange to red, so orange only means mistake.
 
-Neutrals (dark / light): workspace #101316 / #eceff1, panel #15191c / #f6f7f8, raised #1c2125 / #ffffff, line #262c31 / #d4d9dd, text #eaedf0 / #111417, text-2 #aeb6be / #3c4550, text-3 #858f99 / #5a6470. The stage is #0a0c0e in both themes.
+Neutrals (dark / light): workspace #101316 / #eceff1, panel #15191c / #f6f7f8, raised #1c2125 / #ffffff, line #262c31 / #d4d9dd, text #eaedf0 / #111417, text-2 #aeb6be / #3c4550, text-3 #8b959f / #5a6470. The stage is #0a0c0e in both themes.
 
 ### Typography
 - **Archivo Variable, condensed (width 72 %)** for data only: map name, score, round numbers, clock, man advantage, moment numbers, lane labels. Tabular figures. Never for sentences.
