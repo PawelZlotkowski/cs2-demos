@@ -1,9 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { api } from '@/lib/api/client';
-import type { CoachLanguage, CoachedPlayer, SystemStatus } from '@/lib/contracts';
+import { readCoachLanguage } from '@/lib/coach/language';
+import type { CoachLanguage, CoachedPlayer, Features, SystemStatus } from '@/lib/contracts';
+import { LANG_EVENT, pushSettings } from '@/lib/prefs';
 import { BUSY, errorText, fromRow, type Match } from '../data/model';
 
-export type WinId = 'matches' | 'addMatch' | 'studio' | 'progress' | 'coach' | 'settings' | 'lab';
+export type WinId = 'matches' | 'addMatch' | 'studio' | 'progress' | 'coach' | 'settings' | 'admin' | 'reviews';
 
 export const WIN_TITLE: Record<WinId, string> = {
   matches: 'Matches',
@@ -12,7 +14,8 @@ export const WIN_TITLE: Record<WinId, string> = {
   progress: 'Progress',
   coach: 'Coach',
   settings: 'Settings',
-  lab: 'Lab',
+  admin: 'Admin',
+  reviews: 'Earlier Reviews',
 };
 
 const SIZE: Record<WinId, [number, number]> = {
@@ -21,8 +24,9 @@ const SIZE: Record<WinId, [number, number]> = {
   studio: [1320, 820],
   progress: [900, 660],
   coach: [780, 720],
-  settings: [680, 680],
-  lab: [1040, 720],
+  settings: [860, 640],
+  admin: [1120, 740],
+  reviews: [720, 640],
 };
 
 /** Where each window first appears, as a share of the free desktop, so first opens cascade instead of stacking. */
@@ -33,7 +37,8 @@ const PLACE: Record<WinId, [number, number]> = {
   progress: [0.3, 0.2],
   coach: [0.7, 0.3],
   settings: [0.45, 0.25],
-  lab: [0.4, 0.35],
+  admin: [0.4, 0.35],
+  reviews: [0.6, 0.4],
 };
 
 export const MENU_H = 26;
@@ -103,6 +108,23 @@ const isMissingRoute = (e: unknown) => e instanceof Error && e.message === 'Not 
 export type Notice = { id: number; title: string; body: string; action?: { label: string; run: () => void } };
 export type StudioTarget = { matchId: string; findingId?: string; nonce: number };
 
+export type AdminSection =
+  | 'overview'
+  | 'jobs'
+  | 'model'
+  | 'settings'
+  | 'users'
+  | 'invites'
+  | 'study'
+  | 'matches'
+  | 'knowledge'
+  | 'lab'
+  | 'storage'
+  | 'security'
+  | 'audit';
+
+export type SettingsPane = 'account' | 'coach' | 'sessions' | 'data' | 'system' | 'connect';
+
 type Store = {
   wins: Record<WinId, Win>;
   focused: WinId | null;
@@ -136,8 +158,17 @@ type Store = {
   studio: StudioTarget | null;
   openStudio: (matchId: string, findingId?: string) => void;
 
-  lab: boolean;
-  setLab: (on: boolean) => void;
+  /** GET /features: Lab, accounts, share links, study mode */
+  features: Features | null;
+  refreshFeatures: () => Promise<void>;
+  adminSection: AdminSection;
+  openAdmin: (section?: AdminSection) => void;
+  settingsPane: SettingsPane;
+  openSettings: (pane?: SettingsPane) => void;
+  /** The match the Earlier Reviews window shows */
+  reviewsFor: string | null;
+  openReviews: (matchId: string) => void;
+  /** Account setting, mirrored in this browser (lib/prefs): the coach answers in it on every device. */
   language: CoachLanguage;
   setLanguage: (l: CoachLanguage) => void;
 
@@ -147,18 +178,6 @@ type Store = {
 };
 
 const Ctx = createContext<Store | null>(null);
-
-/** The switch in Settings or ?lab=1; null when neither was set, so the API's RR_LAB_ENABLED decides. */
-function labFromUrl(): boolean | null {
-  try {
-    const q = new URLSearchParams(window.location.search).get('lab');
-    if (q != null) return q === '1';
-    const saved = window.localStorage.getItem('rr.lab');
-    return saved == null ? null : saved === '1';
-  } catch {
-    return null;
-  }
-}
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [wm, dispatch] = useReducer(wmReducer, undefined, initialWm);
@@ -170,14 +189,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [studio, setStudio] = useState<StudioTarget | null>(null);
   const [installFor, setInstallFor] = useState<string | null>(null);
-  const [lab, setLabState] = useState(() => labFromUrl() ?? false);
-  const [language, setLanguage] = useState<CoachLanguage>('en');
+  const [features, setFeatures] = useState<Features | null>(null);
+  const [adminSection, setAdminSection] = useState<AdminSection>('overview');
+  const [settingsPane, setSettingsPane] = useState<SettingsPane>('account');
+  const [reviewsFor, setReviewsFor] = useState<string | null>(null);
+  const [language, setLanguageState] = useState<CoachLanguage>(readCoachLanguage);
   const [notices, setNotices] = useState<Notice[]>([]);
   const nextNotice = useRef(1);
 
   const refreshPlayers = useCallback(async () => {
     try {
-      const ps = await api.getPlayers();
+      // The API lists only the signed-in user's players; "me" is their linked Steam account or the one they review most
+      const [ps, me] = await Promise.all([api.getPlayers(), api.myPlayer().catch(() => null)]);
       setPlayers(ps);
       setApiTooOld(false);
       setPlayerId((cur) => {
@@ -188,7 +211,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         } catch {
           /* storage blocked */
         }
-        return ps.find((p) => p.id === saved)?.id ?? ps[0]?.id ?? null;
+        const find = (id: string | null | undefined) => ps.find((p) => p.id === id)?.id;
+        return find(saved) ?? find(me?.playerId) ?? ps[0]?.id ?? null;
       });
     } catch (e) {
       if (isMissingRoute(e)) setApiTooOld(true);
@@ -207,6 +231,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void refreshPlayers();
   }, [refreshPlayers]);
 
+  const refreshFeatures = useCallback(async () => {
+    try {
+      setFeatures(await api.features());
+    } catch {
+      /* the API is down: windows say so themselves */
+    }
+  }, []);
+
   const refreshSystem = useCallback(async () => {
     try {
       setSystem(await api.getSystem());
@@ -218,13 +250,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refreshMatches();
     void refreshSystem();
-    api
-      .features()
-      .then((f) => {
-        if (f.lab && labFromUrl() == null) setLabState(true);
-      })
-      .catch(() => undefined);
-  }, [refreshMatches, refreshSystem]);
+    void refreshFeatures();
+  }, [refreshMatches, refreshSystem, refreshFeatures]);
+
+  // The language changes in Settings, the Studio, the Coach window or on another device (pulled at sign-in)
+  useEffect(() => {
+    const on = () => setLanguageState(readCoachLanguage());
+    window.addEventListener(LANG_EVENT, on);
+    return () => window.removeEventListener(LANG_EVENT, on);
+  }, []);
+
+  const setLanguage = useCallback((l: CoachLanguage) => {
+    setLanguageState(l);
+    void pushSettings({ language: l });
+  }, []);
 
   const busy = matches.some((m) => BUSY.has(m.status));
   useEffect(() => {
@@ -259,14 +298,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'open', id: 'addMatch' });
   }, []);
 
-  const setLab = useCallback((on: boolean) => {
-    setLabState(on);
-    try {
-      window.localStorage.setItem('rr.lab', on ? '1' : '0');
-    } catch {
-      /* storage blocked */
-    }
-    if (!on) dispatch({ type: 'close', id: 'lab' });
+  const openAdmin = useCallback((section?: AdminSection) => {
+    if (section) setAdminSection(section);
+    dispatch({ type: 'open', id: 'admin' });
+  }, []);
+
+  const openSettings = useCallback((pane?: SettingsPane) => {
+    if (pane) setSettingsPane(pane);
+    dispatch({ type: 'open', id: 'settings' });
+  }, []);
+
+  const openReviews = useCallback((matchId: string) => {
+    setReviewsFor(matchId);
+    dispatch({ type: 'open', id: 'reviews' });
   }, []);
 
   const dismiss = useCallback((id: number) => setNotices((n) => n.filter((x) => x.id !== id)), []);
@@ -337,8 +381,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     followInstall: setInstallFor,
     studio,
     openStudio,
-    lab,
-    setLab,
+    features,
+    refreshFeatures,
+    adminSection,
+    openAdmin,
+    settingsPane,
+    openSettings,
+    reviewsFor,
+    openReviews,
     language,
     setLanguage,
     notices,

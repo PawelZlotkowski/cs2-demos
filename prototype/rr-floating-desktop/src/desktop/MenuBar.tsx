@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api/client';
+import { ROLE_LABEL, useAuth } from '../state/auth';
 import { WIN_TITLE, useStore, type WinId } from '../state/store';
+import { Avatar } from '../ui/kit';
 
-type Item = { label: string; run?: () => void; disabled?: boolean; checked?: boolean; hint?: string } | 'sep';
+type Item = { label: string; run?: () => void; disabled?: boolean; checked?: boolean; hint?: string } | { head: string; sub: string } | 'sep';
 type Menu = { id: string; label: string; items: Item[]; app?: boolean };
 
 function useClock() {
@@ -16,6 +18,7 @@ function useClock() {
 
 export function MenuBar() {
   const s = useStore();
+  const auth = useAuth();
   const [open, setOpen] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const time = useClock();
@@ -36,7 +39,26 @@ export function MenuBar() {
   const llm = s.system?.checks.find((c) => c.name === 'llm');
   const modelLabel = s.apiTooOld ? 'API from another copy' : !s.system ? 'API offline' : llm?.state === 'ok' ? s.system.llmModel : 'Coach model off';
   const openWins = (Object.keys(WIN_TITLE) as WinId[]).filter((id) => s.wins[id].open);
-  const views: WinId[] = ['matches', 'progress', 'coach', 'studio', ...(s.lab ? (['lab'] as WinId[]) : [])];
+  const views: WinId[] = ['matches', 'progress', 'coach', 'studio', ...(auth.canLab ? (['admin'] as WinId[]) : [])];
+  const user = auth.user;
+  const signedIn = !!auth.state?.authEnabled && !!user;
+  const adminLabel = user?.role === 'labeller' ? 'Lab…' : 'Admin…';
+
+  // Right of the menu bar, like macOS fast user switching: who is signed in and the account's own items
+  const account: Menu | null = user
+    ? {
+        id: 'account',
+        label: signedIn ? user.displayName : 'This computer',
+        items: [
+          signedIn ? { head: user.displayName, sub: `${ROLE_LABEL[user.role]}${user.username ? ` · @${user.username}` : ''}` } : { head: 'This computer', sub: 'Accounts are off, so it is the admin' },
+          'sep',
+          ...(signedIn ? [{ label: 'Profile…', run: () => s.openSettings('account') }] : []),
+          { label: 'Settings…', run: () => s.openSettings(signedIn ? 'coach' : 'system') },
+          ...(auth.canLab ? [{ label: adminLabel, run: () => s.openAdmin() }] : []),
+          ...(signedIn ? ['sep' as const, { label: `Sign Out ${user.displayName}…`, run: () => void auth.signOut() }] : []),
+        ],
+      }
+    : null;
 
   const menus: Menu[] = [
     {
@@ -49,7 +71,9 @@ export function MenuBar() {
           run: () => s.notify({ title: 'Round Reviewer', body: `Floating desktop on the Round Reviewer API (${api.baseUrl}).` }),
         },
         'sep',
-        { label: 'Settings…', run: () => s.open('settings') },
+        { label: 'Settings…', run: () => s.openSettings() },
+        ...(auth.canLab ? [{ label: adminLabel, run: () => s.openAdmin() }] : []),
+        ...(signedIn && user ? ['sep' as const, { label: `Sign Out ${user.displayName}…`, run: () => void auth.signOut() }] : []),
       ],
     },
     {
@@ -67,6 +91,7 @@ export function MenuBar() {
       items: [
         { label: 'Open latest in Studio', disabled: !latest, run: () => latest && s.openStudio(latest.id) },
         { label: 'Re-run the coach…', run: () => s.open('matches') },
+        { label: 'Earlier reviews of latest', disabled: !latest?.versions, run: () => latest && s.openReviews(latest.id) },
         'sep',
         { label: 'Show progress', run: () => s.open('progress') },
       ],
@@ -101,6 +126,53 @@ export function MenuBar() {
     },
   ];
 
+  function renderMenu(m: Menu, right = false) {
+    return (
+      <div className="menu-wrap" key={m.id}>
+        <button
+          type="button"
+          className={`mb-title${m.app ? ' app' : ''}${right ? ' mb-account' : ''}`}
+          aria-expanded={open === m.id}
+          aria-haspopup="menu"
+          onClick={() => setOpen(open === m.id ? null : m.id)}
+          onPointerEnter={() => open && setOpen(m.id)}
+        >
+          {right && user ? <Avatar name={signedIn ? user.displayName : '·'} url={user.avatarUrl} size={17} /> : null}
+          {m.label}
+        </button>
+        {open === m.id ? (
+          <div className={`menu${right ? ' right' : ''}`} role="menu">
+            {m.items.map((it, i) =>
+              it === 'sep' ? (
+                <hr key={i} />
+              ) : 'head' in it ? (
+                <p key={i} className="menu-head">
+                  <b>{it.head}</b>
+                  <span>{it.sub}</span>
+                </p>
+              ) : (
+                <button
+                  key={it.label}
+                  type="button"
+                  role="menuitem"
+                  disabled={it.disabled}
+                  onClick={() => {
+                    setOpen(null);
+                    it.run?.();
+                  }}
+                >
+                  {it.checked ? <span className="check">✓</span> : null}
+                  {it.label}
+                  {it.hint ? <span className="hint">{it.hint}</span> : null}
+                </button>
+              ),
+            )}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="menubar" ref={ref}>
       <span className="mb-glyph" aria-hidden>
@@ -109,49 +181,13 @@ export function MenuBar() {
           <circle cx="8" cy="8" r="2.2" fill="currentColor" />
         </svg>
       </span>
-      {menus.map((m) => (
-        <div className="menu-wrap" key={m.id}>
-          <button
-            type="button"
-            className={`mb-title${m.app ? ' app' : ''}`}
-            aria-expanded={open === m.id}
-            aria-haspopup="menu"
-            onClick={() => setOpen(open === m.id ? null : m.id)}
-            onPointerEnter={() => open && setOpen(m.id)}
-          >
-            {m.label}
-          </button>
-          {open === m.id ? (
-            <div className="menu" role="menu">
-              {m.items.map((it, i) =>
-                it === 'sep' ? (
-                  <hr key={i} />
-                ) : (
-                  <button
-                    key={it.label}
-                    type="button"
-                    role="menuitem"
-                    disabled={it.disabled}
-                    onClick={() => {
-                      setOpen(null);
-                      it.run?.();
-                    }}
-                  >
-                    {it.checked ? <span className="check">✓</span> : null}
-                    {it.label}
-                    {it.hint ? <span className="hint">{it.hint}</span> : null}
-                  </button>
-                ),
-              )}
-            </div>
-          ) : null}
-        </div>
-      ))}
+      {menus.map((m) => renderMenu(m))}
       <span className="mb-spacer" />
-      <button type="button" className="mb-status" title="Coach model, from Settings" onClick={() => s.open('settings')}>
+      <button type="button" className="mb-status" title="Coach model, from Settings" onClick={() => s.openSettings('system')}>
         <span className="mb-dot" data-state={s.apiTooOld || !s.system ? 'problem' : (llm?.state ?? 'off')} aria-hidden />
         <span className="mono">{modelLabel}</span>
       </button>
+      {account ? renderMenu(account, true) : null}
       <span className="mb-status">{time}</span>
     </div>
   );

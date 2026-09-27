@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { readStartRate } from '@/lib/prefs';
 
 export const RATES = [0.5, 1, 2];
 
@@ -6,7 +7,8 @@ export const RATES = [0.5, 1, 2];
 export function useClock(duration: number) {
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [rate, setRate] = useState(1);
+  // The starting speed from Settings (A07); 4× is the web Studio's, the desktop stops at 2×
+  const [rate, setRate] = useState(() => Math.min(2, readStartRate()));
   const last = useRef<number | null>(null);
   const dur = useRef(duration);
   dur.current = duration;

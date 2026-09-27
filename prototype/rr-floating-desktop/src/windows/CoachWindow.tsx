@@ -5,8 +5,9 @@ import { WindowFrame } from '../desktop/WindowFrame';
 import { COACH_LANGUAGES } from '../data/languages';
 import { MAPS, mapName, type MapId } from '../data/maps';
 import { errorText } from '../data/model';
+import { useAuth } from '../state/auth';
 import { useStore } from '../state/store';
-import { streamTurn } from '../studio/SidePanels';
+import { historyTurns, streamTurn, type Turn } from '../studio/SidePanels';
 import { CoachText } from '../ui/CoachText';
 import { Segmented } from '../ui/Segmented';
 import { ApiTooOld } from '../ui/ApiNotice';
@@ -80,7 +81,6 @@ export function CoachWindow() {
   );
 }
 
-type Turn = { id: number; q: string; a: string; pending: boolean; step: string; source?: 'agent' | 'template'; error?: string; matches?: Record<string, string> };
 
 function AskAcross({
   playerId,
@@ -105,6 +105,25 @@ function AskAcross({
   useEffect(() => {
     end.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
   }, [turns]);
+
+  // Questions asked here before, across matches (A09)
+  useEffect(() => {
+    let live = true;
+    api
+      .askHistoryAcross(playerId)
+      .then((rows) => {
+        if (!live) return;
+        const earlier = historyTurns(
+          rows.filter((r) => !r.matchId),
+          () => next.current++,
+        );
+        setTurns((ts) => [...earlier, ...ts.filter((x) => !x.earlier)]);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [playerId]);
   const model = s.system?.checks.find((c) => c.name === 'llm')?.state === 'ok' ? s.system.llmModel : 'The coach model';
 
   async function ask(raw: string) {
@@ -123,7 +142,8 @@ function AskAcross({
     setTurns((ts) => ts.map((x) => (x.id === id ? { ...x, ...done, pending: false } : x)));
   }
 
-  const asked = new Set(turns.map((t) => t.q));
+  const asked = new Set(turns.filter((t) => !t.earlier).map((t) => t.q));
+  const firstNew = turns.findIndex((x) => !x.earlier);
   const open = ACROSS_SUGGESTIONS.filter((q) => !asked.has(q));
 
   return (
@@ -132,8 +152,10 @@ function AskAcross({
         <p className="lede">{lede}</p>
         <div className="thread" aria-live="polite">
           {turns.length === 0 ? <p className="thread-empty">Questions collect here. With one match the coach can only compare rounds; habits show from the second match on.</p> : null}
-          {turns.map((x) => (
+          {turns[0]?.earlier ? <p className="thread-sep">Asked before</p> : null}
+          {turns.map((x, i) => (
             <div className="qa" key={x.id}>
+              {i === firstNew && i > 0 ? <p className="thread-sep">Now</p> : null}
               <div className="qq">{x.q}</div>
               <div className="aa">
                 {x.pending ? (
@@ -301,7 +323,7 @@ function PlanTab({ playerId, onMatchFinding, lede }: { playerId: string; onMatch
 }
 
 function KnowledgeTab({ lede }: { lede: string }) {
-  const s = useStore();
+  const { isAdmin } = useAuth();
   const [map, setMap] = useState<MapId>('de_mirage');
   const [zone, setZone] = useState<string | null>(null);
   const [q, setQ] = useState('');
@@ -443,7 +465,7 @@ function KnowledgeTab({ lede }: { lede: string }) {
               </li>
             ))}
           </ul>
-          {s.lab ? <AddNote map={map} zones={zones.map((z) => z.name)} onAdd={() => setReload((n) => n + 1)} /> : null}
+          {isAdmin ? <AddNote map={map} zones={zones.map((z) => z.name)} onAdd={() => setReload((n) => n + 1)} /> : null}
         </div>
       </section>
     </div>

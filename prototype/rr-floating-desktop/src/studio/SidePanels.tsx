@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api } from '@/lib/api/client';
-import type { AskEvent, Bookmark, MomentExplanation } from '@/lib/contracts';
+import type { AskEvent, AskHistoryItem, Bookmark, MomentExplanation } from '@/lib/contracts';
 import { errorText, typeLabel } from '../data/model';
 import { useStore } from '../state/store';
 import { CoachText } from '../ui/CoachText';
+import { Feedback } from '../ui/Feedback';
 import { clock } from '../ui/time';
 import type { PanelCtx } from './AnalysisPanel';
 
@@ -27,7 +28,7 @@ export function stepLabel(tool: string) {
   return TOOL_STEP[tool] ?? tool.replace(/_/g, ' ');
 }
 
-type Turn = {
+export type Turn = {
   id: number;
   q: string;
   a: string;
@@ -36,19 +37,40 @@ type Turn = {
   source?: 'agent' | 'template';
   error?: string;
   matches?: Record<string, string>;
+  /** Ask history id once the API stored the answer: feedback attaches to it (A10) */
+  messageId?: number | null;
+  /** Asked in an earlier session, from the saved history (A09) */
+  earlier?: boolean;
 };
+
+/** Saved questions, oldest first, as finished turns. */
+export function historyTurns(rows: AskHistoryItem[], nextId: () => number): Turn[] {
+  return rows
+    .filter((r) => r.answer)
+    .reverse()
+    .map((r) => ({
+      id: nextId(),
+      q: r.question,
+      a: r.answer ?? '',
+      pending: false,
+      step: '',
+      source: r.source === 'agent' ? 'agent' : 'template',
+      messageId: r.id,
+      earlier: true,
+    }));
+}
 
 /** Stream one question to the coach; returns the finished turn's fields. */
 export async function streamTurn(
   run: (onEvent: (e: AskEvent) => void, signal: AbortSignal) => Promise<void>,
   onStep: (step: string) => void,
   signal: AbortSignal,
-): Promise<Pick<Turn, 'a' | 'source' | 'error' | 'matches'>> {
-  let out: Pick<Turn, 'a' | 'source' | 'error' | 'matches'> = { a: '', error: 'The coach did not answer.' };
+): Promise<Pick<Turn, 'a' | 'source' | 'error' | 'matches' | 'messageId'>> {
+  let out: Pick<Turn, 'a' | 'source' | 'error' | 'matches' | 'messageId'> = { a: '', error: 'The coach did not answer.' };
   try {
     await run((e) => {
       if (e.event === 'step') onStep(stepLabel(e.data.tool));
-      else if (e.event === 'answer') out = { a: e.data.answer, source: e.data.source, matches: e.data.matches };
+      else if (e.event === 'answer') out = { a: e.data.answer, source: e.data.source, matches: e.data.matches, messageId: e.data.messageId };
       else if (e.event === 'error') out = { a: '', error: e.data.detail };
     }, signal);
   } catch (e) {
@@ -64,6 +86,27 @@ export function AskPanel({ ctx, t, view }: { ctx: PanelCtx; t: number; view: 'ga
   const next = useRef(1);
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
+
+  // Earlier questions about this match come back when the Studio opens it again (A09)
+  const matchId = ctx.match.id;
+  const playerId = ctx.data.playerId;
+  useEffect(() => {
+    let live = true;
+    api
+      .askHistory(matchId)
+      .then((rows) => {
+        if (!live) return;
+        const earlier = historyTurns(
+          rows.filter((r) => r.playerId === playerId),
+          () => next.current++,
+        );
+        setTurns((ts) => [...earlier, ...ts.filter((x) => !x.earlier)]);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [matchId, playerId]);
 
   async function ask(raw: string) {
     const q = raw.trim();
@@ -82,19 +125,23 @@ export function AskPanel({ ctx, t, view }: { ctx: PanelCtx; t: number; view: 'ga
     setTurns((ts) => ts.map((x) => (x.id === id ? { ...x, ...done, pending: false } : x)));
   }
 
-  const asked = new Set(turns.map((x) => x.q));
+  const asked = new Set(turns.filter((x) => !x.earlier).map((x) => x.q));
+  const firstNew = turns.findIndex((x) => !x.earlier);
 
   return (
     <div className="ask-tab">
       <div className="thread" aria-live="polite">
         {turns.length === 0 ? <p className="thread-empty">Ask about round {ctx.round.number}. Answers cite the findings, times and map notes they use.</p> : null}
-        {turns.map((x) => (
+        {turns[0]?.earlier ? <p className="thread-sep">Asked before</p> : null}
+        {turns.map((x, i) => (
           <div className="qa" key={x.id}>
+            {i === firstNew && i > 0 ? <p className="thread-sep">Now</p> : null}
             <div className="qq">{x.q}</div>
             <div className="aa">
               {x.pending ? <span className="meta thinking">{x.step}</span> : x.error ? <span className="err">{x.error}</span> : <CoachText text={x.a} {...ctx.cites} />}
             </div>
             {!x.pending && x.source === 'template' ? <div className="aa-note">Written from the findings: the coach model was off or its answer did not pass the checks.</div> : null}
+            {!x.pending && !x.error && x.messageId ? <Feedback matchId={ctx.match.id} target={String(x.messageId)} kind="answer" /> : null}
           </div>
         ))}
       </div>
