@@ -67,6 +67,8 @@ npm run dev
 
 Tests: `cd apps/api && pytest`. Web checks: `cd apps/web && npm run typecheck && npm run build`.
 
+The full Windows guide, with the coach model, POV clips, tests and evaluation tools, is [docs/RUN-LOCALLY.md](docs/RUN-LOCALLY.md).
+
 ## Repository layout
 
 ```

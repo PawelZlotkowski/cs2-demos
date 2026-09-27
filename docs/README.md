@@ -6,6 +6,7 @@ Everything written about Round Reviewer, grouped by what you are trying to do.
 
 | Doc | Read it for |
 |---|---|
+| [RUN-LOCALLY](RUN-LOCALLY.md) | Every PowerShell command to run and test the app on Windows |
 | [handoff/18-CURRENT-STATE](handoff/18-CURRENT-STATE.md) | What is real, what is mocked, what is next |
 | [handoff/19-DECISIONS](handoff/19-DECISIONS.md) | Decisions not to undo |
 | [coach/AI-COACH-PLAN](coach/AI-COACH-PLAN.md) | The current milestone, the self-hosted AI coach |
