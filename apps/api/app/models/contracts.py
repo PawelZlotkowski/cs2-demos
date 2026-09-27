@@ -1154,6 +1154,8 @@ class UserSettings(CamelModel):
     playback_speed: float = Field(1.0, alias="playbackSpeed", ge=0.25, le=4)
     explanation_length: Literal["short", "normal", "long"] = Field("normal", alias="explanationLength")
     autoplay_clips: bool = Field(True, alias="autoplayClips")
+    # Set by the API on read: false means these are defaults, and a browser's own choices win
+    saved: bool = False
 
 
 class FeedbackRequest(CamelModel):

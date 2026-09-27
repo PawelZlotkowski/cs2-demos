@@ -79,7 +79,7 @@ def ask_history(match_id: str, user: dict = Depends(current_user)) -> list[dict[
 
 @router.get("/players/{player_id}/ask-history")
 def ask_history_across(player_id: str, user: dict = Depends(current_user)) -> list[dict[str, Any]]:
-    return [a for a in users().asks(user["id"], limit=200) if a["matchId"] is None and a["playerId"] == player_id][-50:]
+    return [a for a in users().asks(user["id"], limit=200) if a["matchId"] is None and a["playerId"] == player_id][:50]
 
 
 # --- feedback (A10) ---

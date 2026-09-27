@@ -302,6 +302,7 @@ class UserStore:
                 " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (digest(token), new_id("s"), user_id, iso(), iso(), iso(now() + timedelta(days=days)), (user_agent or "")[:200], ip),
             )
+            conn.execute("UPDATE users SET last_seen_at = ? WHERE id = ?", (iso(), user_id))
         return token
 
     def session_user(self, token: str) -> tuple[dict[str, Any], str] | None:
@@ -348,9 +349,9 @@ class UserStore:
         with self._connect() as conn:
             return conn.execute(q, args).rowcount > 0
 
-    def delete_sessions_of(self, user_id: str) -> int:
+    def delete_sessions_of(self, user_id: str, keep: str | None = None) -> int:
         with self._connect() as conn:
-            return conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,)).rowcount
+            return conn.execute("DELETE FROM sessions WHERE user_id = ? AND id IS NOT ?", (user_id, keep)).rowcount
 
     # --- login attempts ------------------------------------------------------
 
@@ -516,13 +517,13 @@ class UserStore:
         return [{"momentId": m, "seenAt": s, "lastT": t} for m, s, t in rows]
 
     def add_ask(self, user_id: str, match_id: str | None, player_id: str, question: str, answer: str | None,
-                citations: list[str], source: str | None, lang: str | None) -> None:
+                citations: list[str], source: str | None, lang: str | None) -> int:
         with self._connect() as conn:
-            conn.execute(
+            return conn.execute(
                 "INSERT INTO ask_messages (user_id, match_id, player_id, question, answer, citations_json, source, lang, created_at)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (user_id, match_id, player_id, question, answer, json.dumps(citations), source, lang, iso()),
-            )
+            ).lastrowid or 0
 
     def asks(self, user_id: str | None = None, match_id: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
         q = "SELECT id, user_id, match_id, player_id, question, answer, citations_json, source, lang, created_at FROM ask_messages WHERE 1=1"
@@ -680,8 +681,11 @@ class UserStore:
                 f"SELECT id, at, actor_id, action, target, detail_json, ip FROM audit_log{where} ORDER BY id DESC LIMIT ? OFFSET ?",
                 (*args, limit, offset),
             ).fetchall()
+            names = dict(conn.execute("SELECT id, display_name FROM users").fetchall())
+        names["local"] = "You"
         return total, [
-            {"id": i, "at": at, "actorId": a, "action": act, "target": t, "detail": json.loads(d) if d else None, "ip": ip}
+            {"id": i, "at": at, "actorId": a, "actorName": names.get(a), "action": act, "target": t,
+             "targetName": names.get(t), "detail": json.loads(d) if d else None, "ip": ip}
             for i, at, a, act, t, d, ip in rows
         ]
 

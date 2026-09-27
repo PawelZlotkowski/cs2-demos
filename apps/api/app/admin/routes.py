@@ -68,7 +68,7 @@ def list_users() -> list[dict[str, Any]]:
     from app.repositories.matches import repo
 
     store = users()
-    ids = repo.list_ids()
+    ids = [m for m in repo.list_ids() if not (repo.get(m) or {}).get("is_sample")]
     out = []
     for u in store.users():
         owned = store.owned_match_ids(u["id"], ids)
@@ -474,6 +474,5 @@ def audit_log(
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
     total, rows = users().audit_rows(action=action, limit=limit, offset=offset)
-    names = {u["id"]: u["display_name"] for u in users().users()}
-    return {"total": total, "items": [{**r, "actorName": names.get(r["actorId"], "You" if r["actorId"] == "local" else None)} for r in rows]}
+    return {"total": total, "items": rows}
 

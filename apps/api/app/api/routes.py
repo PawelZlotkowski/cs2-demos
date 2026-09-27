@@ -496,9 +496,10 @@ def _ask_stream(run, label: str, extra=None, *, job: AskJob) -> StreamingRespons
                 if slot.started_at and slot.started_at - slot.created_at > 1:
                     await on_step({"tool": "queue", "ms": int((slot.started_at - slot.created_at) * 1000), "error": None})
                 outcome = await run(on_step)
+            message_id = None
             try:
-                users().add_ask(user_id, job.match_id, job.player_id, job.question, outcome.answer,
-                                list(outcome.citations), outcome.source, job.language)
+                message_id = users().add_ask(user_id, job.match_id, job.player_id, job.question, outcome.answer,
+                                             list(outcome.citations), outcome.source, job.language)
             except Exception:  # noqa: BLE001 - history is best effort
                 pass
             await queue.put(
@@ -509,6 +510,7 @@ def _ask_stream(run, label: str, extra=None, *, job: AskJob) -> StreamingRespons
                         "citations": outcome.citations,
                         "source": outcome.source,
                         "verified": outcome.source == "agent",
+                        "messageId": message_id,
                         **(extra(outcome) if extra else {}),
                     },
                 )

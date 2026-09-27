@@ -111,6 +111,27 @@ def test_logout_ends_the_session(analysed, auth_on):
     assert c.get("/users/me").status_code == 401
 
 
+def test_new_password_signs_out_other_devices(analysed, auth_on):
+    laptop = new_client()
+    register(laptop, "pawel")
+    phone = new_client()
+    assert phone.post("/auth/login", json={"username": "pawel", "password": PASSWORD}).status_code == 200
+    r = laptop.patch("/users/me", json={"currentPassword": PASSWORD, "newPassword": "another long password"})
+    assert r.status_code == 200, r.text
+    assert laptop.get("/auth/me").json()["user"]["username"] == "pawel"
+    assert phone.get("/auth/me").json()["user"] is None
+
+
+def test_settings_say_whether_they_were_saved(analysed, auth_on):
+    c = new_client()
+    register(c, "pawel")
+    assert c.get("/users/me/settings").json()["saved"] is False
+    body = {"language": "pl", "playbackSpeed": 2, "explanationLength": "normal", "autoplayClips": True, "saved": False}
+    assert c.put("/users/me/settings", json=body).json()["saved"] is True
+    got = c.get("/users/me/settings").json()
+    assert got["saved"] is True and got["language"] == "pl" and got["playbackSpeed"] == 2
+
+
 def test_disabled_user_is_signed_out(people):
     _mid, _pid, admin, _alice, bob, _lab = people
     bob_id = bob.get("/users/me").json()["id"]

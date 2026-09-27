@@ -282,6 +282,9 @@ def patch_me(body: ProfileUpdate, request: Request, user: dict = Depends(current
             raise HTTPException(status_code=400, detail="Choose a username to sign in with the password.")
         changes["password_hash"] = hash_password(body.new_password)
     updated = users().update_user(user["id"], **changes)
+    if "password_hash" in changes:
+        # A new password ends every other sign-in, in case the old one leaked
+        users().delete_sessions_of(user["id"], keep=getattr(request.state, "session_id", None))
     audit(request, "user.update", user["id"], {"fields": sorted(k for k in changes if k != "password_hash") + (["password"] if "password_hash" in changes else [])})
     return user_out(updated or user)
 
@@ -298,13 +301,14 @@ def consent(request: Request, user: dict = Depends(current_user)) -> UserOut:
 
 @router.get("/users/me/settings", response_model=UserSettings)
 def get_settings(user: dict = Depends(current_user)) -> UserSettings:
-    return UserSettings.model_validate(users().user_settings(user["id"]))
+    stored = users().user_settings(user["id"])
+    return UserSettings.model_validate({**stored, "saved": bool(stored)})
 
 
 @router.put("/users/me/settings", response_model=UserSettings)
 def put_settings(body: UserSettings, user: dict = Depends(current_user)) -> UserSettings:
-    users().save_user_settings(user["id"], body.model_dump(by_alias=True))
-    return body
+    users().save_user_settings(user["id"], body.model_dump(by_alias=True, exclude={"saved"}))
+    return body.model_copy(update={"saved": True})
 
 
 def user_language(user: dict[str, Any] | None) -> str:
