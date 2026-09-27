@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, type RefObject } from "react";
 import gsap from "gsap";
 import type { InterpolatedPlayer } from "@/lib/replay/interpolate";
 import type { ReplayPlayer } from "@/lib/contracts";
@@ -31,6 +31,8 @@ type Props = {
   pxPerUnit: number;
   /** The picked moment's window: the followed player's whole path through it is drawn faintly. */
   moment?: { id: string; t0: number; t1: number } | null;
+  /** True while a keyboard shortcut is handled: the path then appears at once (keyboard actions never animate). */
+  instantRef?: RefObject<boolean>;
 };
 
 /** Radar points of one track between t0 and t1, while alive. */
@@ -56,6 +58,7 @@ export function RadarView({
   viewBox,
   pxPerUnit,
   moment,
+  instantRef,
 }: Props) {
   const meta = getMapMeta(mapName);
   const size = meta?.radarSize ?? 1024;
@@ -68,7 +71,7 @@ export function RadarView({
   const momentPath = moment && focusTrack ? windowPoints(focusTrack, moment.t0, moment.t1) : "";
   useLayoutEffect(() => {
     const el = pathRef.current;
-    if (!el || reducedMotion()) return;
+    if (!el || reducedMotion() || instantRef?.current) return;
     const tween = gsap.fromTo(
       el,
       { strokeDashoffset: 1 },

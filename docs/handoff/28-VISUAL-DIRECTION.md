@@ -141,3 +141,13 @@ Desktop: top bar with the scorebug; review path (200 px) | stage and timeline do
 - **Processing**: the pipeline stages as the same numbered path as the Studio (Parse, Pick player, Select, Record, Explain), honest counts only (decision 15); the player picker as a two-column team sheet with the scorebug on top.
 - **Matches**: a dense table with the scorebug as each row's lead cell.
 - **Progress**: per-detector history with dots per match (decision 13), no trend lines until there are enough matches.
+
+## 5. Skills used
+
+| Skill | Where it lives | What it changed |
+| --- | --- | --- |
+| `emil-design-eng` (emilkowalski/skills) | `.cursor/skills/` | Press feedback at scale 0.97; hover gated on `(hover: hover)`; no staggered card entrances. Keyboard actions never animate: moving between moments with N, arrows or other shortcuts now jumps the radar camera and draws the moment path at once, and only pointer actions tween. |
+| `gsap-react`, `gsap-core`, `gsap-performance` (greensock/gsap-skills) | `.cursor/skills/` | The camera tween and the path draw-in are killed in the effect cleanup, so a fast moment change never leaves two tweens running. GSAP tweens a proxy box or `strokeDashoffset` only, never layout. Reduced motion skips both tweens. |
+| `impeccable`, `better-layout`, `better-colors`, `better-typography`, `better-accessibility`, `better-writing` | Not installed in this repo or session | Not used. Their areas were covered by the repo's own rules instead: [04 Anti-AI rules](./04-ANTI-AI-DESIGN-RULES.md), [03 Design system](./03-DESIGN-SYSTEM.md), a manual contrast check of every text token and the writing rules in `AGENTS.md`. |
+
+No additional skill was added.

@@ -631,7 +631,7 @@ export default function StudioPage() {
 
   const selectRound = useCallback(
     (id: string) => {
-      animateCam.current = true;
+      animateCam.current = !viaKey.current;
       setReview(null);
       setMomentId(null);
       setRoundId(id);
@@ -661,7 +661,7 @@ export default function StudioPage() {
         clock.seek(m.t0);
         setSelectedEventId(lead);
       } else {
-        animateCam.current = true;
+        animateCam.current = !viaKey.current;
         pendingSeek.current = m.t0;
         setRoundId(target.id);
       }
@@ -679,7 +679,7 @@ export default function StudioPage() {
       if (target.id === roundId && replay) {
         seekTo(f.t, f.id);
       } else {
-        animateCam.current = true;
+        animateCam.current = !viaKey.current;
         pendingSeek.current = f.t;
         setMomentId(null);
         setRoundId(target.id);
@@ -1232,6 +1232,7 @@ export default function StudioPage() {
                         viewBox={viewBox}
                         pxPerUnit={pxPerUnit}
                         moment={activeMoment && !review ? activeMoment : null}
+                        instantRef={viaKey}
                       />
                       <div className="legend" aria-hidden>
                         <span>
