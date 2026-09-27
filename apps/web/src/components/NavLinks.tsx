@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api/client";
 
 const LAB_KEY = "rr.lab";
@@ -20,6 +20,7 @@ export function NavLinks() {
   const pathname = usePathname() ?? "/";
   const inStudio = pathname.startsWith("/studio");
   const [lab, setLab] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     // Remembered per browser so the link does not pop in on every page; refreshed in the background.
@@ -41,9 +42,27 @@ export function NavLinks() {
       .catch(() => undefined);
   }, []);
 
+  // When the bar is short of room the nav scrolls; fade the edge that has more links behind it.
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const update = () => {
+      const more = nav.scrollWidth - nav.clientWidth;
+      nav.dataset.fade = more <= 1 ? "" : `${nav.scrollLeft > 1 ? "l" : ""}${nav.scrollLeft < more - 1 ? "r" : ""}`;
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(nav);
+    nav.addEventListener("scroll", update, { passive: true });
+    return () => {
+      ro.disconnect();
+      nav.removeEventListener("scroll", update);
+    };
+  }, [lab, inStudio]);
+
   const current = (href: string) => (pathname === href || pathname.startsWith(`${href}/`) ? "page" : undefined);
   return (
-    <nav className="nav" aria-label="Main">
+    <nav className="nav" aria-label="Main" ref={navRef}>
       <Link href="/" aria-current={pathname === "/" ? "page" : undefined}>
         Home
       </Link>

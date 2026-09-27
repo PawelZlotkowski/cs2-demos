@@ -163,6 +163,54 @@ kbd {
   color: var(--text-3);
 }
 
+/* In the Studio the scorebug takes the bar's spare room. Labels give way in order so nothing
+   overlaps: the wordmark, then the setup notice's words (the dot and tooltip stay), then the
+   round cells, which the brief and the rail also show. */
+.topbar:has(.sb) {
+  gap: 16px;
+}
+
+@media (max-width: 1599px) {
+  .topbar:has(.sb) .brand-text {
+    display: none;
+  }
+
+  .topbar:has(.sb) .sys-notice .sys-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .topbar:has(.sb) .sys-notice {
+    justify-content: center;
+    width: 28px;
+    padding: 0;
+  }
+}
+
+@media (max-width: 1365px) {
+  .sb-rounds {
+    display: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .topbar:has(.sb) {
+    gap: 12px;
+  }
+}
+
+/* The scorebug already says which match is open, so the Studio's own nav link goes before the
+   nav has to scroll. */
+@media (max-width: 900px) {
+  .topbar:has(.sb) .nav a[href^="/studio"] {
+    display: none;
+  }
+}
+
 /* ---- Review path (left): numbered stops on one line, Brief to Debrief ---- */
 
 .rail {
@@ -359,9 +407,10 @@ kbd {
   font-size: 12px;
 }
 
-/* Rounds are the secondary list once there are moments: one line each. */
+/* Rounds are the secondary list once there are moments: one line each. The result keeps its
+   line; the reason is the part that gives way. */
 .moments.secondary .mom {
-  grid-template-columns: 22px minmax(0, 1fr) auto;
+  grid-template-columns: 22px auto minmax(0, 1fr);
   align-items: baseline;
   padding: 5px 8px 5px 12px;
 }
@@ -377,9 +426,22 @@ kbd {
   font-size: 12px;
 }
 
+.moments.secondary .mom-title {
+  white-space: nowrap;
+}
+
 .moments.secondary .mom-meta {
   grid-column: auto;
+  justify-content: flex-end;
+  min-width: 0;
+  flex-wrap: nowrap;
   font-size: 11px;
+}
+
+.moments.secondary .mom-meta .when {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---- Glyphs: shape and colour carry the meaning (decision 4) ---- */
@@ -2532,9 +2594,6 @@ kbd {
     transition: transform 260ms var(--ease-drawer);
   }
 
-  .sb-rounds {
-    max-width: 30vw;
-  }
 }
 
 .sheet-grab {

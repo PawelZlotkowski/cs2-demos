@@ -411,15 +411,29 @@ pre.out {
   color: var(--text-2);
 }
 
-@media (max-width: 720px) {
-  /* The mark still links home; the words would push the nav off a phone screen. */
-  .topbar .brand-text,
+/* A setup problem shrinks to its dot when the bar is short of room; the words stay for screen
+   readers and in the tooltip. The Studio's scorebug needs the room sooner. */
+@media (max-width: 1100px) {
   .sys-notice .sys-text {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .sys-notice {
-    padding: 0 9px;
+    justify-content: center;
+    width: 28px;
+    padding: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  /* The mark still links home; the words would push the nav off a phone screen. */
+  .topbar .brand-text {
+    display: none;
   }
 
   .checks li {
