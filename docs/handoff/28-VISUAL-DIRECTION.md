@@ -144,10 +144,17 @@ Desktop: top bar with the scorebug; review path (200 px) | stage and timeline do
 
 ## 5. Skills used
 
-| Skill | Where it lives | What it changed |
-| --- | --- | --- |
-| `emil-design-eng` (emilkowalski/skills) | `.cursor/skills/` | Press feedback at scale 0.97; hover gated on `(hover: hover)`; no staggered card entrances. Keyboard actions never animate: moving between moments with N, arrows or other shortcuts now jumps the radar camera and draws the moment path at once, and only pointer actions tween. |
-| `gsap-react`, `gsap-core`, `gsap-performance` (greensock/gsap-skills) | `.cursor/skills/` | The camera tween and the path draw-in are killed in the effect cleanup, so a fast moment change never leaves two tweens running. GSAP tweens a proxy box or `strokeDashoffset` only, never layout. Reduced motion skips both tweens. |
-| `impeccable`, `better-layout`, `better-colors`, `better-typography`, `better-accessibility`, `better-writing` | Not installed in this repo or session | Not used. Their areas were covered by the repo's own rules instead: [04 Anti-AI rules](./04-ANTI-AI-DESIGN-RULES.md), [03 Design system](./03-DESIGN-SYSTEM.md), a manual contrast check of every text token and the writing rules in `AGENTS.md`. |
+All skills live in `.cursor/skills/` (sources in its README).
 
-No additional skill was added.
+| Skill | What it changed |
+| --- | --- |
+| `emil-design-eng` (emilkowalski/skills) | Press feedback at scale 0.97; hover gated on `(hover: hover)`; no staggered card entrances. Keyboard actions never animate: moving between moments with N, arrows or other shortcuts jumps the radar camera and draws the moment path at once; only pointer actions tween. |
+| `gsap-react`, `gsap-core`, `gsap-performance` (greensock/gsap-skills) | The camera tween and the path draw-in are killed in the effect cleanup, so a fast moment change never leaves two tweens running. GSAP tweens a proxy box or `strokeDashoffset` only, never layout. Reduced motion skips both tweens. |
+| `impeccable` (pbakaus/impeccable) | The craft floor bans a kicker above a heading, so the "Mistake · Moment 1 of 2 · Round 1" line moved from above the finding's heading to a meta line under it. The active review-path row lost its 2 px coloured side bar (the floor's coloured-border rule); the raised fill and 1 px outline carry the state. Browser surfaces now take the palette: text selection, caret, scrollbars, underline offset. Its detector flagged a `width` transition on the upload progress bar, which is gone; the detector now reports nothing on `apps/web/src`. |
+| `better-colors` | The radar's hard-coded hex colours became stage tokens (`--stage-you`, `--stage-team`, `--stage-enemy`, `--stage-halo`, `--stage-enemy-text`, `--stage-team-text`), so the radar has one source of truth with the timeline and legend. Every text pair was measured (table in the write-up); none fails AA. |
+| `better-typography` | Hanken Grotesk 700 is now loaded; before, 20 bold rules made the browser synthesise it. `-moz-osx-font-smoothing` added on the root. Headings already use `text-wrap: balance`, descriptions `pretty`, changing numbers `tabular-nums`. |
+| `better-layout` | Physical `margin-left/right` and `padding-left` in `studio.css` became logical `margin-inline-*` / `padding-inline-*`. The tablet and phone review strip already lets the next item peek past the edge as its scroll hint. |
+| `better-accessibility` | A "Skip to content" link is the first focusable element, every page's `<main>` is its target, and the Studio has a page `<h1>` for screen readers. Timeline marks get a 24 px hit area (WCAG 2.5.8) without growing the 22 px mark. The ask field is 16 px on phones so iOS Safari does not zoom. |
+| `better-writing` | "Add a demo" became "Add a match" to match the button that opens it. Error messages now say how to recover ("Unable to upload the demo. Check it is a .dem or .dem.zst file and try again.") instead of "Upload failed." |
+
+No other skill was added.

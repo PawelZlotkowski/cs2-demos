@@ -5,6 +5,7 @@ import { ThemeSelect, themeBootScript } from "@/components/ThemeSelect";
 import "@fontsource/hanken-grotesk/400.css";
 import "@fontsource/hanken-grotesk/500.css";
 import "@fontsource/hanken-grotesk/600.css";
+import "@fontsource/hanken-grotesk/700.css";
 import "@fontsource/newsreader/400.css";
 import "@fontsource/newsreader/400-italic.css";
 import "@fontsource-variable/archivo/wdth.css";
@@ -24,6 +25,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body>
+        <a className="skip-link" href="#content">
+          Skip to content
+        </a>
         <div className="shell">
           <header className="topbar">
             <Link href="/" className="brand">

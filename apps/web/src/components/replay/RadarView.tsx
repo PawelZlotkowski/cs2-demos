@@ -11,11 +11,11 @@ import { reducedMotion } from "@/lib/motion";
 
 /* Radar language (28 Visual direction): you white, team slate, enemy red, as on the in-game radar.
    Orange and blue stay reserved for mistake and good play. */
-const YOU = "#FFFFFF";
-const ENEMY = "#FF5F73";
-const TEAM = "#B9C4CE";
-const STX = "#EEF1F3";
-const HALO = "rgba(8,10,12,.82)";
+const YOU = "var(--stage-you)";
+const ENEMY = "var(--stage-enemy)";
+const TEAM = "var(--stage-team)";
+const STX = "var(--stage-text)";
+const HALO = "var(--stage-halo)";
 const TRAIL_SEC = 4;
 
 type Props = {
@@ -107,7 +107,7 @@ export function RadarView({
           d={momentPath}
           pathLength={1}
           fill="none"
-          stroke={YOU}
+          style={{ stroke: YOU }}
           strokeOpacity={0.34}
           strokeWidth={1.5}
           strokeDasharray="1 1"
@@ -150,7 +150,7 @@ export function RadarView({
               cy={m.ry}
               r={m.r * (0.4 + m.u * 0.6)}
               fill="none"
-              stroke={STX}
+              style={{ stroke: STX }}
               strokeWidth={1.4}
               vectorEffect="non-scaling-stroke"
               opacity={1 - m.u}
@@ -175,7 +175,7 @@ export function RadarView({
                 <polyline
                   points={trailPoints(track, t - TRAIL_SEC, t, p)}
                   fill="none"
-                  stroke={col}
+                  style={{ stroke: col }}
                   strokeOpacity={you ? 0.9 : 0.45}
                   strokeWidth={you ? 2 : 1.2}
                   strokeLinejoin="round"
@@ -198,7 +198,7 @@ export function RadarView({
                   y1={p.ry}
                   x2={p.rx + Math.cos(a) * L}
                   y2={p.ry + Math.sin(a) * L}
-                  stroke={col}
+                  style={{ stroke: col }}
                   strokeWidth={1.5}
                   strokeLinecap="round"
                   vectorEffect="non-scaling-stroke"
@@ -209,8 +209,7 @@ export function RadarView({
                   cx={p.rx}
                   cy={p.ry}
                   r={u(you ? 5.5 : 4.2)}
-                  fill={col}
-                  stroke={HALO}
+                  style={{ fill: col, stroke: HALO }}
                   strokeWidth={you ? 2.5 : 1.5}
                   vectorEffect="non-scaling-stroke"
                 />
@@ -218,7 +217,7 @@ export function RadarView({
                 <path
                   d="M-1 -1L1 1M1 -1L-1 1"
                   transform={`translate(${p.rx} ${p.ry}) scale(${u(4.5)})`}
-                  stroke={col}
+                  style={{ stroke: col }}
                   strokeWidth={2}
                   strokeLinecap="round"
                   vectorEffect="non-scaling-stroke"
@@ -228,10 +227,12 @@ export function RadarView({
                 className="radar-name"
                 x={p.rx + u(9)}
                 y={p.ry - u(7)}
-                fill={you ? YOU : role === "enemy" ? "#FF9AA8" : "#C9D2DA"}
+                style={{
+                  fill: you ? YOU : role === "enemy" ? "var(--stage-enemy-text)" : "var(--stage-team-text)",
+                  stroke: HALO,
+                }}
                 fontSize={u(11)}
                 paintOrder="stroke"
-                stroke={HALO}
                 strokeWidth={u(3)}
               >
                 {info?.name ?? p.id.slice(-4)}

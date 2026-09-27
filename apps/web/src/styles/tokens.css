@@ -34,6 +34,9 @@
   --stage-enemy: #ff5f73;
   --stage-team: #b9c4ce;
   --stage-you: #ffffff;
+  --stage-halo: rgba(8, 10, 12, 0.82);
+  --stage-enemy-text: #ff9aa8;
+  --stage-team-text: #c9d2da;
 
   --ui: "Hanken Grotesk", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --serif: "Newsreader", Georgia, "Times New Roman", serif;
@@ -122,7 +125,46 @@ body {
   color: var(--text);
   background: var(--surface-page);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   font-variant-numeric: tabular-nums;
+}
+
+/* Browser surfaces carry the palette too: selection, caret, scrollbars. */
+:root {
+  scrollbar-color: var(--border) transparent;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--text) 20%, transparent);
+  color: var(--text);
+}
+
+.stage ::selection {
+  background: rgba(238, 241, 243, 0.28);
+  color: var(--stage-text);
+}
+
+input,
+textarea {
+  caret-color: var(--text);
+}
+
+.skip-link {
+  position: absolute;
+  z-index: 100;
+  inset-block-start: 8px;
+  inset-inline-start: 8px;
+  padding: 8px 12px;
+  border-radius: var(--r-ctl);
+  background: var(--text);
+  color: var(--surface-panel);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus-visible {
+  transform: none;
 }
 
 button,
@@ -138,6 +180,9 @@ button {
 a {
   color: inherit;
   text-decoration-color: var(--border);
+  text-decoration-thickness: from-font;
+  text-underline-position: from-font;
+  text-underline-offset: 0.16em;
 }
 
 a:hover {
@@ -447,7 +492,7 @@ h1 {
 
 .upload-bar::-webkit-progress-value {
   background: var(--text);
-  transition: width 120ms linear;
+
 }
 
 .upload-bar::-moz-progress-bar {

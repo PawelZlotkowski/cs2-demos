@@ -465,7 +465,7 @@ export default function StudioPage() {
         : "Recording gameplay…";
     }
     if (activeClip.status === "failed") {
-      return activeClip.error ?? "Gameplay recording failed for this round.";
+      return activeClip.error ?? "Unable to record gameplay for this round. The radar still covers it.";
     }
     if (activeClip.status === "skipped") {
       return activeClip.error ?? "Clips are off on this computer, so the radar is shown instead.";
@@ -1001,7 +1001,10 @@ export default function StudioPage() {
     return <NotFound title="This match isn't here" detail="It may have been deleted, or the link is wrong." />;
   }
   return (
-    <main className={`studio${panelOn ? "" : " panel-off"}`}>
+    <main id="content" className={`studio${panelOn ? "" : " panel-off"}`}>
+      <h1 className="sr-only">
+        {match ? `${mapLabel} review${analysedName ? ` for ${analysedName}` : ""}` : "Match review"}
+      </h1>
       {barSlot && match
         ? createPortal(
             <div className="sb" aria-label={`${mapLabel}, ${scorePhrase(sbScore.text)}`}>
@@ -1663,17 +1666,6 @@ export default function StudioPage() {
             />
           ) : (
           <>
-          {headFinding ? (
-            <p className={`eyebrow k-${kindGlyph(headFinding.kind)}`}>
-              <i className={`g g-${kindGlyph(headFinding.kind)}`} aria-hidden />
-              {kindLabel(headFinding.kind)}
-              {activeMoment && momentIdx >= 0 ? <span>Moment {momentIdx + 1} of {moments.length}</span> : null}
-              <span>
-                R{headFinding.round} {formatClock(headFinding.t)}
-                {headFinding.zone ? ` · ${headFinding.zone}` : ""}
-              </span>
-            </p>
-          ) : null}
           <h2 className="ins-head">
             {headFinding
               ? headFinding.summary
@@ -1683,6 +1675,19 @@ export default function StudioPage() {
                 ? `${activeRound.winner ?? "No"} win, ${reasonLabel(activeRound.reason).toLowerCase()}`
                 : "Pick a round"}
           </h2>
+          {headFinding ? (
+            <p className={`ins-meta k-${kindGlyph(headFinding.kind)}`}>
+              <b>
+                <i className={`g g-${kindGlyph(headFinding.kind)}`} aria-hidden />
+                {kindLabel(headFinding.kind)}
+              </b>
+              {activeMoment && momentIdx >= 0 ? <span>Moment {momentIdx + 1} of {moments.length}</span> : null}
+              <span>
+                Round {headFinding.round}, {formatClock(headFinding.t)}
+                {headFinding.zone ? `, ${headFinding.zone}` : ""}
+              </span>
+            </p>
+          ) : null}
           <p className="picked">
             {headFinding && activeMoment && activeMoment.findingIds[0] === headFinding.id
               ? cited(

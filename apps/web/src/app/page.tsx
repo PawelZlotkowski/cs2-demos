@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <main className="main">
+    <main className="main" id="content">
       <h1>Review your match with a coach</h1>
       <p className="lede">
         Upload a FACEIT <code>.dem.zst</code> or a CS Demo Manager <code>.dem</code> and choose whose game to

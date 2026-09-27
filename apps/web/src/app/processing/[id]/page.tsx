@@ -65,7 +65,7 @@ export default function ProcessingPage() {
           return;
         }
         if (s.status === "failed") {
-          setError(s.error ?? "Processing failed.");
+          setError(s.error ?? "Unable to process this demo. Upload it again, or try another demo.");
           return;
         }
         // The Radar is ready here; stop and let the viewer choose whose game to analyse.
@@ -76,7 +76,7 @@ export default function ProcessingPage() {
         timer = setTimeout(poll, 800);
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Status failed.");
+          setError(e instanceof Error ? e.message : "Unable to check progress. Check the API is running, then reload the page.");
           timer = setTimeout(poll, 1500);
         }
       }
@@ -104,7 +104,7 @@ export default function ProcessingPage() {
         setPlayers(withKillCounts(m, kills));
       } catch (e) {
         loadedPlayers.current = false;
-        setError(e instanceof Error ? e.message : "Could not load the players.");
+        setError(e instanceof Error ? e.message : "Unable to load the players. Reload the page to try again.");
       }
     })();
   }, [awaiting, id]);
@@ -121,7 +121,7 @@ export default function ProcessingPage() {
         setPollKey((k) => k + 1);
       } catch (e) {
         setPicking(null);
-        setError(e instanceof Error ? e.message : "Could not start the analysis.");
+        setError(e instanceof Error ? e.message : "Unable to start the analysis. Pick the player again to retry.");
       }
     },
     [id, coachLang],
@@ -144,7 +144,7 @@ export default function ProcessingPage() {
     return <NotFound title="This match isn't here" detail="It may have been deleted, or the link is wrong." />;
   }
   return (
-    <main className="main">
+    <main className="main" id="content">
       <h1>{awaiting ? "Choose a player" : "Processing"}</h1>
       <p className="lede">
         {awaiting

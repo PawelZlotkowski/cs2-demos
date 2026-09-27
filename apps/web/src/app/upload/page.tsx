@@ -25,7 +25,7 @@ export default function UploadPage() {
       const res = await api.upload(file, (done) => setSent(done));
       router.push(`/processing/${res.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed.");
+      setError(e instanceof Error ? e.message : "Unable to upload the demo. Check it is a .dem or .dem.zst file and try again.");
       setBusy(null);
     }
   }
@@ -44,8 +44,8 @@ export default function UploadPage() {
   }
 
   return (
-    <main className="main">
-      <h1>Add a demo</h1>
+    <main className="main" id="content">
+      <h1>Add a match</h1>
       <p className="lede">Choose a .dem.zst from FACEIT or a .dem from CS Demo Manager. Mirage and Anubis only for now.</p>
       <div
         className="drop"
