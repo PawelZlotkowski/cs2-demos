@@ -240,3 +240,22 @@ def test_autocite_adds_the_finding_that_holds_the_number():
     assert verify_text(fixed, ctx, "en").ok
     # A number no candidate holds stays uncited, so the verifier still rejects it
     assert autocite("You waited 9.9 s.", ctx, ["F1", "F2"]) == "You waited 9.9 s."
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # The leaked wrap-up seen on 27 Sep 2026
+        'You were not traded in Palace [F12]. search_knowledge "practice drill dry peek"',
+        'You were not traded in Palace [F12]. <tool_call>{"name": "search_knowledge", "arguments": {"query": "trade"}}</tool_call>',
+        'You were not traded in Palace [F12]. Call get_player_history to see more.',
+    ],
+)
+def test_tool_calls_written_as_text_fail(text):
+    check = verify_text(text, CTX, "en")
+    assert not check.ok
+    assert any("tool calls as text" in e for e in check.errors)
+
+
+def test_words_close_to_tool_names_pass():
+    assert verify_text("You were not traded in Palace [F12], so search for knowledge of trades.", CTX, "en").ok

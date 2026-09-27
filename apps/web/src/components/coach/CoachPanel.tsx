@@ -39,7 +39,7 @@ type Props = CiteHandlers & {
 };
 
 /** What the coach is doing, from the tool it just called. */
-const STEP_LABELS: Record<string, string> = {
+export const STEP_LABELS: Record<string, string> = {
   list_rounds: "Reading the rounds",
   get_round_stats: "Reading the round stats",
   list_findings: "Looking through the findings",
@@ -49,6 +49,8 @@ const STEP_LABELS: Record<string, string> = {
   get_player_history: "Checking earlier matches",
   search_knowledge: "Searching the map notes",
   request_clip: "Queueing a clip",
+  list_matches: "Listing your matches",
+  find_moments: "Looking through your matches",
 };
 
 export function CoachPanel({

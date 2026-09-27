@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.lab import router as lab_router
+from app.api.roadmap import router as roadmap_router
 from app.api.routes import router
 from app.core.config import settings
 
@@ -15,6 +17,8 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(lab_router)
+app.include_router(roadmap_router)
 
 
 @app.get("/")

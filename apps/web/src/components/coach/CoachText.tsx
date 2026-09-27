@@ -5,8 +5,9 @@ import { api } from "@/lib/api/client";
 import type { KnowledgePassage } from "@/lib/contracts";
 import { formatClock } from "@/lib/replay/time";
 
-/** [F12], [t:34.5], [m3], [K7] and lists such as [F1, F2] (09 AI Coach, citation tokens). */
-const TOKEN_RE = /\[((?:F\d+|m\d+|K\d+|t:\d+(?:\.\d+)?)(?:\s*,\s*(?:F\d+|m\d+|K\d+|t:\d+(?:\.\d+)?))*)\]/g;
+/** [F12], [t:34.5], [m3], [K7], [M2:F3] (a finding in another match, Coach page) and lists such as [F1, F2]. */
+const TOK = String.raw`(?:M\d+:F\d+|F\d+|m\d+|K\d+|t:\d+(?:\.\d+)?)`;
+const TOKEN_RE = new RegExp(String.raw`\[(${TOK}(?:\s*,\s*${TOK})*)\]`, "g");
 
 export type CiteHandlers = {
   onFinding?: (id: string) => void;
@@ -14,6 +15,8 @@ export type CiteHandlers = {
   onMoment?: (id: string) => void;
   /** Label for a moment token, e.g. "moment 3, untraded death". */
   momentLabel?: (id: string) => string | undefined;
+  /** Link for a finding in another match ("M2", "F3"); without it the token is plain text. */
+  matchFindingHref?: (ref: string, findingId: string) => string | undefined;
 };
 
 type Props = CiteHandlers & { text: string; className?: string };
@@ -48,6 +51,20 @@ export function CoachText({ text, className, ...h }: Props) {
       ) : (
         <span key={key} className="cite">
           {formatClock(t)}
+        </span>
+      );
+    }
+    if (tok.startsWith("M")) {
+      const [ref, fid] = tok.split(":");
+      const href = h.matchFindingHref?.(ref, fid);
+      const label = `match ${ref.slice(1)}, ${fid}`;
+      return href ? (
+        <a key={key} className="cite" href={href} title="Open this finding in the Studio">
+          {label}
+        </a>
+      ) : (
+        <span key={key} className="cite">
+          {label}
         </span>
       );
     }
