@@ -30,6 +30,14 @@ from app.coach.agent import AgentRun, CoachAgent, StepCallback, TraceWriter, run
 from app.coach.backends import InProcessTools, MCPTools
 from app.coach.llm_client import LLM, LLMClient, LLMError, json_schema_format
 from app.coach.prompts import load_prompt
+from app.coach.review import (
+    ReviewPart,
+    fallback_summary,
+    fallback_wrapup,
+    practice_drills,
+    review_findings,
+    review_numbers,
+)
 from app.coach.tools import MomentPick
 from app.coach.verify import (
     LANGUAGE_NAMES,
@@ -341,6 +349,81 @@ class CoachJobs:
             await self.explain(match_id, player_id, m.id, lang)
             for m in self.repo.analysis.moments(match_id, player_id)
         ]
+
+    # --- Review summary and wrap-up (design plan items 2 and 3) ----------------------
+
+    async def review(
+        self, match_id: str, player_id: str, part: ReviewPart, lang: str, *, store: bool = True
+    ) -> MomentExplanation:
+        """The overview's pattern summary ("summary") or the closing wrap-up ("wrapup")."""
+        a = self.repo.analysis
+        moments = a.moments(match_id, player_id)
+        all_findings = a.findings(match_id, player_id)
+        findings = review_findings(moments, all_findings)
+        fallback = fallback_summary if part == "summary" else fallback_wrapup
+        prompt = load_prompt("match_summary" if part == "summary" else "review_wrapup")
+        sentences = "2 or 3" if part == "summary" else "3 to 5"
+        max_sentences = 3 if part == "summary" else 5
+
+        if not findings or not self.llm_enabled():
+            text = fallback(moments, all_findings, lang)
+            expl = MomentExplanation(
+                target=part, lang=lang, text=text, citations=citations_in(text),
+                finding_ids=[f.id for f in findings], source="template",
+                verifier_errors=[] if findings else ["No moments to review."],
+            )
+            if store:
+                a.save_explanation(match_id, player_id, expl)
+            return expl
+
+        moment_lines = [
+            f"- {m.id}: round {m.round}, {m.kind}, findings {', '.join(m.finding_ids)}. {m.picked_because}"
+            for m in moments
+        ]
+        user_lines = [
+            self._context_line(match_id, player_id, None),
+            f"The review has {len(moments)} moments:",
+            *moment_lines,
+            "",
+            "Findings of those moments (evidence holds the numbers you may quote):",
+            *(_finding_json(f) for f in findings),
+        ]
+        if part == "wrapup":
+            drills = practice_drills(moments, all_findings)
+            if drills:
+                user_lines += ["", "Mistake types to give a drill for: " + ", ".join(d.detector for d in drills) + "."]
+        user_lines += ["", f"Write it in {LANGUAGE_NAMES[lang]}."]
+        record: dict[str, Any] = {"job": part, "matchId": match_id, "playerId": player_id, "lang": lang}
+        outcome = await self._answer(
+            job=part,
+            prompt_version=prompt.version,
+            system=prompt.render(
+                language=LANGUAGE_NAMES[lang], sentences=sentences, language_notes=LANGUAGE_NOTES[lang]
+            ),
+            user="\n".join(user_lines),
+            bound={"match_id": match_id, "player_id": player_id},
+            ctx=self._verify_context(match_id, player_id, review_numbers(moments, all_findings)),
+            lang=lang,
+            max_sentences=max_sentences,
+            require_citation=True,
+            fallback=lambda: fallback(moments, all_findings, lang),
+            record=record,
+            cite_candidates=[f.id for f in findings],
+        )
+        expl = MomentExplanation(
+            target=part,
+            lang=lang,
+            text=outcome.answer,
+            citations=outcome.citations,
+            finding_ids=[c for c in outcome.citations if c.startswith("F")] or [f.id for f in findings],
+            source=outcome.source,  # type: ignore[arg-type]
+            verifier_errors=outcome.errors,
+            model=getattr(self.llm, "model", None),
+            prompt_version=prompt.version,
+        )
+        if store:
+            a.save_explanation(match_id, player_id, expl)
+        return expl
 
     # --- T27 Ask ------------------------------------------------------------------
 

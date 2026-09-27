@@ -1,24 +1,26 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { NavLinks } from "@/components/NavLinks";
+import { ThemeSelect, themeBootScript } from "@/components/ThemeSelect";
+import "@fontsource/hanken-grotesk/400.css";
+import "@fontsource/hanken-grotesk/500.css";
+import "@fontsource/hanken-grotesk/600.css";
+import "@fontsource/newsreader/400.css";
+import "@fontsource/newsreader/400-italic.css";
 import "@/styles/tokens.css";
 import "@/styles/studio.css";
 
 export const metadata = {
-  title: "Round Reviewer",
-  description: "Review CS2 demo rounds on Radar with a shared playback clock.",
+  title: { default: "Round Reviewer", template: "%s · Round Reviewer" },
+  description: "Pick a player in a CS2 demo and review their best and worst moments with a self-hosted coach.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en-GB" data-theme="light">
+    // No data-theme by default: the chrome follows the system setting until the user picks one.
+    <html lang="en-GB" suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=Newsreader:ital,wght@0,400;1,400&display=swap"
-          rel="stylesheet"
-        />
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body>
         <div className="shell">
@@ -30,6 +32,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             {/* Studio portals the loaded match summary in here. */}
             <div className="bar-match" id="bar-match" />
             <div className="spacer" />
+            <ThemeSelect />
             <Link href="/upload" className="btn btn-line">
               <span className="hide-s">Add demo</span>
               <span className="show-s">Add</span>

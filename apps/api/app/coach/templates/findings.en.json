@@ -5,6 +5,7 @@
  "shot_while_moving": "Fired {movingShots} of {shots} shots with the {weapon} while moving at up to {speedUps} u/s in {zone}; accurate speed is {accurateSpeedUps} u/s.",
  "unused_utility": "Died in {zone} after {timeAliveS} s with {grenadesUnused} unused grenades ({grenadeList}).",
  "dry_peek": "Died to {killerName} in {zone} {timeToDeathS} s after first contact, with no flash or smoke from the team before the fight.",
+ "dry_peek.instant": "Died to {killerName} in {zone} almost at once after first contact, with no flash or smoke from the team before the fight.",
  "team_flash": "Own flash blinded {teammatesBlinded} teammates in {zone} (longest {longestBlindS} s) and {enemiesBlinded} enemies.",
  "team_flash.self": "Own flash blinded the player for {longestBlindS} s in {zone} and {enemiesBlinded} enemies.",
  "opening_duel.won": "Won the opening duel against {opponentName} in {zone} with the {weapon}.",

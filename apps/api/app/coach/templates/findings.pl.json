@@ -5,6 +5,7 @@
  "shot_while_moving": "{movingShots} z {shots} strzałów z {weapon} oddanych w ruchu, do {speedUps} u/s, na {zone}; celna prędkość to {accurateSpeedUps} u/s.",
  "unused_utility": "Śmierć na {zone} po {timeAliveS} s z niewykorzystanymi granatami: {grenadesUnused} ({grenadeList}).",
  "dry_peek": "Śmierć od {killerName} na {zone} {timeToDeathS} s po pierwszym kontakcie, bez flasha ani smoke'a drużyny przed walką.",
+ "dry_peek.instant": "Śmierć od {killerName} na {zone} niemal od razu po pierwszym kontakcie, bez flasha ani smoke'a drużyny przed walką.",
  "team_flash": "Własny flash oślepił członków drużyny: {teammatesBlinded} na {zone} (najdłużej {longestBlindS} s) oraz przeciwników: {enemiesBlinded}.",
  "team_flash.self": "Własny flash oślepił gracza na {longestBlindS} s na {zone} oraz przeciwników: {enemiesBlinded}.",
  "opening_duel.won": "Wygrany pierwszy pojedynek z {opponentName} na {zone}, broń: {weapon}.",

@@ -193,13 +193,16 @@ def test_pipeline_runs_selecting_and_explaining(analysed, tmp_path, monkeypatch)
         return real_set(match_id, status, **kw)
 
     monkeypatch.setattr(repo, "set_status", spy)
-    jobs, _ = jobs_with([picks_json(mid, pid), good_text(mid, pid), good_text(mid, pid)], tmp_path)
+    # Selection, two moment explanations, then the review summary and wrap-up
+    jobs, _ = jobs_with([picks_json(mid, pid), *[good_text(mid, pid)] * 4], tmp_path)
     monkeypatch.setattr(pipe_mod, "coach_jobs", lambda _repo: jobs)
 
     pipe_mod.pipeline.select_player(mid, pid, language="en", run_async=False)
     assert seen_status == ["detecting", "selecting", "explaining", "complete"]
     assert [m.source for m in repo.analysis.moments(mid, pid)] == ["agent", "agent"]
     assert repo.analysis.explanation(mid, pid, "m1", "en").source == "agent"
+    assert repo.analysis.explanation(mid, pid, "summary", "en").source == "agent"
+    assert repo.analysis.explanation(mid, pid, "wrapup", "en").source == "agent"
     stages = {s.id: s for s in pipe_mod.pipeline.status_response(mid).stages}
     assert stages[MatchStatus.selecting].detail == "2 moments picked by the coach"
     assert stages[MatchStatus.explaining].state == "done"

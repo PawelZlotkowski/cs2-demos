@@ -55,3 +55,15 @@ Don't reverse any of these without the owner's approval. Each lists the decision
     - *Consequence:* answers in English, Polish or Dutch per user setting; callouts stay English; UI copy stays English.
 20. **Ask sits next to Analysis.** (Owner, 26 Sep 2026)
     - *Consequence:* the Studio panel has two tabs, Analysis and Ask; the Coach still follows decision 5.
+
+21. **The Analysis Studio has a light and a dark theme; the older olive-dark style is dropped.** (Owner, 27 Sep 2026)
+    - *Reason:* the owner wants both modes; the Analysis Studio tokens already define both.
+    - *Consequence:* the chrome follows the system setting until the user picks System, Light or Dark in the top bar (stored per browser as `rr.theme`). The stage stays dark in both. The chartreuse accent, Big Shoulders and IBM Plex from the earlier direction are not used. See [03](./03-DESIGN-SYSTEM.md) and [26](./26-DESIGN-POLISH-PLAN.md).
+
+22. **Sign in with Steam plus a local password.** (Owner, 27 Sep 2026)
+    - *Reason:* Steam gives the SteamID every CS2 tool uses; the password keeps sign-in working offline.
+    - *Consequence:* auth lives in the API with server-side sessions; see [27](./27-ACCOUNTS-PLAN.md).
+23. **The app runs on the owner's private PC only for now.** (Owner, 27 Sep 2026)
+    - *Consequence:* no LAN, tunnel or public exposure; study participants use that PC. Revisit HTTPS and hardening before exposing it.
+24. **Matches arrive by manual upload only.** (Owner, 27 Sep 2026)
+    - *Consequence:* no Steam share-code or FACEIT automatic import in the prototype.

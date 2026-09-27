@@ -22,6 +22,7 @@ from app.models.contracts import (
     Moment,
     MomentClip,
     MomentExplanation,
+    ReviewWrapUp,
     PatternsResponse,
     PlayerSelectRequest,
     ReplayEvent,
@@ -302,6 +303,32 @@ def explain_round(
         moment_recorder.enqueue(match_id, player_id)
     stored = None if refresh else repo.analysis.explanation(match_id, player_id, target, lang)
     return stored or run_sync(pipeline_module.coach_jobs(repo).explain(match_id, player_id, target, lang))
+
+
+@router.get("/matches/{match_id}/players/{player_id}/review/summary", response_model=MomentExplanation)
+def get_review_summary(match_id: str, player_id: str, lang: CoachLanguage = "en") -> MomentExplanation:
+    """The overview's summary of the picked moments (design plan item 2): stored, or written now."""
+    from app.coach.jobs import run_sync
+
+    _require_analysis(match_id, player_id)
+    stored = repo.analysis.explanation(match_id, player_id, "summary", lang)
+    return stored or run_sync(pipeline_module.coach_jobs(repo).review(match_id, player_id, "summary", lang))
+
+
+@router.get("/matches/{match_id}/players/{player_id}/review/wrapup", response_model=ReviewWrapUp)
+def get_review_wrapup(match_id: str, player_id: str, lang: CoachLanguage = "en") -> ReviewWrapUp:
+    """End of the review (design plan item 3): what went well, what to fix, one drill per mistake type."""
+    from app.coach.jobs import run_sync
+    from app.coach.review import practice_drills
+
+    _require_analysis(match_id, player_id)
+    stored = repo.analysis.explanation(match_id, player_id, "wrapup", lang)
+    text = stored or run_sync(pipeline_module.coach_jobs(repo).review(match_id, player_id, "wrapup", lang))
+    a = repo.analysis
+    return ReviewWrapUp(
+        explanation=text,
+        drills=practice_drills(a.moments(match_id, player_id), a.findings(match_id, player_id)),
+    )
 
 
 @router.get("/matches/{match_id}/players/{player_id}/clips", response_model=list[MomentClip])

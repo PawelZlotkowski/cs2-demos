@@ -42,9 +42,9 @@ REPLAY_PIPELINE: list[MatchStatus] = [
 ]
 
 # Stages shown on the processing page, in order
+# (decompressing and decompressed read as one "Unpack demo" line, so only the first is listed)
 VISIBLE_STAGES = [
     MatchStatus.decompressing,
-    MatchStatus.decompressed,
     MatchStatus.parsing,
     MatchStatus.normalizing,
     MatchStatus.awaiting_player,
@@ -266,6 +266,12 @@ class ProcessingPipeline:
             logger.info("Explanations for %s in %.1f s", match_id, time.perf_counter() - t0)
         except Exception:
             logger.exception("Explanations failed for %s / %s", match_id, player_id)
+        # The overview summary and the closing wrap-up (design plan items 2 and 3)
+        for part in ("summary", "wrapup"):
+            try:
+                run_sync(coach_jobs(self.repo).review(match_id, player_id, part, language))
+            except Exception:
+                logger.exception("Review %s failed for %s / %s", part, match_id, player_id)
 
     def _recording_progress(self, match_id: str, player_id: str, state: str) -> tuple[dict[str, int] | None, str]:
         clips = [c for c in list_moment_clips(match_id, player_id, self.repo) if c.moment_id]
@@ -338,7 +344,7 @@ class ProcessingPipeline:
             record.get("is_sample") or not self.repo.has_analysis_input(record["id"])
         ):
             # Sample match, or parsed before the coach milestone: replay stages only
-            visible = visible[:4]
+            visible = visible[:3]
         try:
             cur_idx = REPLAY_PIPELINE.index(current)
         except ValueError:

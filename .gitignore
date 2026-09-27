@@ -64,3 +64,6 @@ npm-debug.log*
 *.safetensors
 data/traces/
 ml/finetune/outputs/
+
+# Model comparison runs (player ids and coach texts)
+eval/results/

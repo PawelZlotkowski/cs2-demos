@@ -10,7 +10,7 @@ A self-hosted coach for Counter-Strike 2. Upload a match demo, pick a player, an
 - **Analysis:** you pick a player after parsing. Ten detectors turn the demo into findings with evidence, and the per-round stats and a code ranker pick five or six moments.
 - **Coach:** the `cs2-demo` MCP server exposes the coach tools to an agent loop. A verifier checks every claim and number against a finding, and English, Polish and Dutch templates stand in when the model is off. It runs live on the RTX 5080 with Qwen3-14B on llama.cpp.
 - **Knowledge (RAG):** Mirage, Anubis and fundamentals notes plus Liquipedia pages, searched with FTS5 and optional dense vectors. Answers cite passages as `[K..]`.
-- **Studio:** a moment rail, the radar or a POV clip, a timeline with a Coach lane, and the Analysis and Ask tabs.
+- **Studio:** opens on a match overview (key facts, a round strip and the coach's summary), then walks through the moments with "Moment N of M" and ends on a wrap-up with one drill per mistake type. Around it: a moment rail, the radar or a POV clip, a timeline with a Coach lane, the Analysis and Ask tabs, light and dark themes, and a bottom sheet on phones.
 - **POV clips:** CS Demo Manager records the picked player's view for each moment before the analysis opens. This needs Windows with CS2 and CS Demo Manager.
 - **Task board:** [cs2-coach-tracker.vercel.app](https://cs2-coach-tracker.vercel.app), seeded from [docs/coach/TASKS.md](docs/coach/TASKS.md).
 
@@ -18,7 +18,6 @@ A self-hosted coach for Counter-Strike 2. Upload a match demo, pick a player, an
 
 | Decision or action | Recommendation | Where |
 |---|---|---|
-| Keep the light Studio look or go back to the olive-dark style | Keep light | [Design polish plan](docs/handoff/26-DESIGN-POLISH-PLAN.md#settle-the-style-question) |
 | Try Gemma 4 12B against Qwen3-14B on the 5080 | Yes, keep Qwen3-14B as the baseline | [Model options](https://github.com/PawelZlotkowski/cs2-demos/blob/claude/project-thread-0nc60h/docs/coach/MODEL-OPTIONS.md) (not merged yet) |
 | Accounts plan (Steam sign-in plus password, private PC only, manual upload) | Merge | [PR #12](https://github.com/PawelZlotkowski/cs2-demos/pull/12) |
 | Old draft PRs | Close [#3](https://github.com/PawelZlotkowski/cs2-demos/pull/3) and [#4](https://github.com/PawelZlotkowski/cs2-demos/pull/4); all of their commits are already in `main` (#3) or come with this README's PR (#4) | GitHub |
@@ -29,7 +28,7 @@ A self-hosted coach for Counter-Strike 2. Upload a match demo, pick a player, an
 1. **Proposal, due 4 October 2026.** Finish [PROPOSAL.md](docs/coach/PROPOSAL.md) with your partner's name.
 2. **Label rounds** (T17, then T60 to T62). This tunes the detectors and produces the evaluation numbers the report needs. Use `python -m eval.label_tool`; the format is in [data/labels/README.md](data/labels/README.md).
 3. **In-game check** of the map notes in `data/knowledge/` and the callout zones in `apps/api/app/maps/zones/` (both are first drafts).
-4. **Before the intermediary defence on 17 November 2026:** the top polish items and the UI check fixes in the [design polish plan](docs/handoff/26-DESIGN-POLISH-PLAN.md) (bundled fonts, real player names, plain copy, a working drop zone, a match overview, a review that ends, showing the agent's work), then sign-in and the match library from the accounts plan (A00 to A14), then the defence deck (T64).
+4. **Before the intermediary defence on 17 November 2026:** the rest of the [design polish plan](docs/handoff/26-DESIGN-POLISH-PLAN.md) (the UI check and items 1 to 3 are done; next is item 4, showing the agent's work), then sign-in and the match library from the accounts plan (A00 to A14), then the defence deck (T64).
 5. **Last:** the QLoRA fine-tune (T50 to T53), once the model is chosen, then the evaluation runs and the report for 6 December 2026 (T61, T63, T65).
 
 ### Known gaps
@@ -67,6 +66,8 @@ npm run dev
 ```
 
 Tests: `cd apps/api && pytest`. Web checks: `cd apps/web && npm run typecheck && npm run build`.
+
+The full Windows guide, with the coach model, POV clips, tests and evaluation tools, is [docs/RUN-LOCALLY.md](docs/RUN-LOCALLY.md).
 
 ## Repository layout
 

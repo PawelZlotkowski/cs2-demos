@@ -24,6 +24,7 @@
   --ui: "Hanken Grotesk", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --serif: "Newsreader", Georgia, "Times New Roman", serif;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 
   --r-ctl: 4px;
@@ -38,10 +39,12 @@
   --fs-16: 16px;
   --fs-20: 20px;
   --fs-26: 26px;
+
+  color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
-  /* Opt-in dark only: Analysis Studio default is light chrome (data-theme="light" on <html>). */
+  /* No choice stored: the chrome follows the system setting. The stage is dark in both themes. */
   :root:not([data-theme="light"]):not([data-theme="dark"]) {
     --surface-page: #131619;
     --surface-panel: #1a1e22;
@@ -59,7 +62,12 @@
   }
 }
 
+[data-theme="light"] {
+  color-scheme: light;
+}
+
 [data-theme="dark"] {
+  color-scheme: dark;
   --surface-page: #131619;
   --surface-panel: #1a1e22;
   --surface-raised: #21262b;
@@ -222,6 +230,22 @@ p {
   flex: 1;
 }
 
+.theme-select select {
+  font: inherit;
+  font-size: var(--fs-13);
+  color: var(--text-2);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  height: 32px;
+  padding: 0 6px;
+}
+
+.theme-select select:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 0;
+}
+
 .show-s {
   display: none;
 }
@@ -233,7 +257,9 @@ p {
   }
 
   .bar-match,
-  .hide-s {
+  .hide-s,
+  .nav {
+    /* The brand already links home, and the Studio is the page you're on. */
     display: none;
   }
 
@@ -326,11 +352,42 @@ h1 {
     background-color 160ms ease;
 }
 
+.drop[data-over] {
+  border-color: var(--text);
+  background: var(--surface-raised);
+}
+
 .drop b {
   display: block;
   font-size: var(--fs-16);
   font-weight: 600;
   margin-bottom: 4px;
+}
+
+/* Upload byte progress: a thin ink line, no fill colour (colour means good or bad play). */
+.upload-bar {
+  appearance: none;
+  display: block;
+  width: min(360px, 100%);
+  height: 4px;
+  margin: 16px auto 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.upload-bar::-webkit-progress-bar {
+  background: var(--border);
+}
+
+.upload-bar::-webkit-progress-value {
+  background: var(--text);
+  transition: width 120ms linear;
+}
+
+.upload-bar::-moz-progress-bar {
+  background: var(--text);
 }
 
 .err {
@@ -515,10 +572,93 @@ h1 {
   *::after {
     transition-property: opacity, color, background-color, border-color !important;
     animation-duration: 0ms !important;
+    animation-delay: 0ms !important;
   }
 
   .btn:active,
   .play:active {
+    transform: none;
+  }
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ---- Motion polish for Home, Upload and Processing (11 Motion system) ---- */
+
+/* A stage changing state eases its colour; the tick draws in once, when it is done. */
+.stage-list li {
+  transition: color 200ms ease;
+}
+
+.s-ic {
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease;
+}
+
+.stage-list li[data-state="done"] .s-ic::after {
+  animation: rr-tick 220ms var(--ease-out) both;
+}
+
+@keyframes rr-tick {
+  from {
+    opacity: 0;
+    transform: rotate(45deg) scale(0.6);
+  }
+}
+
+/* Only a stage that is really working turns (linear: constant motion); waiting on you does not. */
+.stage-list li[data-state="active"]:not([data-stage="awaiting_player"]) .s-ic {
+  border-top-color: transparent;
+  animation: rr-spin 900ms linear infinite;
+}
+
+@keyframes rr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The picker and the upload bar arrive once, so they rise in rather than pop. */
+.picker,
+.upload-bar {
+  animation: rr-rise 240ms var(--ease-out) both;
+}
+
+.pick-row {
+  transition:
+    transform 140ms var(--ease-out),
+    background-color 120ms ease;
+}
+
+.pick-row:not(:disabled):active {
+  transform: scale(0.99);
+}
+
+.drop {
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms var(--ease-out);
+}
+
+.drop[data-over] {
+  transform: scale(1.01);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mom:active,
+  .rs-cell:active,
+  .icon-btn:active,
+  .step:active,
+  .t-opt:active,
+  .seg button:not(:disabled):active,
+  .pick-row:not(:disabled):active,
+  .drop[data-over] {
     transform: none;
   }
 }

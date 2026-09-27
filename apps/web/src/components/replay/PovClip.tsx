@@ -74,6 +74,9 @@ export function PovClip({
 
   const span = `${formatClock(clip.t0)} to ${formatClock(end)}`;
 
+  // Clips switched off: say nothing on the stage; the Gameplay button's tooltip gives the reason
+  if (!src && clip.status === "skipped") return null;
+
   if (!src) {
     const text =
       clip.status === "queued" || clip.status === "recording"

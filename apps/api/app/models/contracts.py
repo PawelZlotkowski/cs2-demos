@@ -531,7 +531,8 @@ class PlayerSelectRequest(CamelModel):
 
 
 class MomentExplanation(CamelModel):
-    """Analysis-tab text for one moment ("m3") or an on-demand round ("r12").
+    """Analysis-tab text for one moment ("m3"), an on-demand round ("r12"), or the
+    review's opening "summary" and closing "wrapup" (design plan items 2 and 3).
 
     ``source`` is ``agent`` when the model's text passed the verifier, and
     ``template`` when it fell back to the finding templates (plan §6.3).
@@ -546,6 +547,24 @@ class MomentExplanation(CamelModel):
     verifier_errors: list[str] = Field(default_factory=list, alias="verifierErrors")
     model: str | None = None
     prompt_version: str | None = Field(None, alias="promptVersion")
+
+
+class PracticeDrill(CamelModel):
+    """A drill from the knowledge base for one mistake type in the review (design plan item 3)."""
+
+    detector: str
+    finding_ids: list[str] = Field(default_factory=list, alias="findingIds")
+    passage_id: str = Field(alias="passageId")
+    title: str
+    text: str
+    source: str
+
+
+class ReviewWrapUp(CamelModel):
+    """End of the review: the verified wrap-up text and one drill per mistake type."""
+
+    explanation: MomentExplanation
+    drills: list[PracticeDrill] = Field(default_factory=list)
 
 
 class ExplainRequest(CamelModel):
