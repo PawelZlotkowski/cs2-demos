@@ -18,7 +18,7 @@ ANALYSIS_FILE = "analysis.json"
 
 STAGE_LABELS: dict[MatchStatus, str] = {
     MatchStatus.uploaded: "Upload received",
-    MatchStatus.decompressing: "Decompress",
+    MatchStatus.decompressing: "Unpack demo",
     MatchStatus.decompressed: "Decompressed",
     MatchStatus.parsing: "Parse demo",
     MatchStatus.normalizing: "Normalise replay",

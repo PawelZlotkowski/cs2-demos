@@ -340,7 +340,7 @@ function CoachMarker({
 }) {
   const { lead, rest } = stack;
   const all = [lead, ...rest];
-  const label = rest.length ? `${lead.label} +${rest.length}` : lead.label;
+  const label = rest.length ? `${lead.label} and ${rest.length} more` : lead.label;
   const tipLabel = all.map((m) => m.label).join(", ");
   const tipDetail = `${formatClock(lead.t)}, ${all.length > 1 ? "findings" : "finding"} ${all.map((m) => m.eventId).join(", ")}`;
   return (

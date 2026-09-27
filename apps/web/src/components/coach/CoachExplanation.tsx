@@ -92,6 +92,6 @@ function sourceNote(e: MomentExplanation): string {
   if (e.source === "agent") return `Written by ${e.model ?? "the coach model"} and checked against the findings.`;
   if (e.verifierErrors.some((x) => /no findings/i.test(x))) return "No findings to explain here.";
   if (e.verifierErrors.length)
-    return "Built from the finding templates, because the model's text did not pass the checks.";
-  return "Built from the finding templates. The coach model is switched off.";
+    return "Written from the findings, because the coach model's text did not pass the checks.";
+  return "Written from the findings. The coach model is off.";
 }

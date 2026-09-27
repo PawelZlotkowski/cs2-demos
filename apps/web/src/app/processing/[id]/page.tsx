@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api/client";
 import type { Match, ReplayEvent, StatusResponse } from "@/lib/contracts";
+import { NotFound, isNotFound } from "@/components/NotFound";
 import { PlayerPicker, type PickerPlayer } from "@/components/processing/PlayerPicker";
 import { makeRosterLookup } from "@/lib/replay/roster";
 import { COACH_LANGUAGES, useCoachLanguage } from "@/lib/coach/language";
@@ -134,13 +135,17 @@ export default function ProcessingPage() {
         : `${clips.done} of ${clips.total} gameplay clips ready.`
       : null;
 
+
+  if (!status && isNotFound(error)) {
+    return <NotFound title="This match isn't here" detail="It may have been deleted, or the link is wrong." />;
+  }
   return (
     <main className="main">
       <h1>{awaiting ? "Choose a player" : "Processing"}</h1>
       <p className="lede">
         {awaiting
           ? "The replay is ready. Pick whose game to analyse; mistakes and good plays are found from that player's side."
-          : "Real stages only. Counts appear when they exist."}
+          : "Unpacking and reading the demo. You choose a player as soon as the rounds are ready."}
       </p>
       {error ? (
         <p className="err" role="alert">

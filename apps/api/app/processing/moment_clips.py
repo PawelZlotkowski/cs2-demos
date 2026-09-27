@@ -30,7 +30,8 @@ from app.repositories.matches import MatchRepository, repo
 logger = logging.getLogger(__name__)
 
 MAX_CLIP_SECONDS = 60.0
-DISABLED = "Gameplay recording is disabled on this server (set RR_CSDM_ENABLED=1 on the Windows host)."
+# Shown in the Studio; the setup (RR_CSDM_ENABLED=1 on the Windows host) is in docs/replay/csdm-video.md
+DISABLED = "Clips are off on this computer, so the radar is shown instead."
 
 _lock = threading.Lock()
 _running: set[tuple[str, str]] = set()

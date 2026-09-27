@@ -135,7 +135,7 @@ def init_manifest_for_match(match_id: str, repository: MatchRepository | None = 
         elif not settings.csdm_enabled:
             status = ClipStatus.skipped
             url = None
-            err = "Gameplay recording is disabled on this server."
+            err = "Clips are off on this computer, so the radar is shown instead."
         elif not settings.csdm_round_clips:
             status = ClipStatus.skipped
             url = None

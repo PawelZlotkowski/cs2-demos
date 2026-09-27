@@ -10,7 +10,7 @@ All values below are taken from the `:root` block and styles in [`prototype/anal
 > - chartreuse `#d4ed5c` accent
 > - Big Shoulders Display, IBM Plex Sans and IBM Plex Mono
 >
-> This package describes the current **Analysis Studio** direction. Resolve which one is canonical before building. See [18](./18-CURRENT-STATE.md#contradictions).
+> Resolved by [decision 21](./19-DECISIONS.md) (27 Sep 2026): the **Analysis Studio** direction below is canonical, in a light and a dark theme. The olive-dark direction is dropped.
 
 ## Colour (semantic roles)
 
@@ -45,7 +45,9 @@ Stage tokens stay the same in both themes because the stage is always dark:
 | `--stage-pos` | `#8FA9FF` | Good play on the stage |
 | `--stage-neg` | `#F28C4C` | Mistake on the stage |
 
-The dark theme exists as `prefers-color-scheme` overrides plus a `[data-theme]` attribute. It is **not visually verified**.
+Both themes ship ([decision 21](./19-DECISIONS.md)). With no stored choice the chrome follows `prefers-color-scheme`; the top bar's System / Light / Dark control sets `data-theme` on `<html>` and stores it as `rr.theme` in localStorage, and an inline script in `<head>` applies it before first paint. Checked in screenshots at 1440 and 390 px on 27 Sep 2026 (Home, Upload, picker, Studio, Ask, not-found).
+
+Fonts are bundled with the app from `@fontsource/hanken-grotesk` and `@fontsource/newsreader`, so nothing loads from Google Fonts at runtime.
 
 **Technical debt:** the JS repeats stage colours as literals instead of reading tokens:
 

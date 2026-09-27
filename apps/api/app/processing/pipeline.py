@@ -42,9 +42,9 @@ REPLAY_PIPELINE: list[MatchStatus] = [
 ]
 
 # Stages shown on the processing page, in order
+# (decompressing and decompressed read as one "Unpack demo" line, so only the first is listed)
 VISIBLE_STAGES = [
     MatchStatus.decompressing,
-    MatchStatus.decompressed,
     MatchStatus.parsing,
     MatchStatus.normalizing,
     MatchStatus.awaiting_player,
@@ -338,7 +338,7 @@ class ProcessingPipeline:
             record.get("is_sample") or not self.repo.has_analysis_input(record["id"])
         ):
             # Sample match, or parsed before the coach milestone: replay stages only
-            visible = visible[:4]
+            visible = visible[:3]
         try:
             cur_idx = REPLAY_PIPELINE.index(current)
         except ValueError:
