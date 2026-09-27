@@ -29,6 +29,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "work_dir", tmp_path / "work")
     monkeypatch.setattr(settings, "csdm_enabled", True)
     monkeypatch.setattr(settings, "csdm_mode", "stub")
+    monkeypatch.setattr(settings, "csdm_round_clips", True)
     monkeypatch.setattr(settings, "csdm_max_rounds", 2)
     repo.upload_dir.mkdir(parents=True, exist_ok=True)
     repo.matches_dir.mkdir(parents=True, exist_ok=True)

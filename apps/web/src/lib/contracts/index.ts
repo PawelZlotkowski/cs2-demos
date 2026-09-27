@@ -296,12 +296,17 @@ export interface KnowledgePassage {
   text: string;
 }
 
-export interface ClipJob {
-  clipJobId: string;
+/** First-person clip of the coached player; t0/t1 are round clock seconds (video time = t - t0). */
+export interface MomentClip {
+  id: string;
+  playerId: string;
   round: number;
   t0: number;
   t1: number;
-  status: string;
+  momentId?: string | null;
+  status: ClipStatus;
+  url?: string | null;
+  error?: string | null;
 }
 
 export interface PlayerAnalysis {

@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     csdm_recording_system: str = "HLAE"
     csdm_max_rounds: int = 0  # 0 = all rounds
     csdm_timeout_seconds: float = 600.0
+    # Whole-round clips right after parsing (off: the coach records its moments instead)
+    csdm_round_clips: bool = False
+    # Extra seconds recorded around each coach moment, so the play is not cut at the
+    # edges (CS2 needs a moment to settle after the jump, and the result lands after the action)
+    csdm_moment_pad_before: float = 1.0
+    csdm_moment_pad_after: float = 3.0
 
     def resolved_upload_dir(self) -> Path:
         path = self.upload_dir or (self.data_dir / "uploads")

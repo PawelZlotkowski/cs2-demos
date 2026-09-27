@@ -21,6 +21,7 @@ from app.models.contracts import (
 from app.processing.decompress import DecompressError, decompress_demo
 from app.processing.normalize import normalize_parsed
 from app.processing.parse_demo import ParseError, parse_demo_file
+from app.processing.moment_clips import list_moment_clips, moment_recorder, queue_moment_clips
 from app.processing.video_clips import get_or_init_manifest, load_manifest, video_worker
 from app.repositories.matches import STAGE_LABELS, MatchRepository, repo
 
@@ -35,6 +36,7 @@ REPLAY_PIPELINE: list[MatchStatus] = [
     MatchStatus.awaiting_player,
     MatchStatus.detecting,
     MatchStatus.selecting,
+    MatchStatus.recording,
     MatchStatus.explaining,
     MatchStatus.complete,
 ]
@@ -50,6 +52,8 @@ VISIBLE_STAGES = [
 ]
 # Shown only when the coach model is on (RR_LLM_ENABLED)
 COACH_STAGES = [MatchStatus.selecting, MatchStatus.explaining]
+# Shown when gameplay recording is on (RR_CSDM_ENABLED); runs before the explanations
+RECORD_STAGE = MatchStatus.recording
 
 
 class PlayerSelectionError(Exception):
@@ -209,31 +213,70 @@ class ProcessingPipeline:
             )
             return
         if settings.llm_enabled:
-            self._coach_safe(match_id, player_id, language)
+            self._select_safe(match_id, player_id)
+        # Clips of the final moments (the coach's, or the ranker's when the model is
+        # off or failed) are recorded before the analysis opens.
+        self._record_moments(match_id, player_id)
+        if settings.llm_enabled:
+            self._explain_safe(match_id, player_id, language)
         self.repo.set_status(match_id, MatchStatus.complete)
 
-    def _coach_safe(self, match_id: str, player_id: str, language: str) -> None:
-        """Moment selection and explanations (plan §3 steps 5 and 7).
+    def _record_moments(self, match_id: str, player_id: str) -> None:
+        """Record the POV clip of each moment and wait for them (plan §3 step 6).
 
-        The ranker's moments are already stored, so any failure here still
-        leaves a complete analysis; the job traces record why.
+        A clip that fails keeps its reason for the Studio; the analysis still opens.
+        """
+        try:
+            queue_moment_clips(match_id, player_id, self.repo)
+            if not settings.csdm_enabled:
+                return
+            self.repo.set_status(match_id, MatchStatus.recording)
+            t0 = time.perf_counter()
+            moment_recorder.record_now(match_id, player_id)
+            logger.info("Moment clips for %s in %.1f s", match_id, time.perf_counter() - t0)
+        except Exception:
+            logger.exception("Recording moment clips failed for %s / %s", match_id, player_id)
+
+    def _select_safe(self, match_id: str, player_id: str) -> None:
+        """Moment selection by the coach (plan §3 step 5).
+
+        The ranker's moments are already stored, so a failure here still leaves
+        a complete analysis; the job traces record why.
         """
         from app.coach.jobs import run_sync
 
-        jobs = coach_jobs(self.repo)
         try:
             self.repo.set_status(match_id, MatchStatus.selecting)
             t0 = time.perf_counter()
-            outcome = run_sync(jobs.select_moments(match_id, player_id))
+            outcome = run_sync(coach_jobs(self.repo).select_moments(match_id, player_id))
             logger.info(
                 "Moments for %s by %s in %.1f s", match_id, outcome.source, time.perf_counter() - t0
             )
-            self.repo.set_status(match_id, MatchStatus.explaining)
-            t1 = time.perf_counter()
-            run_sync(jobs.explain_all_moments(match_id, player_id, language))
-            logger.info("Explanations for %s in %.1f s", match_id, time.perf_counter() - t1)
         except Exception:
-            logger.exception("Coach jobs failed for %s / %s; keeping the ranker's moments", match_id, player_id)
+            logger.exception("Moment selection failed for %s / %s; keeping the ranker's moments", match_id, player_id)
+
+    def _explain_safe(self, match_id: str, player_id: str, language: str) -> None:
+        """Explanations of the moments (plan §3 step 7)."""
+        from app.coach.jobs import run_sync
+
+        try:
+            self.repo.set_status(match_id, MatchStatus.explaining)
+            t0 = time.perf_counter()
+            run_sync(coach_jobs(self.repo).explain_all_moments(match_id, player_id, language))
+            logger.info("Explanations for %s in %.1f s", match_id, time.perf_counter() - t0)
+        except Exception:
+            logger.exception("Explanations failed for %s / %s", match_id, player_id)
+
+    def _recording_progress(self, match_id: str, player_id: str, state: str) -> tuple[dict[str, int] | None, str]:
+        clips = [c for c in list_moment_clips(match_id, player_id, self.repo) if c.moment_id]
+        ready = sum(1 for c in clips if c.status == ClipStatus.ready)
+        failed = sum(1 for c in clips if c.status == ClipStatus.failed)
+        if state == "active":
+            return {"done": ready + failed, "total": len(clips)}, "Recording the player's view of each moment in CS2"
+        if not clips:
+            return None, "No moments to record"
+        detail = f"{ready} of {len(clips)} clips recorded"
+        return None, detail + (f", {failed} failed" if failed else "")
 
     def _selection_detail(self, match_id: str, player_id: str) -> str:
         moments = self.repo.analysis.moments(match_id, player_id)
@@ -256,6 +299,7 @@ class ProcessingPipeline:
             clips = get_or_init_manifest(match_id, self.repo)
             if (
                 settings.csdm_enabled
+                and settings.csdm_round_clips
                 and not record.get("is_sample")
                 and clips
                 and any(c.status == ClipStatus.queued for c in clips.clips)
@@ -286,6 +330,10 @@ class ProcessingPipeline:
         visible = list(VISIBLE_STAGES)
         if settings.llm_enabled or current in COACH_STAGES:
             visible += COACH_STAGES
+        if settings.csdm_enabled or current == RECORD_STAGE:
+            # Recording sits between moment selection and the explanations
+            at = visible.index(MatchStatus.explaining) if MatchStatus.explaining in visible else len(visible)
+            visible.insert(at, RECORD_STAGE)
         if current == MatchStatus.complete and (
             record.get("is_sample") or not self.repo.has_analysis_input(record["id"])
         ):
@@ -319,12 +367,17 @@ class ProcessingPipeline:
                     detail = "Done"
             if state == "active" and st == MatchStatus.awaiting_player:
                 detail = record.get("error") or "Radar is ready. Choose a player to analyse."
+            progress = None
+            pid = record["match"].get("selectedPlayerId")
+            if st == RECORD_STAGE and state != "pending" and pid:
+                progress, detail = self._recording_progress(record["id"], pid, state)
             stages.append(
                 ProcessingStage(
                     id=st,
                     label=STAGE_LABELS.get(st, st.value),
                     state=state,
                     detail=detail,
+                    progress=progress,
                 )
             )
         return stages
