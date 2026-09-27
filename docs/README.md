@@ -33,4 +33,5 @@ The numbered package the project started from. [00-README](handoff/00-README.md)
 - [AI-COACH-PLAN](coach/AI-COACH-PLAN.md): architecture, detectors, agent, RAG, evaluation
 - [TASKS](coach/TASKS.md): task board
 - [PROPOSAL](coach/PROPOSAL.md): school project proposal
+- [MODEL-OPTIONS](coach/MODEL-OPTIONS.md): open-weight models other than Qwen, compared for the 5080 and the Pro 6000
 - `screenshots/` (Studio and player picker) and `zones/` (callout zone overlays)
