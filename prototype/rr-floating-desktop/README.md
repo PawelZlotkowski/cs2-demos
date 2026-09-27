@@ -1,10 +1,12 @@
-# Round Reviewer — floating desktop prototype (experimental)
+# Round Reviewer — floating desktop (experimental)
 
-A runnable prototype of Round Reviewer as a light macOS-style desktop: every player surface from the roadmap branch (PR #22) is a floating window with frosted chrome, traffic lights, drag, focus and a dock. Mock data only; nothing calls the API or a model.
+Round Reviewer as a light macOS-style desktop: every player surface from the roadmap (PR #22) is a floating window with frosted chrome, traffic lights, drag, focus and a dock. It runs on the **real FastAPI backend** in `apps/api`, the same API as `apps/web`, and reuses the web app's API client and contracts (`apps/web/src/lib`) through the `@/` alias, so there is one copy of each.
 
-This folder is isolated. It does not replace `apps/web`, the Night ops layouts or `prototype/analysis-studio.html`.
+This folder does not replace `apps/web`, the Night ops layouts or `prototype/analysis-studio.html`.
 
 ## Run it
+
+Start the API as usual (see `docs/RUN-LOCALLY.md`), then:
 
 ```bash
 cd prototype/rr-floating-desktop
@@ -12,72 +14,69 @@ npm install
 npm run dev
 ```
 
-Open **http://localhost:5173**. `npm run build` type-checks and builds to `dist/`.
+Open **http://localhost:5173**. The dev server proxies `/api` to `http://127.0.0.1:8000`, so the API needs no extra CORS origin. For another API address set `RR_API_URL` (for example `RR_API_URL=http://127.0.0.1:8003 npm run dev`). `npm run build` type-checks and builds to `dist/`; `npm run preview` serves the build with the same proxy.
 
-The radar images and callout polygons come from the main app (`apps/web/public/maps`, `apps/api/app/maps/zones`), so run it from inside this repo.
+The coach model, CS Demo Manager clips and the Lab follow the API's `.env` exactly as in `apps/web`: with `RR_LLM_ENABLED` off the coach writes from the finding templates, with `RR_CSDM_ENABLED` off moments have no clip and the radar takes the stage, and the Lab window needs `RR_LAB_ENABLED=1`.
 
-## Happy path
+## What each window calls
 
-1. **Matches** opens on start (or click the first dock icon). Each row shows the map, score, player, moments and the model that wrote the review, with “1 earlier review kept”.
-2. Click **Re-run the coach** on a row, then **Re-run**: the row steps through Picking moments and Writing the review, the earlier review is kept, and a notification offers **Open in Studio**.
-3. Click **Mirage 13–9**. The **Studio** opens on the **Match brief**: rounds strip, summary with citations, **Review moment 1**.
-4. Click **Review moment 1**. The stage shows the **clip large** with the **radar peeking** top right; the rail lists the six moments (POV tag, reason) and every round.
-5. Click the radar peek (or **Enlarge**): radar and clip swap with a 300 ms ease. Click the clip peek to swap back. `V` does the same, and the **Gameplay | Radar** control follows.
-6. Press **Play** (or `Space`). The clip, radar, alive count and timeline follow one clock. Scrub the timeline, click a finding marker, `,` and `.` step events, `N` goes to the next moment.
-7. Inspector tabs:
-   - **Analysis**: finding, why it was picked, the coach explanation (`[F3]` jumps, `[t:34.0]` seeks, `[K1]` opens the passage), **Show a round where you did this well**, stats, findings and events. The last moment's **Done** opens the **Debrief**.
-   - **Ask**: match-scoped questions with suggestions; answers cite findings and times.
-   - **Round**: facts, duels, utility thrown, buy; no model.
-   - **Notes**: save a note at the current time, then **Ask about this** for the 10 seconds around it.
-   - **Download** in the clip caption shows the file name the app would save (map, player, round, finding, time).
-8. **Coach** (dock): **Ask** across matches; click a `[M4:F1]` citation to open that match in the Studio at that finding. **Plan**: three repeated mistakes with evidence, a drill each and a **Practised** tick; **Write a new plan**. **Knowledge**: click a callout on the radar or in the list, search, **Flag as wrong**.
-9. **Progress** (dock): detector counts per match, oldest first, with the recent trend; **Where you die** shades callouts by deaths, and each `M#:F#` opens the Studio.
-10. **Settings** (dock, or Round Reviewer › Settings…): System checks with **Check again**, **Connect another app** with copyable MCP commands and the LM Studio block.
-11. **Lab** is owner-only and hidden. Turn it on with the **Lab** switch in Settings, or open **http://localhost:5173/?lab=1**. It then appears in the dock and the View menu: **Runs** (click a row for tool calls and the verifier), **Labels**, **Evaluation** (blind A/B vote) and **Dataset**. With the Lab on, Knowledge shows **Add a note (admin)** and the coach text links **How this was written**.
-12. **Add match** (Matches toolbar or File menu): drop a demo, choose a file or **Use the sample demo**; the pipeline runs, you pick the player, and the new match opens in the Studio.
-13. Window manager: drag by the title bar, click to focus, double-click the title bar or the green light to zoom, drag an edge to resize, yellow minimises into the dock (click the tile to restore), red closes and the dock reopens the same window. Several windows can overlap; the inactive ones grey their traffic lights and selection.
+| Window | API |
+|---|---|
+| Matches | `GET /matches` (polled while a match is processing), `POST /matches/{id}/rerun`, `GET /system` for the served model |
+| Add match | `POST /matches/upload` with progress, `GET /matches/{id}/status` stages, `GET /matches/{id}` roster, `POST /matches/{id}/player` |
+| Studio | match, rounds, round replays (one round at a time), findings, round stats, moments, moment clips (`.mp4` played on the shared clock), summary, moment explanations, explain round, wrap-up and drills, done well, Ask (server-sent events), bookmarks and "Ask about this" |
+| Coach | `POST /players/{id}/ask` (events, `[M2:F3]` citations open the Studio), plan `GET/POST/PUT /players/{id}/plan`, knowledge browse, flag and admin notes |
+| Progress | `GET /players/{id}/progress` |
+| Settings | `GET /system`, `GET /features` |
+| Lab | traces, labels and picks, evaluation and blind A/B, dataset review and export |
 
-To check the whole path in a browser (fails on any console error):
+Citations such as `[K7]` load the passage from `GET /knowledge/{id}` when clicked.
+
+## Try it without a CS2 demo
+
+`qa/dev_api.py` runs the real API with only demoparser2 replaced by a scripted 8-round Mirage match, so upload, player pick, detectors, moment selection, stub clips, explanations, Ask, Coach, Progress and the Lab can all be clicked through anywhere. It keeps its data in its own folder (`$TMPDIR/rr-dev-data`), not in `apps/api/data`.
+
+```bash
+cd apps/api
+RR_LAB_ENABLED=1 RR_CSDM_ENABLED=1 RR_CSDM_MODE=stub .venv/bin/python ../../prototype/rr-floating-desktop/qa/dev_api.py
+```
+
+Then upload any file that starts with the demo magic, for example `printf 'PBDEMS2\0' > fake.dem`.
+
+## Check the main flows in a browser
 
 ```bash
 pip install playwright && python -m playwright install chromium
-python qa/happy_path.py http://localhost:5173/ qa/out
+python qa/happy_path.py http://localhost:5173/ qa/out [path/to/demo.dem]
 ```
 
-`CHROME_PATH=/path/to/chrome` uses an installed Chrome instead. Screenshots land in `qa/out/`, including `15-overlapping-windows.png`.
+It uploads the demo (a stub one if none is given, which only parses under `qa/dev_api.py`), picks the first player, then walks the Studio (brief, moment, playback, Ask, Round, Notes, Debrief), Coach (Ask, Plan, Knowledge), Progress, Settings, Lab and a re-run. It prints PASS or FAIL per step and fails on any console error. Screenshots land in `qa/out/`. `CHROME_PATH=/path/to/chrome` uses an installed Chrome.
 
-## What maps to PR #22
+## Window manager
 
-| Window | PR #22 surface |
-|---|---|
-| Matches, Add match | `/matches`, `/upload`, processing and the player picker |
-| Studio | `/studio/[matchId]`: moment rail, POV clip over the radar, transport, timeline, Analysis / Ask / Round / Notes, Done well, Debrief |
-| Progress | `/progress` |
-| Coach | `/coach`: Ask, Plan, Knowledge |
-| Settings | `/settings`: System, Connect another app |
-| Lab (flag) | `/lab`: Runs, Labels, Evaluation, Dataset |
+Drag by the title bar, click to focus, double-click the title bar or the green light to zoom, drag an edge to resize, yellow minimises into the dock (click the tile to restore), red closes and the dock reopens the same window. The Lab shows in the dock when the API has it on, or with the switch in Settings or `?lab=1`.
 
 ## Look
 
-Light macOS materials: a quiet grey wallpaper, a translucent menu bar and dock, windows with `backdrop-filter` blur on the chrome and sidebars, and near-opaque content so text stays legible. System faces (`-apple-system`, Segoe UI) with Hanken Grotesk only where no system face exists; system blue `#007AFF` as the one accent; an orange triangle for a mistake and a blue circle for a good play. The media stage stays dark, like a video well. Motion is limited to window open and close, minimise, zoom, the segmented pill and the PiP swap, and `prefers-reduced-motion` turns it off.
+Light macOS materials: a quiet grey wallpaper, a translucent menu bar and dock, windows with `backdrop-filter` blur on the chrome and sidebars, and near-opaque content so text stays legible. System faces (`-apple-system`, Segoe UI) with Hanken Grotesk only where no system face exists; system blue `#007AFF` as the one accent; an orange triangle for a mistake, a blue circle for a good play and a hollow circle for context such as an opening duel. The media stage stays dark, like a video well. Motion is limited to window open and close, minimise, zoom, the segmented pill and the PiP swap, and `prefers-reduced-motion` turns it off.
 
 ## Files
 
 ```
 src/
-  main.tsx, state/store.tsx       window manager and shared state
+  main.tsx, state/store.tsx       window manager, matches, system status, coached player
+  data/                           model.ts (API contracts to window shapes), useStudio.ts (Studio loading), maps, languages
   desktop/                        Desktop, MenuBar, Dock, WindowFrame, Notices
   windows/                        Matches, AddMatch, Studio, Progress, Coach, Settings, Lab
   studio/                         Stage (PiP), ClipView, Radar, Timeline, Rail, AnalysisPanel, SidePanels, useClock
   ui/                             CoachText (citations), Segmented, icons, time
-  mock/                           world (matches, findings, moments, passages), replay (rounds, tracks), coach, lab, maps
   styles/                         tokens, desktop, windows, studio
-qa/happy_path.py                  browser check of the path above
+qa/happy_path.py                  browser check of the main flows against the API
+qa/dev_api.py                     the API with a scripted demo instead of demoparser2
 ```
 
 ## Limits
 
-- The clip is a placeholder scene that follows the clock; there is no recorded video.
-- Player tracks are generated between callout centres, so they cross walls.
-- Coach text is written ahead of time from the mock findings; the language picker changes the label, not the text.
-- Nothing persists except the Lab switch (`localStorage`).
+- The API has no per-user accounts yet, so Coach and Progress follow one coached player at a time (the picker shows when there are several).
+- The API's score is rounds won by the CT side first; the Studio's brief shows the coached player's own rounds won and lost.
+- The API keeps no "sample demo", so Add match needs a real demo, or `qa/dev_api.py`.

@@ -1,10 +1,10 @@
-import type { RoundData } from '../mock/replay';
-import { YOU, findingLabel, type Finding, type Moment } from '../mock/world';
+import { findingLabel, type Finding, type Moment, type RoundData } from '../data/model';
 import { clock } from '../ui/time';
 
 export type Review = 'overview' | 'wrapup' | null;
 
 type Props = {
+  you: string;
   moments: Moment[];
   findings: Finding[];
   rounds: RoundData[];
@@ -18,12 +18,12 @@ type Props = {
   onRound: (n: number) => void;
 };
 
-export function Rail({ moments, findings, rounds, review, momentId, roundNo, seenMoments, seenRounds, onReview, onMoment, onRound }: Props) {
+export function Rail({ you, moments, findings, rounds, review, momentId, roundNo, seenMoments, seenRounds, onReview, onMoment, onRound }: Props) {
   const byId = new Map(findings.map((f) => [f.id, f]));
   return (
     <aside className="rail" aria-label="Moments and rounds">
       <div className="rail-h">
-        Moments for {YOU}
+        Moments for {you}
         <span>{moments.length}</span>
       </div>
       <ol className="moms">
@@ -37,7 +37,7 @@ export function Rail({ moments, findings, rounds, review, momentId, roundNo, see
           </button>
         </li>
         {moments.map((m, i) => {
-          const lead = byId.get(m.findingIds[0])!;
+          const lead = byId.get(m.findingIds[0]);
           const current = m.id === momentId && !review;
           return (
             <li key={m.id}>
@@ -49,14 +49,15 @@ export function Rail({ moments, findings, rounds, review, momentId, roundNo, see
               >
                 <span className="mom-n">{String(i + 1).padStart(2, '0')}</span>
                 <span className="mom-title">
-                  <i className={`g g-${lead.kind}`} aria-hidden />
-                  {findingLabel(lead.template)}
+                  <i className={`g g-${lead?.kind ?? 'mistake'}`} aria-hidden />
+                  {lead ? findingLabel(lead.template) : `Round ${m.round}`}
                 </span>
                 <span className="mom-meta">
-                  R{m.round} {clock(lead.t)} · {lead.zone}
-                  {m.clip === 'ready' ? <span className="pov-tag">POV</span> : <span className="pov-tag rec">Recording</span>}
+                  R{m.round} {clock(lead?.t ?? m.t0)}
+                  {lead?.zone ? ` · ${lead.zone}` : ''}
+                  {m.clip.status === 'ready' ? <span className="pov-tag">POV</span> : m.clip.status === 'recording' ? <span className="pov-tag rec">Recording</span> : null}
                 </span>
-                <span className="mom-why">{m.pickedBecause.charAt(0).toUpperCase() + m.pickedBecause.slice(1)}</span>
+                {m.pickedBecause ? <span className="mom-why">{m.pickedBecause.charAt(0).toUpperCase() + m.pickedBecause.slice(1)}</span> : null}
               </button>
             </li>
           );
@@ -90,10 +91,11 @@ export function Rail({ moments, findings, rounds, review, momentId, roundNo, see
               >
                 <span className="mom-n">{String(r.number).padStart(2, '0')}</span>
                 <span className="mom-title">
-                  {r.winner} win{r.won ? '' : ', lost'}
+                  {r.winner ? `${r.winner} win` : `Round ${r.number}`}
+                  {r.won === false ? ', lost' : r.won ? ', won' : ''}
                 </span>
                 <span className="mom-meta">
-                  {r.reason}, {r.duration} s
+                  {r.reason}, {Math.round(r.duration)} s
                 </span>
               </button>
             </li>

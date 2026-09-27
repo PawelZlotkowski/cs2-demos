@@ -245,6 +245,20 @@
   overflow: hidden;
 }
 
+.clip video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.stage-err {
+  margin: 0;
+  padding: 6px 12px;
+}
+
 .clip svg {
   position: absolute;
   inset: 0;

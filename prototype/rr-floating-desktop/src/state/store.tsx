@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
-import type { CoachLanguage } from '../mock/coach';
-import { MATCHES, type Match } from '../mock/world';
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
+import { api } from '@/lib/api/client';
+import type { CoachLanguage, CoachedPlayer, SystemStatus } from '@/lib/contracts';
+import { BUSY, errorText, fromRow, type Match } from '../data/model';
 
 export type WinId = 'matches' | 'addMatch' | 'studio' | 'progress' | 'coach' | 'settings' | 'lab';
 
@@ -98,7 +99,6 @@ function initialWm(): WmState {
 
 export type Notice = { id: number; title: string; body: string; action?: { label: string; run: () => void } };
 export type StudioTarget = { matchId: string; findingId?: string; nonce: number };
-export type Note = { id: string; round: number; t: number; note: string };
 
 type Store = {
   wins: Record<WinId, Win>;
@@ -110,8 +110,20 @@ type Store = {
   setRect: (id: WinId, rect: Partial<Win>) => void;
   zoom: (id: WinId) => void;
 
+  /** Every match the API knows, newest first; polled while one is being processed. */
   matches: Match[];
-  setMatches: (f: (m: Match[]) => Match[]) => void;
+  matchesError: string | null;
+  refreshMatches: () => Promise<void>;
+  /** GET /system: which model llama-server serves and what is switched on. */
+  system: SystemStatus | null;
+  refreshSystem: () => Promise<void>;
+  /** People picked for review in at least one match; the Coach and Progress windows follow one of them. */
+  players: CoachedPlayer[];
+  playerId: string | null;
+  pickPlayer: (id: string) => void;
+  /** The match the Add match window should ask a player for (from Matches' "Pick a player"). */
+  pickFor: string | null;
+  openPicker: (matchId: string | null) => void;
   studio: StudioTarget | null;
   openStudio: (matchId: string, findingId?: string) => void;
 
@@ -123,37 +135,100 @@ type Store = {
   notices: Notice[];
   notify: (n: Omit<Notice, 'id'>) => void;
   dismiss: (id: number) => void;
-
-  notes: Record<string, Note[]>;
-  setNotes: (matchId: string, f: (n: Note[]) => Note[]) => void;
-  ticks: Record<string, boolean>;
-  setTick: (detector: string, done: boolean) => void;
 };
 
 const Ctx = createContext<Store | null>(null);
 
-function labFromUrl(): boolean {
+/** The switch in Settings or ?lab=1; null when neither was set, so the API's RR_LAB_ENABLED decides. */
+function labFromUrl(): boolean | null {
   try {
     const q = new URLSearchParams(window.location.search).get('lab');
     if (q != null) return q === '1';
-    return window.localStorage.getItem('rr.lab') === '1';
+    const saved = window.localStorage.getItem('rr.lab');
+    return saved == null ? null : saved === '1';
   } catch {
-    return false;
+    return null;
   }
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [wm, dispatch] = useReducer(wmReducer, undefined, initialWm);
-  const [matches, setMatchesState] = useState<Match[]>(MATCHES);
+  const [matches, setMatchesState] = useState<Match[]>([]);
+  const [matchesError, setMatchesError] = useState<string | null>(null);
+  const [system, setSystem] = useState<SystemStatus | null>(null);
+  const [players, setPlayers] = useState<CoachedPlayer[]>([]);
+  const [playerId, setPlayerId] = useState<string | null>(null);
   const [studio, setStudio] = useState<StudioTarget | null>(null);
-  const [lab, setLabState] = useState(labFromUrl);
+  const [pickFor, setPickFor] = useState<string | null>(null);
+  const [lab, setLabState] = useState(() => labFromUrl() ?? false);
   const [language, setLanguage] = useState<CoachLanguage>('en');
   const [notices, setNotices] = useState<Notice[]>([]);
-  const [notes, setNotesState] = useState<Record<string, Note[]>>({
-    m5: [{ id: 'n1', round: 7, t: 30, note: 'Should I have waited for halvard before Connector?' }],
-  });
-  const [ticks, setTicks] = useState<Record<string, boolean>>({});
   const nextNotice = useRef(1);
+
+  const refreshPlayers = useCallback(async () => {
+    try {
+      const ps = await api.getPlayers();
+      setPlayers(ps);
+      setPlayerId((cur) => {
+        if (cur && ps.some((p) => p.id === cur)) return cur;
+        let saved: string | null = null;
+        try {
+          saved = window.localStorage.getItem('rr.coachPlayer');
+        } catch {
+          /* storage blocked */
+        }
+        return ps.find((p) => p.id === saved)?.id ?? ps[0]?.id ?? null;
+      });
+    } catch {
+      /* the matches error already says the API is down */
+    }
+  }, []);
+
+  const refreshMatches = useCallback(async () => {
+    try {
+      const rows = await api.listMatches();
+      setMatchesState(rows.map(fromRow));
+      setMatchesError(null);
+    } catch (e) {
+      setMatchesError(errorText(e));
+    }
+    void refreshPlayers();
+  }, [refreshPlayers]);
+
+  const refreshSystem = useCallback(async () => {
+    try {
+      setSystem(await api.getSystem());
+    } catch {
+      setSystem(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshMatches();
+    void refreshSystem();
+    api
+      .features()
+      .then((f) => {
+        if (f.lab && labFromUrl() == null) setLabState(true);
+      })
+      .catch(() => undefined);
+  }, [refreshMatches, refreshSystem]);
+
+  const busy = matches.some((m) => BUSY.has(m.status));
+  useEffect(() => {
+    if (!busy) return;
+    const t = window.setInterval(() => void refreshMatches(), 2500);
+    return () => window.clearInterval(t);
+  }, [busy, refreshMatches]);
+
+  const pickPlayer = useCallback((id: string) => {
+    setPlayerId(id);
+    try {
+      window.localStorage.setItem('rr.coachPlayer', id);
+    } catch {
+      /* storage blocked */
+    }
+  }, []);
 
   const open = useCallback((id: WinId) => dispatch({ type: 'open', id }), []);
   const close = useCallback((id: WinId) => dispatch({ type: 'close', id }), []);
@@ -165,6 +240,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const openStudio = useCallback((matchId: string, findingId?: string) => {
     setStudio((s) => ({ matchId, findingId, nonce: (s?.nonce ?? 0) + 1 }));
     dispatch({ type: 'open', id: 'studio' });
+  }, []);
+
+  const openPicker = useCallback((matchId: string | null) => {
+    setPickFor(matchId);
+    dispatch({ type: 'open', id: 'addMatch' });
   }, []);
 
   const setLab = useCallback((on: boolean) => {
@@ -187,11 +267,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [dismiss],
   );
 
-  const setNotes = useCallback((matchId: string, f: (n: Note[]) => Note[]) => {
-    setNotesState((all) => ({ ...all, [matchId]: f(all[matchId] ?? []) }));
-  }, []);
-  const setTick = useCallback((d: string, done: boolean) => setTicks((t) => ({ ...t, [d]: done })), []);
-  const setMatches = useCallback((f: (m: Match[]) => Match[]) => setMatchesState(f), []);
 
   const focused = useMemo(() => {
     let best: Win | null = null;
@@ -209,7 +284,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setRect,
     zoom,
     matches,
-    setMatches,
+    matchesError,
+    refreshMatches,
+    system,
+    refreshSystem,
+    players,
+    playerId,
+    pickPlayer,
+    pickFor,
+    openPicker,
     studio,
     openStudio,
     lab,
@@ -219,10 +302,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     notices,
     notify,
     dismiss,
-    notes,
-    setNotes,
-    ticks,
-    setTick,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

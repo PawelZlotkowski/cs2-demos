@@ -1,54 +1,85 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ROUND_SUGGESTIONS } from '../mock/coach';
-import { eventTitle, isTeam, typeLabel } from '../mock/replay';
-import { DEATH_TEMPLATES, YOU, adviceFor, kFor, sideOf } from '../mock/world';
+import { api } from '@/lib/api/client';
+import type { AskEvent, Bookmark, MomentExplanation } from '@/lib/contracts';
+import { errorText, typeLabel } from '../data/model';
 import { useStore } from '../state/store';
 import { CoachText } from '../ui/CoachText';
 import { clock } from '../ui/time';
 import type { PanelCtx } from './AnalysisPanel';
 
-type Turn = { id: number; q: string; a: string; pending: boolean; step: string };
+export const ROUND_SUGGESTIONS = ['Why did I die here?', 'What should I have done instead?', 'Did my team trade me?'];
 
-const STEPS = ['Reading the round timeline', 'Checking the round stats', 'Searching the map notes'];
+const TOOL_STEP: Record<string, string> = {
+  list_rounds: 'Listing the rounds',
+  get_round_stats: 'Checking the round stats',
+  get_match_totals: 'Adding up the match',
+  list_findings: 'Reading the findings',
+  get_finding: 'Reading a finding',
+  get_round_timeline: 'Reading the round timeline',
+  get_player_state: 'Checking where everyone was',
+  get_player_history: 'Looking at your other matches',
+  search_knowledge: 'Searching the map notes',
+  list_matches: 'Listing your matches',
+  find_moments: 'Finding moments across matches',
+};
 
-function answerRound(ctx: PanelCtx, q: string): string {
-  const r = ctx.round;
-  const death = r.findings.filter((f) => DEATH_TEMPLATES.has(f.template)).sort((a, b) => b.t - a.t)[0];
-  const main = ctx.headFinding ?? death ?? r.findings[0];
-  const k = main ? kFor(ctx.match.map, main.zone, sideOf(r.number)) : undefined;
-  const cite = k ? ` [${k}]` : '';
-  const s = q.toLowerCase();
-  if (s.includes('trade')) {
-    if (r.stats.survived) return `You survived round ${r.number}, so there was nothing to trade.`;
-    return r.stats.deathTraded
-      ? `Yes. You died at [t:${r.deaths[YOU].toFixed(1)}] and your killer died within 5 seconds.`
-      : `No. You died at [t:${r.deaths[YOU].toFixed(1)}]${death ? ` [${death.id}]` : ''} and nobody on your team was close enough to trade.${cite}`;
-  }
-  if (s.includes('die') || s.includes('death')) {
-    if (r.stats.survived) return `You did not die in round ${r.number}. You were alive at the end, [t:${r.duration.toFixed(1)}].`;
-    const by = r.events.find((e) => e.type === 'kill' && e.victim === YOU);
-    return `${death ? `${death.summary} [${death.id}]` : `You died at [t:${r.deaths[YOU].toFixed(1)}].`} ${by ? `${by.actor} got the kill with the ${by.weapon}.` : ''} ${death ? adviceFor(death.template) : ''}${cite}`;
-  }
-  if (main) return `${adviceFor(main.template)} In this round that was ${main.zone} at [t:${main.t.toFixed(1)}] [${main.id}].${cite}`;
-  return `Round ${r.number} had no finding for you. You had ${r.stats.kills} kills and ${r.stats.utilityThrown} grenades thrown; the round was ${r.won ? 'won' : 'lost'}.`;
+export function stepLabel(tool: string) {
+  return TOOL_STEP[tool] ?? tool.replace(/_/g, ' ');
 }
 
-export function AskPanel({ ctx }: { ctx: PanelCtx }) {
+type Turn = {
+  id: number;
+  q: string;
+  a: string;
+  pending: boolean;
+  step: string;
+  source?: 'agent' | 'template';
+  error?: string;
+  matches?: Record<string, string>;
+};
+
+/** Stream one question to the coach; returns the finished turn's fields. */
+export async function streamTurn(
+  run: (onEvent: (e: AskEvent) => void, signal: AbortSignal) => Promise<void>,
+  onStep: (step: string) => void,
+  signal: AbortSignal,
+): Promise<Pick<Turn, 'a' | 'source' | 'error' | 'matches'>> {
+  let out: Pick<Turn, 'a' | 'source' | 'error' | 'matches'> = { a: '', error: 'The coach did not answer.' };
+  try {
+    await run((e) => {
+      if (e.event === 'step') onStep(stepLabel(e.data.tool));
+      else if (e.event === 'answer') out = { a: e.data.answer, source: e.data.source, matches: e.data.matches };
+      else if (e.event === 'error') out = { a: '', error: e.data.detail };
+    }, signal);
+  } catch (e) {
+    out = { a: '', error: errorText(e) };
+  }
+  return out;
+}
+
+export function AskPanel({ ctx, t, view }: { ctx: PanelCtx; t: number; view: 'gameplay' | 'radar' }) {
+  const s = useStore();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState('');
   const next = useRef(1);
-  const timers = useRef<number[]>([]);
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const abort = useRef<AbortController | null>(null);
+  useEffect(() => () => abort.current?.abort(), []);
 
-  function ask(raw: string) {
+  async function ask(raw: string) {
     const q = raw.trim();
     if (!q) return;
     setDraft('');
     const id = next.current++;
-    setTurns((ts) => [...ts, { id, q, a: '', pending: true, step: STEPS[0] }]);
-    STEPS.forEach((st, i) => timers.current.push(window.setTimeout(() => setTurns((ts) => ts.map((x) => (x.id === id ? { ...x, step: st } : x))), i * 500)));
-    const a = answerRound(ctx, q);
-    timers.current.push(window.setTimeout(() => setTurns((ts) => ts.map((x) => (x.id === id ? { ...x, a, pending: false } : x))), STEPS.length * 500 + 200));
+    setTurns((ts) => [...ts, { id, q, a: '', pending: true, step: 'Thinking' }]);
+    const ctl = new AbortController();
+    abort.current = ctl;
+    const body = { question: q, language: s.language, round: ctx.round.number, t: Math.round(t * 10) / 10, momentId: ctx.moment?.id ?? null, view };
+    const done = await streamTurn(
+      (on, signal) => api.ask(ctx.match.id, ctx.data.playerId, body, on, signal),
+      (step) => setTurns((ts) => ts.map((x) => (x.id === id ? { ...x, step } : x))),
+      ctl.signal,
+    );
+    setTurns((ts) => ts.map((x) => (x.id === id ? { ...x, ...done, pending: false } : x)));
   }
 
   const asked = new Set(turns.map((x) => x.q));
@@ -60,19 +91,22 @@ export function AskPanel({ ctx }: { ctx: PanelCtx }) {
         {turns.map((x) => (
           <div className="qa" key={x.id}>
             <div className="qq">{x.q}</div>
-            <div className="aa">{x.pending ? <span className="meta thinking">{x.step}</span> : <CoachText text={x.a} {...ctx.cites} />}</div>
+            <div className="aa">
+              {x.pending ? <span className="meta thinking">{x.step}</span> : x.error ? <span className="err">{x.error}</span> : <CoachText text={x.a} {...ctx.cites} />}
+            </div>
+            {!x.pending && x.source === 'template' ? <div className="aa-note">Written from the findings: the coach model was off or its answer did not pass the checks.</div> : null}
           </div>
         ))}
       </div>
       <div className="ask-foot">
         <p className="coach-h">Ask about this round</p>
         <p className="knows">
-          The coach knows round {ctx.round.number} for {YOU}: its {ctx.round.findings.length} findings, the round stats, the timeline and the map notes.
+          The coach knows round {ctx.round.number} for {ctx.you}: its {ctx.round.findings.length} findings, the round stats, the timeline and the map notes.
         </p>
         <ul className="qs">
           {ROUND_SUGGESTIONS.filter((q) => !asked.has(q)).map((q) => (
             <li key={q}>
-              <button type="button" className="q" onClick={() => ask(q)}>
+              <button type="button" className="q" onClick={() => void ask(q)}>
                 {q}
               </button>
             </li>
@@ -82,7 +116,7 @@ export function AskPanel({ ctx }: { ctx: PanelCtx }) {
           className="ask-field"
           onSubmit={(e: FormEvent) => {
             e.preventDefault();
-            ask(draft);
+            void ask(draft);
           }}
         >
           <input className="field" placeholder={`Ask about round ${ctx.round.number}`} value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="Question about this round" />
@@ -97,44 +131,57 @@ export function AskPanel({ ctx }: { ctx: PanelCtx }) {
 
 const UTIL = new Set(['smoke', 'flash', 'he', 'molotov']);
 
+function money(v: number | null | undefined) {
+  return v == null ? '–' : `$${v.toLocaleString('en-GB')}`;
+}
+
 export function RoundPanel({ ctx }: { ctx: PanelCtx }) {
   const r = ctx.round;
   const s = r.stats;
-  const duels = r.events.filter((e) => e.type === 'kill' && (e.actor === YOU || e.victim === YOU));
-  const thrown = r.events.filter((e) => UTIL.has(e.type) && e.actor === YOU);
+  const you = ctx.you;
+  const duels = r.events.filter((e) => e.type === 'kill' && (e.actor === you || e.victim === you));
+  const thrown = r.events.filter((e) => UTIL.has(e.type) && e.actor === you);
   const economy = r.findings.filter((f) => f.template.startsWith('economy_mismatch'));
-  const facts: [string, string][] = [
-    ['Result', s.won ? 'Won' : 'Lost'],
-    ['Side', s.side],
-    ['K / D / A', `${s.kills} / ${s.deaths} / ${s.assists}`],
-    ['Damage', String(s.damage)],
-    ['Utility damage', String(s.utilityDamage)],
-    ['Enemies flashed', String(s.enemiesFlashed)],
-    ['Teammates flashed', String(s.teammatesFlashed)],
-    ['Opening duel', s.openingKill ? 'Won it' : s.openingDeath ? 'Lost it' : 'Not in it'],
-    ['Trade kills', String(s.tradeKills)],
-    ['Survived', s.survived ? 'Yes' : `No, after ${clock(s.timeAliveS ?? 0)}${s.deathTraded ? ', traded' : s.deathTraded === false ? ', not traded' : ''}`],
-    ['Money at start', `$${s.moneyStart.toLocaleString('en-GB')}`],
-    ['Equipment value', `$${s.equipValue.toLocaleString('en-GB')}`],
-  ];
+  const facts: [string, string][] = s
+    ? [
+        ['Result', s.won == null ? '–' : s.won ? 'Won' : 'Lost'],
+        ['Side', s.side ?? '–'],
+        ['K / D / A', `${s.kills} / ${s.deaths} / ${s.assists}`],
+        ['Damage', String(s.damage)],
+        ['Utility damage', String(s.utilityDamage)],
+        ['Enemies flashed', String(s.enemiesFlashed)],
+        ['Teammates flashed', String(s.teammatesFlashed)],
+        ['Opening duel', s.openingKill ? 'Won it' : s.openingDeath ? 'Lost it' : 'Not in it'],
+        ['Trade kills', String(s.tradeKills)],
+        ['Survived', s.survived ? 'Yes' : `No, after ${clock(s.timeAliveS ?? 0)}${s.deathTraded ? ', traded' : s.deathTraded === false ? ', not traded' : ''}`],
+        ['Money at start', money(s.moneyStart)],
+        ['Equipment value', money(s.equipValue)],
+      ]
+    : [];
   return (
     <div className="round-tab">
       <h2 className="ins-head">
-        Round {r.number} for {YOU}
+        Round {r.number} for {you}
       </h2>
-      <dl className="round-facts">
-        {facts.map(([k, v]) => (
-          <div key={k}>
-            <dt>{k}</dt>
-            <dd className="num">{v}</dd>
-          </div>
-        ))}
-      </dl>
+      {facts.length ? (
+        <dl className="round-facts">
+          {facts.map(([k, v]) => (
+            <div key={k}>
+              <dt>{k}</dt>
+              <dd className="num">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="meta">No round stats for {you} in this round.</p>
+      )}
       <h3 className="round-h">Duels</h3>
-      {duels.length ? (
+      {!r.loaded ? (
+        <p className="meta thinking">Loading the round</p>
+      ) : duels.length ? (
         <ul className="round-list">
           {duels.map((e) => {
-            const won = e.actor === YOU;
+            const won = e.actor === you;
             return (
               <li key={e.id}>
                 <button type="button" onClick={() => ctx.onSeek(e.t, e.id)}>
@@ -150,7 +197,7 @@ export function RoundPanel({ ctx }: { ctx: PanelCtx }) {
           })}
         </ul>
       ) : (
-        <p className="meta">No kills or deaths for {YOU} this round.</p>
+        <p className="meta">No kills or deaths for {you} this round.</p>
       )}
       <h3 className="round-h">Utility thrown</h3>
       {thrown.length ? (
@@ -165,7 +212,7 @@ export function RoundPanel({ ctx }: { ctx: PanelCtx }) {
           ))}
         </ul>
       ) : (
-        <p className="meta">No grenades thrown this round.</p>
+        <p className="meta">{r.loaded ? 'No grenades thrown this round.' : ''}</p>
       )}
       {economy.length ? (
         <>
@@ -182,36 +229,52 @@ export function RoundPanel({ ctx }: { ctx: PanelCtx }) {
   );
 }
 
-type Answer = { kind: 'loading' } | { kind: 'done'; text: string };
+type Answer = { kind: 'loading' } | { kind: 'done'; e: MomentExplanation } | { kind: 'error'; text: string };
 
 export function NotesPanel({ ctx, t }: { ctx: PanelCtx; t: number }) {
   const s = useStore();
-  const notes = s.notes[ctx.match.id] ?? [];
+  const [notes, setNotes] = useState<Bookmark[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
 
-  function explain(round: number, at: number): string {
-    const r = ctx.rounds[round - 1];
-    const near = r.events.filter((e) => Math.abs(e.t - at) <= 5);
-    const fs = r.findings.filter((f) => Math.abs(f.t - at) <= 5);
-    const alive = near.filter((e) => e.type === 'kill');
-    const bits = [
-      fs.length ? `${fs[0].summary} [${fs[0].id}]` : null,
-      near.length
-        ? `In the 10 seconds around [t:${at.toFixed(1)}]: ${near
-            .slice(0, 3)
-            .map((e) => `${eventTitle(e).replace(/^kestrel/, 'you')} at [t:${e.t.toFixed(1)}]`)
-            .join('; ')}.`
-        : `Nothing happened near you in the 10 seconds around [t:${at.toFixed(1)}].`,
-      alive.some((e) => isTeam(e.victim!)) ? 'Your team lost a player in that window.' : null,
-      fs.length ? adviceFor(fs[0].template) : null,
-    ];
-    return bits.filter(Boolean).join(' ');
+  useEffect(() => {
+    api
+      .getBookmarks(ctx.match.id)
+      .then(setNotes)
+      .catch((e) => setError(errorText(e)));
+  }, [ctx.match.id]);
+
+  async function save() {
+    const note = draft.trim();
+    if (!note) return;
+    try {
+      const b = await api.addBookmark(ctx.match.id, { round: ctx.round.number, t: Math.round(t * 10) / 10, note });
+      setNotes((n) => [...(n ?? []), b].sort((a, c) => a.round - c.round || a.t - c.t));
+      setDraft('');
+      setError(null);
+    } catch (e) {
+      setError(errorText(e));
+    }
   }
 
-  function ask(id: string, round: number, at: number) {
+  async function remove(id: string) {
+    try {
+      await api.deleteBookmark(ctx.match.id, id);
+      setNotes((n) => (n ?? []).filter((x) => x.id !== id));
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }
+
+  async function ask(id: string) {
     setAnswers((a) => ({ ...a, [id]: { kind: 'loading' } }));
-    window.setTimeout(() => setAnswers((a) => ({ ...a, [id]: { kind: 'done', text: explain(round, at) } })), 1100);
+    try {
+      const e = await api.explainBookmark(ctx.match.id, ctx.data.playerId, id, s.language);
+      setAnswers((a) => ({ ...a, [id]: { kind: 'done', e } }));
+    } catch (e) {
+      setAnswers((a) => ({ ...a, [id]: { kind: 'error', text: errorText(e) } }));
+    }
   }
 
   return (
@@ -221,12 +284,7 @@ export function NotesPanel({ ctx, t }: { ctx: PanelCtx; t: number }) {
         className="note-add"
         onSubmit={(e) => {
           e.preventDefault();
-          const note = draft.trim();
-          if (!note) return;
-          s.setNotes(ctx.match.id, (n) =>
-            [...n, { id: `n${Date.now().toString(36)}`, round: ctx.round.number, t: Math.round(t * 10) / 10, note }].sort((a, b) => a.round - b.round || a.t - b.t),
-          );
-          setDraft('');
+          void save();
         }}
       >
         <label htmlFor="note-text">
@@ -237,7 +295,10 @@ export function NotesPanel({ ctx, t }: { ctx: PanelCtx; t: number }) {
           Save note
         </button>
       </form>
-      {notes.length === 0 ? (
+      {error ? <p className="err">{error}</p> : null}
+      {notes == null ? (
+        error ? null : <p className="meta thinking">Loading notes</p>
+      ) : notes.length === 0 ? (
         <p className="meta">No notes yet. Pause where something happened and write down what you want to check.</p>
       ) : (
         <ul className="note-list">
@@ -259,23 +320,25 @@ export function NotesPanel({ ctx, t }: { ctx: PanelCtx; t: number }) {
                   <span className="note-text">{b.note}</span>
                 </button>
                 <div className="note-actions">
-                  <button type="button" className="link" disabled={a?.kind === 'loading'} onClick={() => ask(b.id, b.round, b.t)}>
+                  <button type="button" className="link" disabled={a?.kind === 'loading'} onClick={() => void ask(b.id)}>
                     Ask about this
                   </button>
-                  <button type="button" className="link" onClick={() => s.setNotes(ctx.match.id, (n) => n.filter((x) => x.id !== b.id))}>
+                  <button type="button" className="link" onClick={() => void remove(b.id)}>
                     Delete
                   </button>
                 </div>
                 {a?.kind === 'loading' ? (
-                  <p className="meta thinking">
-                    Explaining the 10 seconds around this note for {YOU}
-                  </p>
+                  <p className="meta thinking">Explaining the 10 seconds around this note for {ctx.you}</p>
+                ) : a?.kind === 'error' ? (
+                  <p className="err">{a.text}</p>
                 ) : a?.kind === 'done' ? (
                   <>
                     <p className="expl">
-                      <CoachText text={a.text} {...ctx.cites} />
+                      <CoachText text={a.e.text} {...ctx.cites} />
                     </p>
-                    <p className="expl-note">Written from the findings and the timeline, checked by the verifier.</p>
+                    <p className="expl-note">
+                      {a.e.source === 'agent' ? `Written by ${a.e.model ?? 'the coach model'} and checked by the verifier.` : 'Written from the findings and the timeline.'}
+                    </p>
                   </>
                 ) : null}
               </li>

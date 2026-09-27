@@ -340,6 +340,12 @@ table.data .n {
   border-radius: 2px;
 }
 
+/* A finding that is neither a mistake nor a good play (an opening duel, say) */
+.g-context {
+  border: 1.5px solid var(--label-3);
+  border-radius: 50%;
+}
+
 .cite {
   display: inline;
   padding: 0 3px;

@@ -74,6 +74,14 @@
   background: var(--ok);
 }
 
+.mb-dot[data-state='off'] {
+  background: var(--off);
+}
+
+.mb-dot[data-state='problem'] {
+  background: var(--bad);
+}
+
 .menu-wrap {
   position: relative;
 }

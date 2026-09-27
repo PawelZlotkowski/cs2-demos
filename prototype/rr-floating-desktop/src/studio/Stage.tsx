@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import type { MapId } from '../mock/maps';
-import type { RoundData } from '../mock/replay';
-import { YOU, type Finding } from '../mock/world';
+import type { MapId } from '../data/maps';
+import type { Finding, FindingKind, RoundData } from '../data/model';
 import { clock } from '../ui/time';
 import { ClipView, type ClipInfo } from './ClipView';
 import { Radar } from './Radar';
@@ -9,15 +8,18 @@ import { Radar } from './Radar';
 export type View = 'gameplay' | 'radar';
 
 type Props = {
-  map: MapId;
+  map: MapId | null;
+  you: string;
   round: RoundData;
   t: number;
+  playing: boolean;
+  rate: number;
   main: View;
   onMain: (v: View) => void;
   clip: ClipInfo;
   focusFinding: Finding | null;
   selectedEventId: string | null;
-  chip: { glyph: 'mistake' | 'strength' | 'round'; n: string; label: string };
+  chip: { glyph: FindingKind | 'round'; n: string; label: string };
   onSeek: (t: number) => void;
   onDownload: () => void;
 };
@@ -27,7 +29,7 @@ type Box = { left: number; top: number; width: number; height: number };
 const GAP = 12;
 
 /** Clip and radar share one stage: one fills it, the other peeks top right; a click on the peek swaps them. */
-export function Stage({ map, round, t, main, onMain, clip, focusFinding, selectedEventId, chip, onSeek, onDownload }: Props) {
+export function Stage({ map, you, round, t, playing, rate, main, onMain, clip, focusFinding, selectedEventId, chip, onSeek, onDownload }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 800, h: 450 });
   const [whole, setWhole] = useState(false);
@@ -55,9 +57,9 @@ export function Stage({ map, round, t, main, onMain, clip, focusFinding, selecte
   const caption = (
     <figcaption className="pov-cap" onClick={(e) => e.stopPropagation()}>
       <span>
-        <b>{YOU}</b>&rsquo;s view{clipMain ? `, ${span}` : ''}
+        <b>{you}</b>&rsquo;s view{clipMain ? `, ${span}` : ''}
       </span>
-      {clipMain ? (
+      {clipMain && clip.status === 'ready' ? (
         <button type="button" aria-pressed={sound} onClick={() => setSound((x) => !x)}>
           {sound ? 'Sound on' : 'Sound off'}
         </button>
@@ -81,7 +83,7 @@ export function Stage({ map, round, t, main, onMain, clip, focusFinding, selecte
         onClick={clipMain ? undefined : () => onMain('gameplay')}
         title={clipMain ? undefined : 'Show the clip large (V)'}
       >
-        <ClipView map={map} round={round} clip={clip} t={t} main={clipMain} zone={focusFinding?.zone ?? ''} onSeek={onSeek} />
+        <ClipView you={you} round={round} clip={clip} t={t} main={clipMain} sound={sound} playing={playing} rate={rate} onSeek={onSeek} />
         {caption}
       </figure>
 
@@ -110,7 +112,7 @@ export function Stage({ map, round, t, main, onMain, clip, focusFinding, selecte
             <div className="legend" aria-hidden>
               <span>
                 <i className="lg-you" />
-                {YOU}
+                {you}
               </span>
               <span>
                 <i className="lg-team" />

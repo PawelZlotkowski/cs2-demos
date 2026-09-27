@@ -1,6 +1,5 @@
 import { useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent } from 'react';
-import { isTeam, type ReplayEvent } from '../mock/replay';
-import { YOU, findingLabel, type Finding } from '../mock/world';
+import { eventTitle, findingLabel, type Finding, type FindingKind, type ReplayEvent } from '../data/model';
 import { clock, clockShort } from '../ui/time';
 
 type Props = {
@@ -11,19 +10,21 @@ type Props = {
   band: { t0: number; t1: number } | null;
   headFindingId: string | null;
   selectedEventId: string | null;
-  rounds: { n: number; won: boolean; moment: 'mistake' | 'strength' | null }[];
+  rounds: { n: number; won: boolean; moment: FindingKind | null }[];
   current: number;
+  team: Set<string>;
+  you: string;
   onRound: (n: number) => void;
   onSeek: (t: number, eventId?: string) => void;
   onFinding: (id: string) => void;
   onScrub: (active: boolean) => void;
 };
 
-export function Timeline({ duration, t, events, findings, band, headFindingId, selectedEventId, rounds, current, onRound, onSeek, onFinding, onScrub }: Props) {
+export function Timeline({ duration, t, events, findings, band, headFindingId, selectedEventId, rounds, current, team, you, onRound, onSeek, onFinding, onScrub }: Props) {
   const hit = useRef<HTMLDivElement>(null);
   const [ghost, setGhost] = useState<number | null>(null);
   const scrubbing = useRef(false);
-  const p = (x: number) => `${(Math.max(0, Math.min(duration, x)) / duration) * 100}%`;
+  const p = (x: number) => `${(Math.max(0, Math.min(duration, x)) / (duration || 1)) * 100}%`;
 
   const at = (e: RPointerEvent) => {
     const r = hit.current!.getBoundingClientRect();
@@ -80,9 +81,9 @@ export function Timeline({ duration, t, events, findings, band, headFindingId, s
               <button
                 key={e.id}
                 type="button"
-                className={`tl-ev ev-${e.type}${e.type === 'kill' ? (isTeam(e.actor) ? ' by-team' : ' by-enemy') : ''}${e.actor === YOU || e.victim === YOU ? ' mine' : ''}${e.id === selectedEventId ? ' on' : ''}`}
+                className={`tl-ev ev-${e.type}${e.type === 'kill' ? (team.has(e.actor) ? ' by-team' : ' by-enemy') : ''}${e.actor === you || e.victim === you ? ' mine' : ''}${e.id === selectedEventId ? ' on' : ''}`}
                 style={{ left: p(e.t) }}
-                title={`${clock(e.t)} ${e.type === 'kill' ? `${e.actor} killed ${e.victim}` : `${e.actor}, ${e.type}`}`}
+                title={`${clock(e.t)} ${eventTitle(e)}`}
                 onClick={() => onSeek(e.t, e.id)}
               />
             ))}

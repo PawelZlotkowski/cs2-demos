@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { SERVED_MODEL } from '../mock/world';
+import { api } from '@/lib/api/client';
 import { WIN_TITLE, useStore, type WinId } from '../state/store';
 
 type Item = { label: string; run?: () => void; disabled?: boolean; checked?: boolean; hint?: string } | 'sep';
@@ -33,6 +33,8 @@ export function MenuBar() {
   }, [open]);
 
   const latest = s.matches.find((m) => m.status === 'complete');
+  const llm = s.system?.checks.find((c) => c.name === 'llm');
+  const modelLabel = !s.system ? 'API offline' : llm?.state === 'ok' ? s.system.llmModel : 'Coach model off';
   const openWins = (Object.keys(WIN_TITLE) as WinId[]).filter((id) => s.wins[id].open);
   const views: WinId[] = ['matches', 'progress', 'coach', 'studio', ...(s.lab ? (['lab'] as WinId[]) : [])];
 
@@ -44,7 +46,7 @@ export function MenuBar() {
       items: [
         {
           label: 'About Round Reviewer',
-          run: () => s.notify({ title: 'Round Reviewer', body: 'Floating desktop prototype. Mock data only; no API is called.' }),
+          run: () => s.notify({ title: 'Round Reviewer', body: `Floating desktop on the Round Reviewer API (${api.baseUrl}).` }),
         },
         'sep',
         { label: 'Settings…', run: () => s.open('settings') },
@@ -147,8 +149,8 @@ export function MenuBar() {
       ))}
       <span className="mb-spacer" />
       <button type="button" className="mb-status" title="Coach model, from Settings" onClick={() => s.open('settings')}>
-        <span className="mb-dot" aria-hidden />
-        <span className="mono">{SERVED_MODEL}</span>
+        <span className="mb-dot" data-state={!s.system ? 'problem' : (llm?.state ?? 'off')} aria-hidden />
+        <span className="mono">{modelLabel}</span>
       </button>
       <span className="mb-status">{time}</span>
     </div>

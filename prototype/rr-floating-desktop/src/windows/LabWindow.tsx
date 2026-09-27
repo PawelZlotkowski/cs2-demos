@@ -1,10 +1,46 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { api } from '@/lib/api/client';
+import type { ABPair, DatasetPage, EvalSummary, Finding as ApiFinding, LabelsSummary, PickScore, SelectedMoment, TraceDetail, TracePage, TraceSummary } from '@/lib/contracts';
 import { WindowFrame } from '../desktop/WindowFrame';
-import { AB_PAIRS, JOBS, RUNS, SOURCES, jobLabel, modelRows, type Run } from '../mock/lab';
-import { FINDINGS, detectorOf, findingLabel, mapName, matchById, momentsFor } from '../mock/world';
+import { errorText, findingLabel, fromFinding, type Finding } from '../data/model';
 import { useStore } from '../state/store';
 import { Segmented } from '../ui/Segmented';
 import { clock } from '../ui/time';
+
+const JOBS = [
+  { id: '', label: 'All jobs' },
+  { id: 'select_moments', label: 'Moment selection' },
+  { id: 'explain', label: 'Explanations' },
+  { id: 'summary', label: 'Match summary' },
+  { id: 'wrapup', label: 'Wrap-up' },
+  { id: 'ask', label: 'Ask tab' },
+  { id: 'ask_across', label: 'Coach page' },
+  { id: 'practice_plan', label: 'Practice plan' },
+];
+
+const SOURCES = [
+  { id: '', label: 'Any result' },
+  { id: 'agent', label: 'Model, verified' },
+  { id: 'template', label: 'Fell back to templates' },
+  { id: 'ranker', label: 'Fell back to the ranker' },
+];
+
+function jobLabel(job: string) {
+  return JOBS.find((j) => j.id === job)?.label ?? job.replace(/_/g, ' ');
+}
+
+const DETECTORS = [
+  'untraded_death',
+  'shot_while_moving',
+  'unused_utility',
+  'dry_peek',
+  'team_flash',
+  'economy_mismatch',
+  'late_rotation',
+  'repeated_death_zone',
+  'opening_duel',
+  'good_plays',
+];
 
 type Tab = 'runs' | 'labels' | 'evaluation' | 'dataset';
 
@@ -15,12 +51,20 @@ const LEDES: Record<Tab, string> = {
   dataset: 'Coach runs that passed the verifier on the first try, one at a time. Accepted and edited ones become the fine-tuning set.',
 };
 
-function when(d: Date) {
-  return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+function when(ts: string) {
+  const d = new Date(ts);
+  return Number.isNaN(d.getTime()) ? ts : d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 export function LabWindow() {
   const [tab, setTab] = useState<Tab>('runs');
+  const [on, setOn] = useState<boolean | null>(null);
+  useEffect(() => {
+    api
+      .features()
+      .then((f) => setOn(f.lab))
+      .catch(() => setOn(false));
+  }, []);
   return (
     <WindowFrame
       id="lab"
@@ -42,13 +86,27 @@ export function LabWindow() {
     >
       <div className="page">
         <p className="lede">{LEDES[tab]}</p>
-        {tab === 'runs' ? <RunsTab /> : tab === 'labels' ? <LabelsTab /> : tab === 'evaluation' ? <EvalTab /> : <DatasetTab />}
+        {on === false ? (
+          <p className="empty">
+            The API has the Lab switched off. Add <code>RR_LAB_ENABLED=1</code> to <code>apps/api/.env</code> and restart the API.
+          </p>
+        ) : on == null ? (
+          <p className="meta thinking">Checking the API</p>
+        ) : tab === 'runs' ? (
+          <RunsTab />
+        ) : tab === 'labels' ? (
+          <LabelsTab />
+        ) : tab === 'evaluation' ? (
+          <EvalTab />
+        ) : (
+          <DatasetTab />
+        )}
       </div>
     </WindowFrame>
   );
 }
 
-function Verdict({ r }: { r: Run }) {
+function Verdict({ r }: { r: TraceSummary }) {
   if (r.verifierOk === null) return <span className="meta">No check</span>;
   if (r.verifierOk) return <span>Passed{r.repaired ? ' after one repair' : ''}</span>;
   return <span className="verdict-fail">Failed, used the {r.source === 'ranker' ? 'ranker' : 'templates'}</span>;
@@ -61,10 +119,38 @@ function RunsTab() {
   const [job, setJob] = useState('');
   const [source, setSource] = useState('');
   const [offset, setOffset] = useState(0);
+  const [page, setPage] = useState<TracePage | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const rows = RUNS.filter((r) => (!job || r.job === job) && (!source || r.source === source));
-  const page = rows.slice(offset, offset + PAGE);
-  const detail = RUNS.find((r) => r.id === openId);
+  const [detail, setDetail] = useState<TraceDetail | null>(null);
+
+  useEffect(() => {
+    let stop = false;
+    api
+      .getTraces({ job: job || undefined, source: source || undefined, limit: PAGE, offset })
+      .then((p) => {
+        if (stop) return;
+        setPage(p);
+        setError(null);
+      })
+      .catch((e) => !stop && setError(errorText(e)));
+    return () => {
+      stop = true;
+    };
+  }, [job, source, offset]);
+
+  useEffect(() => {
+    setDetail(null);
+    if (!openId) return;
+    api
+      .getTrace(openId)
+      .then(setDetail)
+      .catch((e) => setError(errorText(e)));
+  }, [openId]);
+
+  const rows = page?.items ?? [];
+  const total = page?.total ?? 0;
+  const match = detail?.matchId ? s.matches.find((m) => m.id === detail.matchId) : null;
 
   return (
     <section className="sec">
@@ -84,57 +170,62 @@ function RunsTab() {
           ))}
         </select>
         <span className="meta">
-          {rows.length} {rows.length === 1 ? 'run' : 'runs'}
+          {total} {total === 1 ? 'run' : 'runs'}
         </span>
       </div>
-      <div className="table-wrap">
-        <table className="data">
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Job</th>
-              <th>Model</th>
-              <th className="n">Tools</th>
-              <th className="n">Seconds</th>
-              <th>Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {page.map((r) => (
-              <tr key={r.id} aria-selected={openId === r.id}>
-                <td>
-                  <button type="button" className="row-open num" aria-expanded={openId === r.id} onClick={() => setOpenId(openId === r.id ? null : r.id)}>
-                    {when(r.ts)}
-                  </button>
-                </td>
-                <td>
-                  {jobLabel(r.job)}
-                  {r.lang ? <span className="meta"> {r.lang}</span> : null}
-                </td>
-                <td className="mono">{r.model ?? 'none'}</td>
-                <td className="n num">{r.toolCalls}</td>
-                <td className="n num">{r.latencyS?.toFixed(1) ?? ''}</td>
-                <td>
-                  <Verdict r={r} />
-                </td>
+      {error ? <p className="err">{error}</p> : null}
+      {page && !rows.length ? <p className="empty">No coach runs logged yet. Runs appear here as the coach reviews matches and answers questions.</p> : null}
+      {rows.length ? (
+        <div className="table-wrap">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Job</th>
+                <th>Model</th>
+                <th className="n">Tools</th>
+                <th className="n">Seconds</th>
+                <th>Result</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {rows.length > PAGE ? (
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} aria-selected={openId === r.id}>
+                  <td>
+                    <button type="button" className="row-open num" aria-expanded={openId === r.id} onClick={() => setOpenId(openId === r.id ? null : r.id)}>
+                      {when(r.ts)}
+                    </button>
+                  </td>
+                  <td>
+                    {jobLabel(r.job)}
+                    {r.lang ? <span className="meta"> {r.lang}</span> : null}
+                  </td>
+                  <td className="mono">{r.model ?? 'none'}</td>
+                  <td className="n num">{r.toolCalls}</td>
+                  <td className="n num">{r.latencyS?.toFixed(1) ?? ''}</td>
+                  <td>
+                    <Verdict r={r} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      {total > PAGE ? (
         <div className="filters">
           <button type="button" className="btn" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>
             Newer
           </button>
           <span className="meta num">
-            {offset + 1} to {Math.min(offset + PAGE, rows.length)}
+            {offset + 1} to {Math.min(offset + PAGE, total)}
           </span>
-          <button type="button" className="btn" disabled={offset + PAGE >= rows.length} onClick={() => setOffset(offset + PAGE)}>
+          <button type="button" className="btn" disabled={offset + PAGE >= total} onClick={() => setOffset(offset + PAGE)}>
             Older
           </button>
         </div>
       ) : null}
+      {openId && !detail ? <p className="meta thinking">Loading the run</p> : null}
       {detail ? (
         <article className="run-detail" aria-label="Run details">
           <header>
@@ -155,7 +246,7 @@ function RunsTab() {
                 <dt>Match</dt>
                 <dd>
                   <button type="button" className="link" onClick={() => s.openStudio(detail.matchId!)}>
-                    Open {mapName(matchById(detail.matchId)!.map)} in the Studio
+                    Open {match ? `${match.mapLabel} ${match.score}` : 'the match'} in the Studio
                   </button>
                 </dd>
               </div>
@@ -210,106 +301,186 @@ function RunsTab() {
   );
 }
 
-type Mark = 'correct' | 'wrong' | null;
-type Missed = { round: number; t: number; kind: 'mistake' | 'good'; detector: string };
+type Mark = 'correct' | 'wrong' | 'unsure';
+type Missed = { round: number; t: number; detector: string };
+
+const NAME_RE = /^[A-Za-z0-9_]{1,40}$/;
 
 function LabelsTab() {
   const s = useStore();
-  const done = s.matches.filter((m) => m.status === 'complete' && FINDINGS[m.id]);
-  const [matchId, setMatchId] = useState(done[0]?.id ?? '');
-  const [name, setName] = useState('pawel');
-  const [marks, setMarks] = useState<Record<string, Mark>>({ 'm5:F3': 'correct', 'm5:F4': 'correct', 'm5:F6': 'wrong' });
-  const [missed, setMissed] = useState<Record<string, Missed[]>>({ m5: [{ round: 12, t: 41, kind: 'mistake', detector: 'dry_peek' }] });
-  const [picks, setPicks] = useState<Record<string, string[]>>({});
-  const [form, setForm] = useState<Missed>({ round: 1, t: 30, kind: 'mistake', detector: 'untraded_death' });
+  const ready = s.matches.filter((m) => m.status === 'complete' && m.playerId && m.moments > 0);
+  const [matchId, setMatchId] = useState(ready[0]?.id ?? '');
+  const [name, setName] = useState(() => {
+    try {
+      return window.localStorage.getItem('rr.labeller') ?? 'pawel';
+    } catch {
+      return 'pawel';
+    }
+  });
+  const match = ready.find((m) => m.id === matchId) ?? ready[0];
+  const pid = match?.playerId ?? null;
+  const valid = NAME_RE.test(name);
+  const [fs, setFs] = useState<Finding[]>([]);
+  const [coach, setCoach] = useState<SelectedMoment[]>([]);
+  const [marks, setMarks] = useState<Record<string, Mark>>({});
+  const [missed, setMissed] = useState<Missed[]>([]);
+  const [picks, setPicks] = useState<string[]>([]);
+  const [score, setScore] = useState<PickScore | null>(null);
+  const [summary, setSummary] = useState<LabelsSummary | null>(null);
+  const [form, setForm] = useState<Missed>({ round: 1, t: 30, detector: DETECTORS[0] });
+  const [state, setState] = useState<string | null>(null);
+  const [dirty, setDirty] = useState<Set<number>>(new Set());
 
-  const fs = FINDINGS[matchId] ?? [];
-  const mine = picks[matchId] ?? [];
-  const coach = momentsFor(matchId).map((m) => m.findingIds[0]);
-  const overlap = mine.filter((id) => coach.includes(id)).length;
-  const ndcg = useMemo(() => {
-    if (mine.length < 6) return null;
-    const rel = new Set(mine);
-    const dcg = coach.reduce((sum, id, i) => sum + (rel.has(id) ? 1 / Math.log2(i + 2) : 0), 0);
-    const ideal = Array.from({ length: Math.min(6, coach.length) }, (_, i) => 1 / Math.log2(i + 2)).reduce((a, b) => a + b, 0);
-    return ideal ? dcg / ideal : 0;
-  }, [mine, coach]);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('rr.labeller', name);
+    } catch {
+      /* storage blocked */
+    }
+  }, [name]);
 
-  const quality = useMemo(() => {
-    const rows = new Map<string, { correct: number; wrong: number; missed: number }>();
-    for (const m of done)
-      for (const f of FINDINGS[m.id] ?? []) {
-        const v = marks[`${m.id}:${f.id}`];
-        const d = detectorOf(f.template);
-        const r = rows.get(d) ?? { correct: 0, wrong: 0, missed: 0 };
-        if (v === 'correct') r.correct++;
-        if (v === 'wrong') r.wrong++;
-        rows.set(d, r);
+  useEffect(() => {
+    if (!match || !pid || !valid) return;
+    let stop = false;
+    setState(null);
+    setDirty(new Set());
+    Promise.all([
+      api.getFindings(match.id, pid),
+      api.getRoundLabels(match.id, pid, name),
+      api.getPlayerMoments(match.id, pid),
+      api.getPicks(match.id, pid, name),
+    ])
+      .then(([findings, labels, moments, saved]) => {
+        if (stop) return;
+        setFs(findings.map((f: ApiFinding) => fromFinding(f)));
+        setMarks(Object.fromEntries(labels.flatMap((l) => l.findings.map((v) => [v.findingId, v.verdict as Mark]))));
+        setMissed(labels.flatMap((l) => l.missed.map((m) => ({ round: l.round, t: m.t, detector: m.detector }))));
+        setCoach(moments);
+        const picked = (saved.picks?.picks ?? [])
+          .map((p) => findings.find((f) => f.round === p.round && f.t >= p.t0 && f.t <= p.t1)?.id)
+          .filter((x): x is string => !!x);
+        setPicks(picked);
+        setScore(saved.score);
+      })
+      .catch((e) => !stop && setState(errorText(e)));
+    return () => {
+      stop = true;
+    };
+  }, [match?.id, pid, name, valid]);
+
+  useEffect(() => {
+    api
+      .getLabelsSummary(valid ? name : undefined)
+      .then(setSummary)
+      .catch(() => setSummary(null));
+  }, [name, valid, state]);
+
+  function touch(round: number) {
+    setDirty((d) => new Set(d).add(round));
+  }
+
+  async function saveLabels() {
+    if (!match || !pid) return;
+    setState('Saving…');
+    try {
+      for (const round of [...dirty].sort((a, b) => a - b)) {
+        await api.saveRoundLabel({
+          matchId: match.id,
+          map: match.map ?? 'de_mirage',
+          playerId: pid,
+          round,
+          labeller: name,
+          findings: fs.filter((f) => f.round === round && marks[f.id]).map((f) => ({ findingId: f.id, detector: f.detector, t: f.t, verdict: marks[f.id] })),
+          missed: missed.filter((m) => m.round === round).map((m) => ({ detector: m.detector, t: m.t })),
+        });
       }
-    for (const list of Object.values(missed))
-      for (const x of list) {
-        const r = rows.get(x.detector) ?? { correct: 0, wrong: 0, missed: 0 };
-        r.missed++;
-        rows.set(x.detector, r);
-      }
-    return [...rows.entries()].filter(([, r]) => r.correct + r.wrong + r.missed > 0);
-  }, [marks, missed, done]);
+      setDirty(new Set());
+      setState(`Saved to data/labels as ${name}.`);
+    } catch (e) {
+      setState(errorText(e));
+    }
+  }
 
-  const detectors = [...new Set(Object.values(FINDINGS).flat().map((f) => detectorOf(f.template)))];
+  async function savePicks() {
+    if (!match || !pid) return;
+    try {
+      const rows = picks
+        .map((id) => fs.find((f) => f.id === id))
+        .filter((f): f is Finding => !!f)
+        .map((f) => ({ round: f.round, t0: Math.max(0, f.t - 5), t1: f.t + 3, kind: f.kind === 'strength' ? ('good' as const) : ('mistake' as const) }));
+      const out = await api.savePicks({ matchId: match.id, playerId: pid, labeller: name, picks: rows });
+      setScore(out.score);
+    } catch (e) {
+      setState(errorText(e));
+    }
+  }
+
+  const coachLeads = new Set(coach.map((m) => m.findingIds[0]));
+  const quality = Object.entries(summary?.score ?? {});
+
+  if (!ready.length) return <p className="empty">No reviewed match yet. Pick a player in a match first.</p>;
 
   return (
     <>
       <div className="filters">
         <label className="who">
           <span className="meta">Match</span>
-          <select className="select" value={matchId} onChange={(e) => setMatchId(e.target.value)}>
-            {done.map((m) => (
+          <select className="select" value={match?.id ?? ''} onChange={(e) => setMatchId(e.target.value)}>
+            {ready.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.ref} · {mapName(m.map)} {m.us}–{m.them}
+                {m.mapLabel} {m.score} · {m.playerName} · {m.when}
               </option>
             ))}
           </select>
         </label>
         <label className="who">
           <span className="meta">Your name</span>
-          <input className="field" value={name} placeholder="Your name, for example pawel" onChange={(e) => setName(e.target.value)} />
+          <input className="field" value={name} maxLength={40} placeholder="Your name, for example pawel" aria-invalid={!valid} onChange={(e) => setName(e.target.value.trim())} />
         </label>
-        <span className="meta">
-          Saves to <code>data/labels/{matchId}.{name || 'you'}.json</code>
-        </span>
+        <span className="meta">Saves to data/labels, one file per labeller</span>
       </div>
+      {!valid ? <p className="empty">Type your name first (letters, digits and _). Labels are saved per person.</p> : null}
+      {state ? <p className={state.startsWith('Saved') || state === 'Saving…' ? 'meta' : 'err'}>{state}</p> : null}
 
       <section className="sec">
         <div className="sec-h">
           <h2>Findings</h2>
-          <span className="meta">{fs.filter((f) => marks[`${matchId}:${f.id}`]).length} of {fs.length} labelled</span>
+          <span className="meta">
+            {fs.filter((f) => marks[f.id]).length} of {fs.length} labelled
+          </span>
         </div>
         <div className="group">
-          {fs.map((f) => {
-            const k = `${matchId}:${f.id}`;
-            return (
-              <div className="label-row" key={f.id}>
-                <span className="num meta">
-                  R{f.round} {clock(f.t)}
-                </span>
-                <span className="what">
-                  <i className={`g g-${f.kind}`} aria-hidden />
-                  <b>{findingLabel(f.template)}</b>
-                  <span className="meta">{f.summary}</span>
-                </span>
-                <Segmented<'correct' | 'wrong' | 'none'>
-                  label={`Label ${f.id}`}
-                  value={marks[k] ?? 'none'}
-                  onChange={(v) => setMarks((m) => ({ ...m, [k]: v === 'none' ? null : v }))}
-                  options={[
-                    { id: 'none', label: '–' },
-                    { id: 'correct', label: 'Correct' },
-                    { id: 'wrong', label: 'Wrong' },
-                  ]}
-                />
-              </div>
-            );
-          })}
+          {fs.map((f) => (
+            <div className="label-row" key={f.id}>
+              <span className="num meta">
+                R{f.round} {clock(f.t)}
+              </span>
+              <span className="what">
+                <i className={`g g-${f.kind}`} aria-hidden />
+                <b>{findingLabel(f.template)}</b>
+                <span className="meta">{f.summary}</span>
+              </span>
+              <Segmented<Mark | 'none'>
+                label={`Label ${f.id}`}
+                value={marks[f.id] ?? 'none'}
+                onChange={(v) => {
+                  setMarks((m) => {
+                    const next = { ...m };
+                    if (v === 'none') delete next[f.id];
+                    else next[f.id] = v;
+                    return next;
+                  });
+                  touch(f.round);
+                }}
+                options={[
+                  { id: 'none', label: '–' },
+                  { id: 'correct', label: 'Correct' },
+                  { id: 'wrong', label: 'Wrong' },
+                  { id: 'unsure', label: 'Unsure' },
+                ]}
+              />
+            </div>
+          ))}
         </div>
       </section>
 
@@ -321,17 +492,14 @@ function LabelsTab() {
           className="filters"
           onSubmit={(e) => {
             e.preventDefault();
-            setMissed((m) => ({ ...m, [matchId]: [...(m[matchId] ?? []), form] }));
+            setMissed((m) => [...m, form]);
+            touch(form.round);
           }}
         >
           <input className="field" type="number" min={1} style={{ width: 70 }} aria-label="Round" value={form.round} onChange={(e) => setForm({ ...form, round: Number(e.target.value) })} />
           <input className="field" type="number" min={0} style={{ width: 120 }} placeholder="Round clock, seconds" aria-label="Round clock, seconds" value={form.t} onChange={(e) => setForm({ ...form, t: Number(e.target.value) })} />
-          <select className="select" aria-label="Kind" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as Missed['kind'] })}>
-            <option value="mistake">Mistake</option>
-            <option value="good">Good play</option>
-          </select>
           <select className="select" aria-label="Detector" value={form.detector} onChange={(e) => setForm({ ...form, detector: e.target.value })}>
-            {detectors.map((d) => (
+            {DETECTORS.map((d) => (
               <option key={d} value={d}>
                 {findingLabel(d)}
               </option>
@@ -341,26 +509,41 @@ function LabelsTab() {
             Add
           </button>
         </form>
-        {(missed[matchId] ?? []).length ? (
+        {missed.length ? (
           <ul className="round-list">
-            {(missed[matchId] ?? []).map((x, i) => (
+            {missed.map((x, i) => (
               <li key={i}>
                 <span className="meta num">
-                  R{x.round} {clock(x.t)} · {x.kind === 'mistake' ? 'Mistake' : 'Good play'}, {findingLabel(x.detector)}
-                </span>
+                  R{x.round} {clock(x.t)} · {findingLabel(x.detector)}
+                </span>{' '}
+                <button
+                  type="button"
+                  className="link small"
+                  onClick={() => {
+                    setMissed((m) => m.filter((_, j) => j !== i));
+                    touch(x.round);
+                  }}
+                >
+                  Remove
+                </button>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="meta">No labels yet.</p>
+          <p className="meta">Nothing added.</p>
         )}
+        <div className="plan-actions">
+          <button type="button" className="btn btn-default" disabled={!valid || !dirty.size} onClick={() => void saveLabels()}>
+            Save labels{dirty.size ? ` (${dirty.size} ${dirty.size === 1 ? 'round' : 'rounds'})` : ''}
+          </button>
+        </div>
       </section>
 
       <section className="sec">
         <div className="sec-h">
           <h2>Your six moments</h2>
           <span className="meta">
-            {mine.length} of 6 picked{mine.length < 6 ? "; the coach's picks show when you have six" : ''}
+            {picks.length} of 6 picked{score ? '' : "; the coach's picks show after you save"}
           </span>
         </div>
         <div className="group">
@@ -371,33 +554,43 @@ function LabelsTab() {
               </span>
               <span className="what">
                 <i className={`g g-${f.kind}`} aria-hidden />
-                {findingLabel(f.template)}, {f.zone}
-                {mine.length >= 6 && coach.includes(f.id) ? <span className="pov-tag">Coach</span> : null}
+                {findingLabel(f.template)}
+                {f.zone ? `, ${f.zone}` : ''}
+                {score && coachLeads.has(f.id) ? <span className="pov-tag">Coach</span> : null}
               </span>
               <input
                 type="checkbox"
-                checked={mine.includes(f.id)}
-                disabled={!mine.includes(f.id) && mine.length >= 6}
-                onChange={(e) => setPicks((p) => ({ ...p, [matchId]: e.target.checked ? [...mine, f.id] : mine.filter((x) => x !== f.id) }))}
+                checked={picks.includes(f.id)}
+                disabled={!picks.includes(f.id) && picks.length >= 6}
+                onChange={(e) => setPicks((p) => (e.target.checked ? [...p, f.id] : p.filter((x) => x !== f.id)))}
               />
             </label>
           ))}
         </div>
-        {ndcg != null ? (
+        <div className="plan-actions">
+          <button type="button" className="btn btn-default" disabled={!valid || !picks.length} onClick={() => void savePicks()}>
+            Save picks
+          </button>
+        </div>
+        {score ? (
           <dl className="facts">
             <div>
               <dt>Coach picks you also picked</dt>
               <dd className="num">
-                {overlap} of 6
+                {score.overlap} of {score.coachPicks}
               </dd>
             </div>
             <div>
               <dt>Overlap@6</dt>
-              <dd className="num">{(overlap / 6).toFixed(2)}</dd>
+              <dd className="num">{score.overlapAt6 ?? 'n/a'}</dd>
             </div>
             <div>
               <dt>NDCG@6 of the coach&rsquo;s order</dt>
-              <dd className="num">{ndcg.toFixed(2)}</dd>
+              <dd className="num">{score.ndcgAt6 ?? 'n/a'}</dd>
+            </div>
+            <div>
+              <dt>Coach picks by</dt>
+              <dd>{score.coachSource === 'agent' ? 'the coach model' : 'code (ranker)'}</dd>
             </div>
           </dl>
         ) : null}
@@ -406,58 +599,84 @@ function LabelsTab() {
       <section className="sec">
         <div className="sec-h">
           <h2>Detector quality</h2>
-          <span className="meta">Across every labelled match</span>
+          <span className="meta">
+            {summary
+              ? `${summary.rounds} labelled ${summary.rounds === 1 ? 'round' : 'rounds'} by ${
+                  Object.entries(summary.labellers)
+                    .map(([n, c]) => `${n} (${c})`)
+                    .join(', ') || 'nobody yet'
+                }`
+              : ''}
+          </span>
         </div>
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Detector</th>
-                <th className="n">Correct</th>
-                <th className="n">Wrong</th>
-                <th className="n">Missed</th>
-                <th className="n">Precision</th>
-                <th className="n">Recall</th>
-              </tr>
-            </thead>
-            <tbody>
-              {quality.map(([d, r]) => (
-                <tr key={d}>
-                  <td>{findingLabel(d)}</td>
-                  <td className="n num">{r.correct}</td>
-                  <td className="n num">{r.wrong}</td>
-                  <td className="n num">{r.missed}</td>
-                  <td className="n num">{r.correct + r.wrong ? (r.correct / (r.correct + r.wrong)).toFixed(2) : '–'}</td>
-                  <td className="n num">{r.correct + r.missed ? (r.correct / (r.correct + r.missed)).toFixed(2) : '–'}</td>
+        {summary && !summary.tool ? (
+          <p className="meta">eval/label_tool.py is not next to the API, so scores are off.</p>
+        ) : quality.length ? (
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Detector</th>
+                  <th className="n">Correct</th>
+                  <th className="n">Wrong</th>
+                  <th className="n">Missed</th>
+                  <th className="n">Precision</th>
+                  <th className="n">Recall</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {quality.map(([d, r]) => (
+                  <tr key={d}>
+                    <td>{findingLabel(d)}</td>
+                    <td className="n num">{r.correct}</td>
+                    <td className="n num">{r.wrong}</td>
+                    <td className="n num">{r.missed}</td>
+                    <td className="n num">{r.precision ?? '–'}</td>
+                    <td className="n num">{r.recall ?? '–'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="meta">No labels yet.</p>
+        )}
       </section>
     </>
   );
 }
 
 function EvalTab() {
-  const models = modelRows(RUNS);
-  const [pair, setPair] = useState(0);
-  const [votes, setVotes] = useState<Record<string, 'a' | 'b' | 'same'>>({});
-  const p = AB_PAIRS[pair];
-  const flip = pair % 2 === 1;
-  const left = flip ? p.b : p.a;
-  const right = flip ? p.a : p.b;
-  const voted = votes[p.id];
-  const tally = Object.entries(votes).reduce<Record<string, number>>((acc, [id, v]) => {
-    const pr = AB_PAIRS.find((x) => x.id === id)!;
-    const who = v === 'same' ? 'Same' : v === 'a' ? pr.a.model : pr.b.model;
-    acc[who] = (acc[who] ?? 0) + 1;
-    return acc;
-  }, {});
-  const langs = ['en', 'pl'].map((l) => {
-    const rs = RUNS.filter((r) => r.lang === l);
-    return { l, runs: rs.length, ok: rs.filter((r) => r.verifierOk).length };
-  });
+  const [data, setData] = useState<EvalSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pair, setPair] = useState<ABPair | null | undefined>(undefined);
+  const [voted, setVoted] = useState<'a' | 'b' | 'tie' | null>(null);
+  const [n, setN] = useState(0);
+
+  useEffect(() => {
+    api
+      .getEval()
+      .then(setData)
+      .catch((e) => setError(errorText(e)));
+  }, [n]);
+
+  useEffect(() => {
+    setVoted(null);
+    api
+      .getPair()
+      .then(setPair)
+      .catch(() => setPair(null));
+  }, [n]);
+
+  async function vote(w: 'a' | 'b' | 'tie') {
+    if (!pair) return;
+    setVoted(w);
+    await api.ratePair(pair.a.traceId, pair.b.traceId, w).catch((e) => setError(errorText(e)));
+  }
+
+  if (error) return <p className="err">{error}</p>;
+  if (!data) return <p className="meta thinking">Loading</p>;
+  const langs = [...new Set(data.rows.flatMap((r) => Object.keys(r.byLang)))];
 
   return (
     <>
@@ -465,143 +684,199 @@ function EvalTab() {
         <div className="sec-h">
           <h2>Models on this computer</h2>
         </div>
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Model</th>
-                <th className="n">Runs</th>
-                <th className="n">Verified</th>
-                <th className="n">Repaired</th>
-                <th className="n">Fell back</th>
-                <th className="n">Median s</th>
-                <th className="n">Tool calls, failed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {models.map((m) => (
-                <tr key={m.model}>
-                  <td className="mono">{m.model}</td>
-                  <td className="n num">{m.runs}</td>
-                  <td className="n num">{m.verified}</td>
-                  <td className="n num">{m.repaired}</td>
-                  <td className="n num">{m.fellBack}</td>
-                  <td className="n num">{m.median.toFixed(1)}</td>
-                  <td className="n num">
-                    {m.toolCalls}, {m.toolFailed}
-                  </td>
+        {data.rows.length ? (
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Job</th>
+                  <th className="n">Runs</th>
+                  <th className="n">Verified</th>
+                  <th className="n">Repaired</th>
+                  <th className="n">Fell back</th>
+                  <th className="n">Median s</th>
+                  <th className="n">Tool calls, failed</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {data.rows.map((m) => (
+                  <tr key={`${m.model}:${m.job}`}>
+                    <td className="mono">{m.model}</td>
+                    <td>{jobLabel(m.job)}</td>
+                    <td className="n num">{m.runs}</td>
+                    <td className="n num">{m.verified}</td>
+                    <td className="n num">{m.repaired}</td>
+                    <td className="n num">{m.fallbacks}</td>
+                    <td className="n num">{m.medianS?.toFixed(1) ?? '–'}</td>
+                    <td className="n num">
+                      {m.toolCalls}, {m.toolErrors}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="meta">No coach runs in the traces yet.</p>
+        )}
       </section>
-      <section className="sec">
-        <div className="sec-h">
-          <h2>By language</h2>
-        </div>
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Language</th>
-                <th className="n">Runs</th>
-                <th className="n">Verified</th>
-              </tr>
-            </thead>
-            <tbody>
-              {langs.map((l) => (
-                <tr key={l.l}>
-                  <td>{l.l === 'en' ? 'English' : 'Polski'}</td>
-                  <td className="n num">{l.runs}</td>
-                  <td className="n num">{l.ok}</td>
+      {langs.length ? (
+        <section className="sec">
+          <div className="sec-h">
+            <h2>By language</h2>
+            <span className="meta">Verified of runs, per model and job</span>
+          </div>
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Model, job</th>
+                  {langs.map((l) => (
+                    <th key={l} className="n">
+                      {l}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+              <tbody>
+                {data.rows.map((m) => (
+                  <tr key={`${m.model}:${m.job}`}>
+                    <td>
+                      <span className="mono">{m.model}</span> {jobLabel(m.job)}
+                    </td>
+                    {langs.map((l) => (
+                      <td key={l} className="n num">
+                        {m.byLang[l] ?? ''}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
       <section className="sec">
         <div className="sec-h">
           <h2>Blind A/B</h2>
           <span className="meta num">
-            Pair {pair + 1} of {AB_PAIRS.length}
-            {Object.keys(tally).length ? ` · ${Object.entries(tally).map(([k, v]) => `${k} ${v}`).join(', ')}` : ''}
+            {data.ratings.length ? data.ratings.map((t) => `${t.model}: ${t.wins} won, ${t.losses} lost, ${t.ties} tied`).join(' · ') : 'No votes yet'}
           </span>
         </div>
-        <p>
-          <b>{p.question}</b>
-        </p>
-        <div className="ab">
-          {[left, right].map((x, i) => (
-            <div key={i}>
-              <h3>{voted ? x.model : i === 0 ? 'Answer 1' : 'Answer 2'}</h3>
-              <p>{x.text}</p>
+        {pair === undefined ? (
+          <p className="meta thinking">Loading a pair</p>
+        ) : pair === null ? (
+          <p className="meta">No pair to vote on. Pairs appear once two models have verified answers to the same question.</p>
+        ) : (
+          <>
+            <p>
+              <b>{pair.question}</b> <span className="meta">{jobLabel(pair.job)}</span>
+            </p>
+            <div className="ab">
+              {(['a', 'b'] as const).map((side, i) => (
+                <div key={side}>
+                  <h3>{i === 0 ? 'Answer 1' : 'Answer 2'}</h3>
+                  <p>{pair[side].text}</p>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <div className="ab-vote">
-          <button type="button" className="btn" disabled={!!voted} onClick={() => setVotes((v) => ({ ...v, [p.id]: flip ? 'b' : 'a' }))}>
-            Answer 1 is better
-          </button>
-          <button type="button" className="btn" disabled={!!voted} onClick={() => setVotes((v) => ({ ...v, [p.id]: flip ? 'a' : 'b' }))}>
-            Answer 2 is better
-          </button>
-          <button type="button" className="btn" disabled={!!voted} onClick={() => setVotes((v) => ({ ...v, [p.id]: 'same' }))}>
-            About the same
-          </button>
-          {voted ? (
-            pair < AB_PAIRS.length - 1 ? (
-              <button type="button" className="btn btn-default" onClick={() => setPair(pair + 1)}>
-                Next pair
+            <div className="ab-vote">
+              <button type="button" className="btn" disabled={!!voted} onClick={() => void vote('a')}>
+                Answer 1 is better
               </button>
-            ) : (
-              <span className="meta">Every pair has a vote. New pairs appear as both models answer more.</span>
-            )
-          ) : null}
-        </div>
+              <button type="button" className="btn" disabled={!!voted} onClick={() => void vote('b')}>
+                Answer 2 is better
+              </button>
+              <button type="button" className="btn" disabled={!!voted} onClick={() => void vote('tie')}>
+                About the same
+              </button>
+              {voted ? (
+                <button type="button" className="btn btn-default" onClick={() => setN((x) => x + 1)}>
+                  Next pair
+                </button>
+              ) : null}
+            </div>
+          </>
+        )}
       </section>
     </>
   );
 }
 
 function DatasetTab() {
-  const queue = RUNS.filter((r) => r.verifierOk && !r.repaired && r.source === 'agent' && r.output);
-  const [i, setI] = useState(0);
+  const [page, setPage] = useState<DatasetPage | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [text, setText] = useState(queue[0]?.output ?? '');
-  const [counts, setCounts] = useState({ accepted: 12, edited: 3, rejected: 5 });
-  const r = queue[i];
+  const [text, setText] = useState('');
+  const [exported, setExported] = useState<string | null>(null);
+  const [n, setN] = useState(0);
 
-  function decide(kind: 'accepted' | 'edited' | 'rejected') {
-    setCounts((c) => ({ ...c, [kind]: c[kind] + 1 }));
-    setEditing(false);
-    const n = i + 1;
-    setI(n);
-    setText(queue[n]?.output ?? '');
+  useEffect(() => {
+    api
+      .getDataset({ pending: true, limit: 1 })
+      .then((p) => {
+        setPage(p);
+        setEditing(false);
+        setText(p.items[0]?.output ?? '');
+      })
+      .catch((e) => setError(errorText(e)));
+  }, [n]);
+
+  const r = page?.items[0];
+
+  async function decide(kind: 'accept' | 'edit' | 'reject') {
+    if (!r) return;
+    try {
+      await api.reviewExample(r.id, kind, kind === 'edit' ? text : undefined);
+      setN((x) => x + 1);
+    } catch (e) {
+      setError(errorText(e));
+    }
   }
+
+  async function doExport() {
+    try {
+      const out = await api.exportDataset();
+      setExported(`Wrote ${Object.entries(out.counts).map(([k, v]) => `${v} ${k}`).join(', ')} to ${out.folder}.`);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }
+
+  if (error) return <p className="err">{error}</p>;
+  if (!page) return <p className="meta thinking">Loading</p>;
 
   return (
     <>
       <p className="meta num">
-        {counts.accepted} accepted, {counts.edited} edited, {counts.rejected} rejected · {Math.max(0, queue.length - i)} left to review
+        {Object.entries(page.counts)
+          .map(([k, v]) => `${v} ${k}`)
+          .join(', ') || 'Nothing kept yet'}{' '}
+        · {page.reviewed} reviewed · {page.total} left to review{' '}
+        <button type="button" className="link small" onClick={() => void doExport()}>
+          Export
+        </button>
       </p>
+      {exported ? <p className="meta">{exported}</p> : null}
       {!r ? (
         <p className="empty">Nothing left to review. New runs arrive as the coach model answers.</p>
       ) : (
         <section className="sec">
           <div className="sec-h">
             <h2>
-              {jobLabel(r.job)} <span className="meta">{when(r.ts)}</span>
+              {jobLabel(r.job)} <span className="meta">{r.lang ?? ''}</span>
             </h2>
-            <span className="mono meta">{r.model}</span>
+            <span className="mono meta">
+              {r.split} · {r.id}
+            </span>
           </div>
           <h3 className="round-h">What the model was given</h3>
           <pre className="out">{r.prompt}</pre>
           <h3 className="round-h">Its answer</h3>
           {editing ? <textarea className="field" rows={5} value={text} onChange={(e) => setText(e.target.value)} /> : <pre className="out">{text}</pre>}
           <div className="ds-actions">
-            <button type="button" className="btn btn-default" onClick={() => decide(editing ? 'edited' : 'accepted')}>
+            <button type="button" className="btn btn-default" onClick={() => void decide(editing ? 'edit' : 'accept')}>
               {editing ? 'Save edit' : 'Accept'}
             </button>
             {!editing ? (
@@ -609,7 +884,7 @@ function DatasetTab() {
                 Edit
               </button>
             ) : null}
-            <button type="button" className="btn" onClick={() => decide('rejected')}>
+            <button type="button" className="btn" onClick={() => void decide('reject')}>
               Reject
             </button>
           </div>

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api } from '@/lib/api/client';
 import { WindowFrame } from '../desktop/WindowFrame';
-import { aliveAt, eventTitle, roundData } from '../mock/replay';
-import { FINDINGS, YOU, findingLabel, mapName, matchById, matchByRef, momentsFor, roundsOf, type Match, type Moment } from '../mock/world';
+import { aliveAt, eventTitle, findingLabel, roundClip, type Match, type Moment } from '../data/model';
+import { useStudioData, type StudioData } from '../data/useStudio';
 import { useStore, type StudioTarget } from '../state/store';
 import type { CiteHandlers } from '../ui/CoachText';
 import { Segmented } from '../ui/Segmented';
@@ -21,16 +22,16 @@ function slug(s: string) {
 
 export function StudioWindow() {
   const s = useStore();
-  const match = s.studio ? matchById(s.studio.matchId, s.matches) : undefined;
+  const match = s.studio ? s.matches.find((m) => m.id === s.studio!.matchId) : undefined;
   const done = s.matches.filter((m) => m.status === 'complete');
-  const ready = match && match.status === 'complete' && FINDINGS[match.id];
+  const ready = match && match.status === 'complete';
   const [panelOn, setPanelOn] = useState(true);
 
   return (
     <WindowFrame
       id="studio"
-      title={ready ? `${mapName(match.map)} ${match.us}–${match.them}` : 'Studio'}
-      subtitle={ready ? `${match.when} · ${YOU} · reviewed by ${match.model ?? 'templates'}` : 'No match open'}
+      title={ready ? `${match.mapLabel} ${match.score}` : 'Studio'}
+      subtitle={ready ? `${match.when} · ${match.playerName ?? 'no player'} · reviewed by ${match.model ?? 'templates'}` : 'No match open'}
       minW={880}
       minH={560}
       flush
@@ -40,7 +41,7 @@ export function StudioWindow() {
             {ready ? null : <option value="">Pick a match</option>}
             {done.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.ref} · {mapName(m.map)} {m.us}–{m.them} · {m.when.split(',')[0]}
+                {m.mapLabel} {m.score} · {m.playerName ?? 'no player'} · {m.when}
               </option>
             ))}
           </select>
@@ -55,15 +56,15 @@ export function StudioWindow() {
       }
     >
       {ready && s.studio ? (
-        <StudioBody key={match.id} match={match} target={s.studio} panelOn={panelOn} />
+        <StudioLoader key={match.id} match={match} target={s.studio} panelOn={panelOn} />
       ) : (
         <div className="studio-empty">
-          <h2>Open a match to review it</h2>
+          <h2>{match && !ready ? `${match.mapLabel} is not reviewed yet` : 'Open a match to review it'}</h2>
           <p className="meta">The Studio shows one match: its moments, the clip and radar, and the coach.</p>
           <div className="row-btns">
             {done[0] ? (
               <button type="button" className="btn btn-default" onClick={() => s.openStudio(done[0].id)}>
-                Open {mapName(done[0].map)} {done[0].us}–{done[0].them}
+                Open {done[0].mapLabel} {done[0].score}
               </button>
             ) : null}
             <button type="button" className="btn" onClick={() => s.open('matches')}>
@@ -76,11 +77,27 @@ export function StudioWindow() {
   );
 }
 
-function StudioBody({ match, target, panelOn }: { match: Match; target: StudioTarget; panelOn: boolean }) {
+function StudioLoader({ match, target, panelOn }: { match: Match; target: StudioTarget; panelOn: boolean }) {
+  const { data, error } = useStudioData(match.id, match.playerId);
+  if (error)
+    return (
+      <div className="studio-empty">
+        <h2>Could not open {match.mapLabel}</h2>
+        <p className="err">{error}</p>
+      </div>
+    );
+  if (!data || !data.rounds.length)
+    return (
+      <div className="studio-empty">
+        <p className="meta thinking">{data ? 'This match has no rounds' : `Loading ${match.mapLabel}`}</p>
+      </div>
+    );
+  return <StudioBody match={match} data={data} target={target} panelOn={panelOn} />;
+}
+
+function StudioBody({ match, data, target, panelOn }: { match: Match; data: StudioData; target: StudioTarget; panelOn: boolean }) {
   const s = useStore();
-  const findings = FINDINGS[match.id];
-  const moments = useMemo(() => momentsFor(match.id), [match.id]);
-  const rounds = useMemo(() => Array.from({ length: roundsOf(match) }, (_, i) => roundData(match, i + 1)), [match]);
+  const { findings, moments, rounds, you } = data;
 
   const [roundNo, setRoundNo] = useState(moments[0]?.round ?? 1);
   const [momentId, setMomentId] = useState<string | null>(moments[0]?.id ?? null);
@@ -93,8 +110,10 @@ function StudioBody({ match, target, panelOn }: { match: Match; target: StudioTa
   const [seenRounds, setSeenRounds] = useState<Set<number>>(new Set());
   const wasPlaying = useRef(false);
 
-  const round = rounds[roundNo - 1];
+  const round = rounds.find((r) => r.number === roundNo) ?? rounds[0];
   const clk = useClock(round.duration);
+  const { loadRound } = data;
+  useEffect(() => loadRound(round.number), [loadRound, round.number]);
   const moment = moments.find((m) => m.id === momentId) ?? null;
   const headFinding = findings.find((f) => f.id === (headId ?? (moment && !review ? moment.findingIds[0] : null))) ?? null;
   const selectedEvent = round.events.find((e) => e.id === eventId) ?? null;
@@ -169,10 +188,7 @@ function StudioBody({ match, target, panelOn }: { match: Match; target: StudioTa
       const m = moments.find((x) => x.id === id);
       if (m) selectMoment(m);
     },
-    onMatchFinding: (ref, fid) => {
-      const m = matchByRef(ref, s.matches);
-      if (m) s.openStudio(m.id, fid);
-    },
+    onMatchFinding: (matchId, fid) => s.openStudio(matchId, fid),
   };
 
   const stepEvent = (dir: 1 | -1) => {
@@ -208,26 +224,39 @@ function StudioBody({ match, target, panelOn }: { match: Match; target: StudioTa
     return () => window.removeEventListener('keydown', onKey);
   }, [s.focused]);
 
-  const lead = moment ? findings.find((f) => f.id === moment.findingIds[0])! : null;
-  const clip = moment
-    ? { t0: moment.t0, t1: Math.min(moment.t1, round.duration), status: moment.clip, label: findingLabel(lead!.template) }
-    : { t0: 0, t1: round.duration, status: 'ready' as const, label: `round ${round.number}` };
-  const chip = moment && lead && !review
-    ? { glyph: lead.kind, n: String(idx + 1).padStart(2, '0'), label: findingLabel(lead.template) }
-    : { glyph: 'round' as const, n: `R${round.number}`, label: review === 'overview' ? 'Match brief' : review === 'wrapup' ? 'Debrief' : `${round.winner} win` };
+  const lead = moment ? (findings.find((f) => f.id === moment.findingIds[0]) ?? null) : null;
+  const inMoment = moment && !review && moment.round === round.number;
+  const clipState = inMoment ? moment.clip : roundClip(round.number, data.clips, round.duration, api.mediaUrl);
+  const clip = { ...clipState, t1: Math.min(clipState.t1, round.duration), label: inMoment && lead ? findingLabel(lead.template) : `round ${round.number}` };
+  const chip =
+    moment && !review
+      ? { glyph: lead?.kind ?? ('mistake' as const), n: String(idx + 1).padStart(2, '0'), label: lead ? findingLabel(lead.template) : moment.id }
+      : { glyph: 'round' as const, n: `R${round.number}`, label: review === 'overview' ? 'Match brief' : review === 'wrapup' ? 'Debrief' : round.winner ? `${round.winner} win` : `Round ${round.number}` };
   const alive = aliveAt(round, clk.t);
   const now = [...round.events].reverse().find((e) => e.t <= clk.t && clk.t - e.t < 2.5);
-  const recording = moments.filter((m) => m.clip === 'recording').length;
-  const momentKind = new Map(moments.map((m) => [m.round, findings.find((f) => f.id === m.findingIds[0])!.kind]));
+  const recording = moments.filter((m) => m.clip.status === 'recording').length;
+  const momentKind = new Map(moments.map((m) => [m.round, findings.find((f) => f.id === m.findingIds[0])?.kind ?? 'mistake']));
+
+  // The clip takes the stage when there is one; without it the radar is the only picture
+  const noClip = clip.status === 'none' || clip.status === 'failed';
+  useEffect(() => {
+    setMain(noClip ? 'radar' : 'gameplay');
+  }, [noClip, round.number, momentId]);
 
   function download() {
-    const t = lead?.t ?? 0;
-    const name = `${mapName(match.map).toLowerCase()}_${YOU}_r${String(round.number).padStart(2, '0')}_${slug(clip.label)}_${Math.floor(t / 60)}m${String(Math.round(t % 60)).padStart(2, '0')}s.mp4`;
-    s.notify({ title: 'Download', body: `In the app this saves ${name}. The prototype has no recorded clip to save.` });
+    if (!clip.url) return;
+    const t = lead?.t ?? clip.t0;
+    const name = `${match.mapLabel.toLowerCase()}_${slug(you)}_r${String(round.number).padStart(2, '0')}_${slug(clip.label)}_${Math.floor(t / 60)}m${String(Math.round(t % 60)).padStart(2, '0')}s.mp4`;
+    const a = document.createElement('a');
+    a.href = clip.url;
+    a.download = name;
+    a.click();
   }
 
   const ctx: PanelCtx = {
     match,
+    data,
+    you,
     moments,
     findings,
     round,
@@ -251,6 +280,7 @@ function StudioBody({ match, target, panelOn }: { match: Match; target: StudioTa
   return (
     <div className={`studio${panelOn ? '' : ' no-panel'}`}>
       <Rail
+        you={you}
         moments={moments}
         findings={findings}
         rounds={rounds}
@@ -268,10 +298,14 @@ function StudioBody({ match, target, panelOn }: { match: Match; target: StudioTa
       />
 
       <section className="work" aria-label="Replay">
+        {data.replayError ? <p className="err stage-err">{data.replayError}</p> : null}
         <Stage
           map={match.map}
+          you={you}
           round={round}
           t={clk.t}
+          playing={clk.playing}
+          rate={clk.rate}
           main={main}
           onMain={setMain}
           clip={clip}
@@ -313,7 +347,7 @@ function StudioBody({ match, target, panelOn }: { match: Match; target: StudioTa
             <i>v</i>
             <b>{alive.them}</b>
           </div>
-          <div className="now">{now ? eventTitle(now) : `Round ${round.number}, ${round.side} side`}</div>
+          <div className="now">{now ? eventTitle(now) : !round.loaded ? `Loading round ${round.number}` : `Round ${round.number}${round.side ? `, ${round.side} side` : ''}`}</div>
           {recording ? <span className="clip-progress num">Clips {moments.length - recording}/{moments.length}</span> : null}
           <Segmented<View>
             label="View"
@@ -341,7 +375,9 @@ function StudioBody({ match, target, panelOn }: { match: Match; target: StudioTa
           band={moment && !review ? { t0: moment.t0, t1: moment.t1 } : null}
           headFindingId={headFinding?.id ?? null}
           selectedEventId={eventId}
-          rounds={rounds.map((r) => ({ n: r.number, won: r.won, moment: momentKind.get(r.number) ?? null }))}
+          rounds={rounds.map((r) => ({ n: r.number, won: r.won === true, moment: momentKind.get(r.number) ?? null }))}
+          team={round.team}
+          you={you}
           current={roundNo}
           onRound={selectRound}
           onSeek={onSeek}
@@ -371,7 +407,7 @@ function StudioBody({ match, target, panelOn }: { match: Match; target: StudioTa
             />
           </div>
           <div className={`insight tab-${tab}`}>
-            {tab === 'analysis' ? <AnalysisPanel ctx={ctx} /> : tab === 'ask' ? <AskPanel key={`${match.id}:${roundNo}`} ctx={ctx} /> : tab === 'round' ? <RoundPanel ctx={ctx} /> : <NotesPanel ctx={ctx} t={clk.t} />}
+            {tab === 'analysis' ? <AnalysisPanel ctx={ctx} /> : tab === 'ask' ? <AskPanel key={`${match.id}:${roundNo}`} ctx={ctx} t={clk.t} view={main} /> : tab === 'round' ? <RoundPanel ctx={ctx} /> : <NotesPanel ctx={ctx} t={clk.t} />}
           </div>
         </aside>
       ) : null}
