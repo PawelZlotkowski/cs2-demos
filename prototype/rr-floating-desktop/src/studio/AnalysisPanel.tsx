@@ -94,7 +94,9 @@ function useKey(ctx: PanelCtx, target: string | null) {
 function DoneWell({ ctx, finding }: { ctx: PanelCtx; finding: Finding }) {
   const s = useStore();
   const [open, setOpen] = useState(false);
-  useEffect(() => setOpen(false), [finding.id]);
+  useEffect(() => {
+    setOpen(false);
+  }, [finding.id]);
   const key = open ? `${ctx.match.id}:${ctx.data.playerId}:well:${finding.id}` : null;
   const res = useCached(key, () => api.doneWell(ctx.match.id, ctx.data.playerId, finding.id));
 
@@ -145,7 +147,9 @@ function RoundExplain({ ctx }: { ctx: PanelCtx }) {
   const s = useStore();
   const n = ctx.round.number;
   const [asked, setAsked] = useState(false);
-  useEffect(() => setAsked(false), [n, ctx.match.id]);
+  useEffect(() => {
+    setAsked(false);
+  }, [n, ctx.match.id]);
   const key = useKey(ctx, asked ? `r${n}` : null);
   // Explaining a round queues a clip of its main finding; fetch the clip list so the stage shows it recording
   const res = useCached(key, () =>

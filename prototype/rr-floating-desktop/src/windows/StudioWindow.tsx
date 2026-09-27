@@ -113,7 +113,9 @@ function StudioBody({ match, data, target, panelOn }: { match: Match; data: Stud
   const round = rounds.find((r) => r.number === roundNo) ?? rounds[0];
   const clk = useClock(round.duration);
   const { loadRound } = data;
-  useEffect(() => loadRound(round.number), [loadRound, round.number]);
+  useEffect(() => {
+    loadRound(round.number);
+  }, [loadRound, round.number]);
   const moment = moments.find((m) => m.id === momentId) ?? null;
   const headFinding = findings.find((f) => f.id === (headId ?? (moment && !review ? moment.findingIds[0] : null))) ?? null;
   const selectedEvent = round.events.find((e) => e.id === eventId) ?? null;

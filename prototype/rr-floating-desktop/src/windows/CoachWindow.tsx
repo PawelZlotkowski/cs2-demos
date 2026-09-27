@@ -102,7 +102,9 @@ function AskAcross({
   const abort = useRef<AbortController | null>(null);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => () => abort.current?.abort(), []);
-  useEffect(() => end.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }), [turns]);
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  }, [turns]);
   const model = s.system?.checks.find((c) => c.name === 'llm')?.state === 'ok' ? s.system.llmModel : 'The coach model';
 
   async function ask(raw: string) {
@@ -310,7 +312,9 @@ function KnowledgeTab({ lede }: { lede: string }) {
   const [flagging, setFlagging] = useState<string | null>(null);
   const [note, setNote] = useState('');
 
-  useEffect(() => setZone(null), [map]);
+  useEffect(() => {
+    setZone(null);
+  }, [map]);
   useEffect(() => {
     const t = window.setTimeout(() => setQuery(q.trim()), 250);
     return () => window.clearTimeout(t);

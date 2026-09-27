@@ -30,6 +30,11 @@ async def main():
         kw = {"executable_path": os.environ["CHROME_PATH"]} if os.environ.get("CHROME_PATH") else {}
         b = await p.chromium.launch(**kw)
         page = await b.new_page(viewport={"width": 1440, "height": 900})
+        # Recent Chrome returns a Promise from scrollIntoView; an effect that returns it crashes on unmount
+        await page.add_init_script(
+            "const s = Element.prototype.scrollIntoView;"
+            "Element.prototype.scrollIntoView = function (...a) { s.apply(this, a); return Promise.resolve(); };"
+        )
         page.on("console", lambda m: m.type == "error" and errors.append(m.text))
         page.on("pageerror", lambda e: errors.append(str(e)))
 
