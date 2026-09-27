@@ -10,6 +10,7 @@ import { PlayerPicker, type PickerPlayer } from "@/components/processing/PlayerP
 import { makeRosterLookup } from "@/lib/replay/roster";
 import { COACH_LANGUAGES, useCoachLanguage } from "@/lib/coach/language";
 import type { CoachLanguage } from "@/lib/contracts";
+import { askToNotify, notifyPermission, notifyReviewReady } from "@/lib/notify";
 
 const TERMINAL = new Set(["complete", "failed"]);
 
@@ -60,6 +61,7 @@ export default function ProcessingPage() {
         if (cancelled) return;
         setStatus(s);
         if (s.status === "complete") {
+          notifyReviewReady(id, "The coach has picked your moments. Open the tab to start the review.");
           // Radar is ready — open Studio; clips may still be recording.
           router.replace(`/studio/${id}`);
           return;
@@ -110,6 +112,8 @@ export default function ProcessingPage() {
   }, [awaiting, id]);
 
   const [coachLang, setCoachLang] = useCoachLanguage();
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">("unsupported");
+  useEffect(() => setPermission(notifyPermission()), []);
 
   const choose = useCallback(
     async (playerId: string) => {
@@ -231,6 +235,17 @@ export default function ProcessingPage() {
       {status && !done && !awaiting ? (
         <p className="meta" style={{ marginTop: 12 }}>
           Status: {status.status}
+        </p>
+      ) : null}
+      {status && !done && !awaiting && ["detecting", "selecting", "recording", "explaining"].includes(status.status) ? (
+        <p className="meta" style={{ marginTop: 8 }}>
+          {permission === "granted" ? (
+            "You can switch to another tab: this one tells you when the review is ready."
+          ) : permission === "default" ? (
+            <button type="button" className="link" onClick={() => void askToNotify().then(setPermission)}>
+              Tell me when the review is ready
+            </button>
+          ) : null}
         </p>
       ) : null}
     </main>

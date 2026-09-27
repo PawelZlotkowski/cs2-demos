@@ -123,6 +123,10 @@ export function PovClip({
         <button type="button" aria-pressed={!muted} onClick={() => setMuted((m) => !m)}>
           {muted ? "Sound off" : "Sound on"}
         </button>
+        {/* The API names the file after the moment: map, player, round, what happened, time */}
+        <a href={`${src}${src.includes("?") ? "&" : "?"}download=1`} download>
+          Download
+        </a>
         {main ? null : (
           <button type="button" onClick={onEnlarge} title="Show the clip large (V)">
             Enlarge

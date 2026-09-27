@@ -228,6 +228,8 @@ p {
   height: 100%;
   display: grid;
   grid-template-rows: var(--bar) minmax(0, 1fr);
+  /* A wide table scrolls in its own box instead of widening the page */
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .shell > .main,
@@ -247,10 +249,18 @@ p {
   display: flex;
   align-items: center;
   gap: 20px;
+  min-width: 0;
   padding: 0 16px;
   height: var(--bar);
   background: var(--surface-panel);
   border-bottom: 1px solid var(--border);
+}
+
+/* Nothing in the bar squeezes into its neighbour: items keep their size, and when the row is
+   still too long the nav (the only flexible part) scrolls sideways. The breakpoints below drop
+   labels first so that is rare. */
+.topbar > * {
+  flex: none;
 }
 
 /* Wordmark in the condensed data face: the one place it is used for words. */
@@ -294,12 +304,35 @@ p {
   display: flex;
   gap: 2px;
   align-self: stretch;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.nav::-webkit-scrollbar {
+  display: none;
+}
+
+/* Set by NavLinks when links sit behind an edge. */
+.nav[data-fade="r"] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+
+.nav[data-fade="l"] {
+  mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+}
+
+.nav[data-fade="lr"] {
+  mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
 }
 
 .nav a {
   display: inline-flex;
+  flex: none;
   align-items: center;
   padding: 0 10px;
+  white-space: nowrap;
   color: var(--text-3);
   text-decoration: none;
   font-weight: 500;
@@ -322,8 +355,6 @@ p {
   color: var(--text-3);
   font-size: var(--fs-13);
   white-space: nowrap;
-  min-width: 0;
-  flex: 0 1 auto;
 }
 
 .bar-match b {
@@ -332,7 +363,25 @@ p {
 }
 
 .spacer {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Tighter bar before anything is dropped. */
+@media (max-width: 1100px) {
+  .topbar {
+    gap: 12px;
+  }
+
+  .nav a {
+    padding: 0 8px;
+  }
+}
+
+@media (max-width: 900px) {
+  .topbar .brand-text {
+    display: none;
+  }
 }
 
 .theme-select select {
@@ -361,9 +410,17 @@ p {
     padding: 0 12px;
   }
 
-  .hide-s,
-  .nav {
-    /* The brand already links home, and the Studio is the page you're on. */
+  .hide-s {
+    display: none;
+  }
+
+  /* Pages keep a compact nav so every page stays reachable; it scrolls sideways rather than
+     pushing the bar off the screen. In the Studio the scorebug needs the room. */
+  .nav a {
+    padding: 0 6px;
+  }
+
+  .topbar:has(.sb) .nav {
     display: none;
   }
 

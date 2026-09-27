@@ -23,6 +23,7 @@ import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any, TypeVar
 
 from app.analysis.ranker import MIN_EACH, MIN_MOMENTS, TARGET, rank_moments
@@ -38,7 +39,7 @@ from app.coach.review import (
     review_findings,
     review_numbers,
 )
-from app.coach.tools import MomentPick
+from app.coach.tools import MomentPick, cross_match_findings
 from app.coach.verify import (
     LANGUAGE_NAMES,
     VerifyContext,
@@ -48,11 +49,20 @@ from app.coach.verify import (
     verify_text,
 )
 from app.core.config import settings
-from app.models.contracts import AskRequest, Finding, MomentExplanation, SelectedMoment
+from app.models.contracts import (
+    AskRequest,
+    CoachAskRequest,
+    Finding,
+    MomentExplanation,
+    PracticePlan,
+    SelectedMoment,
+)
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+# Coach page (doc 29 R05): only tools that work without a current match
+ACROSS_TOOLS = {"list_matches", "find_moments", "get_player_history", "search_knowledge"}
 
 # Candidates shown to the selection model (plan §6.2: top ~40 by severity)
 MAX_CANDIDATES = 40
@@ -262,7 +272,7 @@ class CoachJobs:
     async def explain(
         self, match_id: str, player_id: str, target: str, lang: str, *, store: bool = True
     ) -> MomentExplanation:
-        """Analysis text for a moment ("m3") or any round ("r12")."""
+        """Analysis text for a moment ("m3"), any round ("r12") or a bookmarked window ("w5:12.0-24.0")."""
         a = self.repo.analysis
         all_findings = a.findings(match_id, player_id)
         by_id = {f.id: f for f in all_findings}
@@ -275,6 +285,14 @@ class CoachJobs:
             focus = (
                 f"Explain moment {moment.id}: round {moment.round}, {moment.t0:.1f}-{moment.t1:.1f} s "
                 f"on the round clock, a {moment.kind}. Picked because: {moment.picked_because}"
+            )
+        elif target.startswith("w"):
+            # A window the player bookmarked (doc 29 R08): "w5:12.0-24.0"
+            round_no, t0, t1 = parse_window(target)
+            findings = [f for f in all_findings if f.round == round_no and t0 <= f.t <= t1]
+            focus = (
+                f"Explain what the player did in round {round_no} between {t0:.1f} and {t1:.1f} s on the round "
+                "clock. The player bookmarked this window, so say what went right or wrong in it."
             )
         else:
             round_no = int(target.lstrip("r"))
@@ -294,7 +312,7 @@ class CoachJobs:
             expl = MomentExplanation(
                 target=target, lang=lang, text=text, citations=citations_in(text),
                 finding_ids=[f.id for f in findings], source="template",
-                verifier_errors=[] if findings else ["No findings in this round."],
+                verifier_errors=[] if findings else [f"No findings in this {'window' if target.startswith('w') else 'round'}."],
             )
             if store:
                 a.save_explanation(match_id, player_id, expl)
@@ -491,6 +509,122 @@ class CoachJobs:
             cite_candidates=[f.id for f in in_view],
         )
 
+    async def ask_across(
+        self, player_id: str, req: CoachAskRequest, on_step: StepCallback | None = None
+    ) -> AskOutcome:
+        """Coach page question over every analysed match of the player (doc 29 R05).
+
+        Findings are cited as [M2:F3]: the match ref from ``list_matches`` and the
+        finding id in that match, so the verifier checks them like single-match ones."""
+        prompt = load_prompt("answer_across")
+        found = [f for _ref, _record, f in cross_match_findings(player_id)]
+        ctx = VerifyContext.build(found, extra_numbers={float(n) for n in re.findall(r"\d+(?:\.\d+)?", req.question)})
+        record: dict[str, Any] = {"job": "ask_across", "playerId": player_id, "lang": req.language, "question": req.question}
+
+        def fallback() -> str:
+            recent = sorted((f for f in found if f.kind in ("mistake", "good")), key=lambda f: -f.severity)[:2]
+            if recent:
+                return fallback_text(recent, req.language, limit=2)
+            return {
+                "en": "The coach model is not available, and there are no findings across your matches yet.",
+                "pl": "Model trenera jest niedostępny, a w twoich meczach nie ma jeszcze ustaleń.",
+                "nl": "Het coachmodel is niet beschikbaar en er zijn nog geen bevindingen in je wedstrijden.",
+            }[req.language]
+
+        if not self.llm_enabled():
+            text = fallback()
+            return AskOutcome(text, citations_in(text), "template", ["Coach model disabled."])
+
+        lines = [
+            f"Coached player: {player_id}. Their analysed matches are listed by list_matches.",
+            "",
+            f"Question: {req.question}",
+            f"Answer in {LANGUAGE_NAMES[req.language]}.",
+        ]
+        return await self._answer(
+            job="ask_across",
+            prompt_version=prompt.version,
+            system=prompt.render(language=LANGUAGE_NAMES[req.language], language_notes=LANGUAGE_NOTES[req.language]),
+            user="\n".join(lines),
+            bound={"player_id": player_id},
+            ctx=ctx,
+            lang=req.language,
+            max_sentences=4,
+            require_citation=False,
+            fallback=fallback,
+            record=record,
+            on_step=on_step,
+            allow_tools=ACROSS_TOOLS,
+        )
+
+    async def practice_plan(self, player_id: str, lang: str) -> PracticePlan:
+        """Coach page Plan (doc 29 R09): code picks the items, the model writes the note on top."""
+        from app.coach.plan import fallback_plan_text, plan_items, plan_numbers
+        from app.coach.tools import player_match_refs
+        from app.repositories.extras import extras
+
+        items = plan_items(player_id, extras().ticks(player_id))
+        refs = player_match_refs(player_id)
+        found = [f for _ref, _record, f in cross_match_findings(player_id)]
+        ctx = VerifyContext.build(found)
+        ctx.summary_numbers.update(plan_numbers(items))
+        ctx.knowledge.update({i.drill_id: i.drill_text or "" for i in items if i.drill_id})
+        prompt = load_prompt("practice_plan")
+        record: dict[str, Any] = {"job": "practice_plan", "playerId": player_id, "lang": lang}
+
+        def fallback() -> str:
+            return fallback_plan_text(items, lang)
+
+        if not items or not self.llm_enabled():
+            text, citations, source = fallback(), None, "template"
+        else:
+            lines = [
+                f"Coached player: {player_id}, {len(refs)} analysed matches.",
+                "What to practise, most widespread first (code picked these; keep this order):",
+            ]
+            for i in items:
+                trend = (
+                    f" Per 10 rounds: {i.per10_recent} in the last 3 matches, {i.per10_before} before."
+                    if i.per10_recent is not None
+                    else ""
+                )
+                lines.append(
+                    f"- {i.detector}: in {i.matches_with} of {i.matches_total} matches.{trend}"
+                    + (f" Example finding [{i.example}]." if i.example else "")
+                    + (f" Drill [{i.drill_id}] {i.drill_title}: {i.drill_text}" if i.drill_id else "")
+                )
+            lines += ["", f"Write it in {LANGUAGE_NAMES[lang]}."]
+            outcome = await self._answer(
+                job="practice_plan",
+                prompt_version=prompt.version,
+                system=prompt.render(language=LANGUAGE_NAMES[lang], language_notes=LANGUAGE_NOTES[lang]),
+                user="\n".join(lines),
+                bound={"player_id": player_id},
+                ctx=ctx,
+                lang=lang,
+                max_sentences=4,
+                require_citation=True,
+                fallback=fallback,
+                record=record,
+                cite_candidates=[i.example for i in items if i.example],
+                allow_tools=ACROSS_TOOLS,
+            )
+            text, citations, source = outcome.answer, outcome.citations, outcome.source
+        citations = citations if citations is not None else citations_in(text)
+        cited = {c.split(":", 1)[0] for c in citations if ":F" in c} | {
+            i.example.split(":", 1)[0] for i in items if i.example
+        }
+        return PracticePlan(
+            player_id=player_id,
+            lang=lang,  # type: ignore[arg-type]
+            text=text,
+            citations=citations,
+            source=source,  # type: ignore[arg-type]
+            matches={r: refs[r] for r in sorted(cited) if r in refs},
+            items=items,
+            created_at=datetime.now(UTC).isoformat(),
+        )
+
     # --- shared: tool loop → verify → one repair → fallback ----------------------------
 
     async def _answer(
@@ -509,6 +643,7 @@ class CoachJobs:
         record: dict[str, Any],
         on_step: StepCallback | None = None,
         cite_candidates: list[str] | None = None,
+        allow_tools: set[str] | None = None,
     ) -> AskOutcome:
         cite_candidates = cite_candidates or []
         messages: list[dict[str, Any]] = [{"role": "system", "content": system}, {"role": "user", "content": user}]
@@ -523,7 +658,7 @@ class CoachJobs:
                         messages=messages,
                         bound=bound,
                         thinking=False,
-                        allow_tools=EXPLAIN_TOOLS,
+                        allow_tools=allow_tools or EXPLAIN_TOOLS,
                         max_steps=None if attempt == 0 else 2,
                         on_step=on_step,
                     )
@@ -598,7 +733,7 @@ def knowledge_in(messages: list[dict[str, Any]]) -> dict[str, str]:
 
 
 def summary_numbers_in(messages: list[dict[str, Any]]) -> set[float]:
-    """Numbers in ``get_player_history`` and ``get_match_totals`` results returned in a run."""
+    """Numbers in ``get_player_history``, ``get_match_totals`` and ``list_matches`` results returned in a run."""
     found: set[float] = set()
 
     def walk(v: Any) -> None:
@@ -615,7 +750,7 @@ def summary_numbers_in(messages: list[dict[str, Any]]) -> set[float]:
 
     for m in messages:
         content = m.get("content") or ""
-        if m.get("role") != "tool" or ('"per10Rounds"' not in content and '"matchTotals"' not in content):
+        if m.get("role") != "tool" or not any(k in content for k in ('"per10Rounds"', '"matchTotals"', '"playerMatches"')):
             continue
         try:
             walk(json.loads(content))
@@ -645,6 +780,16 @@ def parse_json_object(text: str) -> dict[str, Any] | None:
             pass
         start = text.find("{", start + 1)
     return None
+
+
+def window_target(round_no: int, t0: float, t1: float) -> str:
+    return f"w{round_no}:{t0:.1f}-{t1:.1f}"
+
+
+def parse_window(target: str) -> tuple[int, float, float]:
+    round_part, _, span = target[1:].partition(":")
+    t0, _, t1 = span.partition("-")
+    return int(round_part), float(t0), float(t1)
 
 
 def _finding_row(f: Finding) -> str:

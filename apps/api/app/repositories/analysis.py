@@ -197,6 +197,19 @@ class AnalysisRepository:
             ).fetchone()
         return MomentExplanation.model_validate(json.loads(row[0])) if row else None
 
+    def explanations(self, match_id: str, player_id: str) -> list[MomentExplanation]:
+        """Every stored text for the match and player (moments, rounds, summary, wrap-up; all languages)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT json FROM explanations WHERE match_id = ? AND player_id = ? ORDER BY target, lang",
+                (match_id, player_id),
+            ).fetchall()
+        return [MomentExplanation.model_validate(json.loads(r[0])) for r in rows]
+
+    def clear_explanations(self, match_id: str, player_id: str) -> None:
+        with self._lock, self._connect() as conn:
+            conn.execute("DELETE FROM explanations WHERE match_id = ? AND player_id = ?", (match_id, player_id))
+
     # --- clip jobs (CS Demo Manager recorder, T40) ---
 
     def queue_clip(
@@ -269,6 +282,17 @@ class AnalysisRepository:
             for mid, n_rounds, _order in sorted(rounds, key=lambda r: r[2])
             if mid != exclude_match_id
         ]
+
+    def coached_players(self) -> list[tuple[str, list[str]]]:
+        """Every player with analysis, and their analysed match ids (oldest first)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT player_id, match_id, MIN(rowid) FROM round_stats GROUP BY player_id, match_id ORDER BY MIN(rowid)"
+            ).fetchall()
+        out: dict[str, list[str]] = {}
+        for pid, mid, _order in rows:
+            out.setdefault(pid, []).append(mid)
+        return list(out.items())
 
     def has_analysis(self, match_id: str, player_id: str) -> bool:
         with self._connect() as conn:

@@ -301,7 +301,14 @@ export type AskEvent =
   | { event: "step"; data: { tool: string; ms: number; error: string | null } }
   | {
       event: "answer";
-      data: { answer: string; citations: string[]; source: "agent" | "template"; verified: boolean };
+      data: {
+        answer: string;
+        citations: string[];
+        source: "agent" | "template";
+        verified: boolean;
+        /** Coach page only: cited match ref ("M2") to match id. */
+        matches?: Record<string, string>;
+      };
     }
   | { event: "error"; data: { detail: string } };
 
@@ -437,4 +444,343 @@ export interface EventsPage {
   matchId: string;
   events: ReplayEvent[];
   total: number;
+}
+
+// --- Doc 29 roadmap: Coach page, system status, Lab ---
+
+/** POST /players/{pid}/ask: a question across all the player's matches. Findings come back as "M2:F3". */
+export interface CoachAskRequest {
+  question: string;
+  language?: CoachLanguage;
+}
+
+/** GET /players: someone picked for review in at least one match. */
+export interface CoachedPlayer {
+  id: string;
+  name: string;
+  matches: number;
+  maps: string[];
+}
+
+export interface Features {
+  lab: boolean;
+}
+
+export type SystemCheckName = "llm" | "mcp" | "csdm" | "knowledge" | "traces";
+
+export interface SystemCheck {
+  name: SystemCheckName;
+  /** "off" when disabled in .env, "problem" when on but not working. */
+  state: "ok" | "off" | "problem";
+  detail: string;
+}
+
+/** GET /system */
+export interface SystemStatus {
+  ok: boolean;
+  llmModel: string;
+  servedModels: string[];
+  mcpTools: string[];
+  checks: SystemCheck[];
+}
+
+export interface TraceToolStep {
+  tool: string;
+  args: Record<string, unknown>;
+  resultBytes: number;
+  ms: number;
+  error: string | null;
+}
+
+/** One coach job from data/traces; id is "<date>:<line>". */
+export interface TraceSummary {
+  id: string;
+  ts: string;
+  job: string;
+  matchId: string | null;
+  playerId: string | null;
+  lang: string | null;
+  model: string | null;
+  source: string | null;
+  verifierOk: boolean | null;
+  repaired: boolean;
+  latencyS: number | null;
+  toolCalls: number;
+}
+
+export interface TraceDetail extends TraceSummary {
+  steps: TraceToolStep[];
+  knowledgeIds: string[];
+  verifierErrors: string[];
+  output: string | null;
+  fallback: string | null;
+  record: Record<string, unknown>;
+}
+
+export interface TracePage {
+  items: TraceSummary[];
+  total: number;
+}
+
+// --- Doc 29 roadmap R07–R17 (mirrors apps/api/app/models/contracts.py) ---
+
+/** Studio Notes (R08). */
+export interface Bookmark {
+  id: string; // "b3"
+  round: number;
+  t: number;
+  note: string;
+  createdAt: string;
+}
+
+export interface BookmarkRequest {
+  round: number;
+  t: number;
+  note: string;
+}
+
+/** Coach page Plan (R09). */
+export interface PlanItem {
+  detector: string;
+  label: string;
+  matchesWith: number;
+  matchesTotal: number;
+  /** Per 10 rounds in the last 3 matches; null until there are more than 3. */
+  per10Recent: number | null;
+  per10Before: number | null;
+  example: string | null; // "M2:F3"
+  drillId: string | null;
+  drillTitle: string | null;
+  drillText: string | null;
+  done: boolean;
+  doneAt: string | null;
+}
+
+export interface PracticePlan {
+  playerId: string;
+  lang: CoachLanguage;
+  text: string;
+  citations: string[];
+  source: "agent" | "template";
+  matches: Record<string, string>;
+  items: PlanItem[];
+  createdAt: string;
+}
+
+/** Coach page Knowledge (R12). */
+export interface MapZone {
+  name: string;
+  /** Radar pixel space, 1024 x 1024. */
+  polygons: number[][][];
+}
+
+export interface KnowledgeRow {
+  id: string;
+  title: string;
+  map: string;
+  side: string;
+  topic: string;
+  source: string;
+  text: string;
+  zones: string[];
+  cited: number;
+  flags: string[];
+}
+
+export interface KnowledgeNoteRequest {
+  map: "de_mirage" | "de_anubis";
+  title: string;
+  zones: string[];
+  text: string;
+}
+
+/** Lab Labels (R07): one data/labels JSONL line (T17). */
+export interface LabelVerdict {
+  findingId: string;
+  detector: string;
+  t: number;
+  verdict: "correct" | "wrong" | "unsure";
+  note?: string | null;
+}
+
+export interface MissedEvent {
+  detector: string;
+  t: number;
+  note?: string | null;
+}
+
+export interface RoundLabel {
+  matchId: string;
+  map: string;
+  playerId: string;
+  round: number;
+  labeller: string;
+  labelledAt?: string | null;
+  findings: LabelVerdict[];
+  missed: MissedEvent[];
+}
+
+export interface MomentPickRow {
+  round: number;
+  t0: number;
+  t1: number;
+  kind: "mistake" | "good";
+}
+
+export interface MomentPicks {
+  matchId: string;
+  playerId: string;
+  labeller: string;
+  picks: MomentPickRow[];
+}
+
+export interface PickScore {
+  humanPicks: number;
+  coachPicks: number;
+  overlap: number;
+  overlapAt6: number | null;
+  ndcgAt6: number | null;
+  coachSource: "ranker" | "agent" | null;
+}
+
+export interface LabelScoreRow {
+  correct: number;
+  wrong: number;
+  missed: number;
+  unsure: number;
+  precision: number | null;
+  recall: number | null;
+}
+
+export interface LabelsSummary {
+  labellers: Record<string, number>;
+  rounds: number;
+  tool: boolean;
+  score?: Record<string, LabelScoreRow>;
+  agreement?: { a: string; b: string } & Record<string, unknown>;
+}
+
+/** Lab Evaluation (R10). */
+export interface EvalRow {
+  model: string;
+  job: string;
+  runs: number;
+  verified: number;
+  fallbacks: number;
+  repaired: number;
+  toolCalls: number;
+  toolErrors: number;
+  medianS: number | null;
+  byLang: Record<string, string>;
+}
+
+export interface EvalResultFile {
+  file: string;
+  label: string;
+  model: string | null;
+  summary: Record<string, unknown>;
+}
+
+export interface RatingTally {
+  model: string;
+  wins: number;
+  losses: number;
+  ties: number;
+}
+
+export interface EvalSummary {
+  rows: EvalRow[];
+  results: EvalResultFile[];
+  ratings: RatingTally[];
+}
+
+export interface ABPair {
+  job: string;
+  target: string;
+  lang: string | null;
+  question: string;
+  a: { traceId: string; text: string };
+  b: { traceId: string; text: string };
+}
+
+/** Lab Dataset (R11). */
+export interface DatasetExample {
+  id: string;
+  job: string;
+  lang: string | null;
+  matchId: string | null;
+  split: "train" | "val" | "test";
+  prompt: string;
+  output: string;
+  verdict: "accept" | "edit" | "reject" | null;
+  edited: string | null;
+}
+
+export interface DatasetPage {
+  items: DatasetExample[];
+  total: number;
+  reviewed: number;
+  counts: Record<string, number>;
+}
+
+/** Matches and Progress (R13, R17). */
+export interface MatchRow {
+  id: string;
+  map: string;
+  score: string;
+  when: string;
+  status: MatchStatus;
+  playerId: string | null;
+  playerName: string | null;
+  moments: number;
+  model: string | null;
+  versions: number;
+}
+
+export interface ProgressMatch {
+  ref: string;
+  matchId: string;
+  map: string;
+  when: string;
+  rounds: number;
+}
+
+export interface ProgressDetector {
+  detector: string;
+  kind: string;
+  label: string;
+  counts: number[];
+  per10Recent: number | null;
+  per10Before: number | null;
+}
+
+export interface ProgressZone {
+  map: string;
+  zone: string;
+  deaths: number;
+  examples: string[];
+}
+
+export interface ProgressResponse {
+  playerId: string;
+  matches: ProgressMatch[];
+  detectors: ProgressDetector[];
+  zones: ProgressZone[];
+}
+
+/** "Show a round where you did this well" (R15). */
+export interface GoodExample {
+  id: string; // "M2:F7"
+  matchId: string;
+  findingId: string;
+  round: number;
+  t: number;
+  zone: string | null;
+  summary: string;
+  sameMatch: boolean;
+}
+
+export interface GoodExamples {
+  zone: string | null;
+  items: GoodExample[];
 }

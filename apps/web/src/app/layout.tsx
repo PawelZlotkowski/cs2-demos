@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { NavLinks } from "@/components/NavLinks";
+import { SystemNotice } from "@/components/SystemNotice";
 import { ThemeSelect, themeBootScript } from "@/components/ThemeSelect";
 import "@fontsource/hanken-grotesk/400.css";
 import "@fontsource/hanken-grotesk/500.css";
@@ -11,6 +12,7 @@ import "@fontsource/newsreader/400-italic.css";
 import "@fontsource-variable/archivo/wdth.css";
 import "@/styles/tokens.css";
 import "@/styles/studio.css";
+import "@/styles/pages.css";
 
 export const metadata = {
   title: { default: "Round Reviewer", template: "%s · Round Reviewer" },
@@ -42,7 +44,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             {/* Studio portals the loaded match summary in here. */}
             <div className="bar-match" id="bar-match" />
             <div className="spacer" />
+            <SystemNotice />
             <ThemeSelect />
+            <Link href="/settings" className="bar-link hide-s">
+              Settings
+            </Link>
             <Link href="/upload" className="btn btn-line">
               <span className="hide-s">Add match</span>
               <span className="show-s">Add</span>

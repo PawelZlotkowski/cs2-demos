@@ -131,6 +131,24 @@ Pydantic only in `contracts.py`; the TypeScript mirror is left for the UI tasks 
 - **Storage:** SQLite `explanations` (match, player, target, lang). The agent's picks replace the ranker's rows in `moments` (`source: agent`) and clear the moment explanations.
 - **Routes:** `GET /matches/{id}/players/{pid}/moments/{mid}/explanation?lang=`, `POST …/rounds/{n}/explain` (`?refresh=true` to rewrite), `POST …/ask` (server-sent events: `step` per tool call, then one `answer` `{answer, citations, source, verified}`; `error` on failure). The legacy mocked `POST /matches/{id}/coach` is unchanged.
 
+### Migration note (doc 29: R01, R03, R05, 27 Sep 2026)
+
+Pydantic in `contracts.py`, mirrored in `apps/web/src/lib/contracts/` (also `CoachedPlayer` for `GET /players` and `Features` for `GET /features`).
+
+- **New:** `SystemStatus` (`ok`, `llmModel`, `servedModels`, `mcpTools`, `checks`) with `SystemCheck` (`name` = `llm` | `mcp` | `csdm` | `knowledge` | `traces`, `state` = `ok` | `off` | `problem`, `detail`). `TracePage` (`items`, `total`) of `TraceSummary` (`id` = `<date>:<line>`, `ts`, `job`, `matchId`, `playerId`, `lang`, `model`, `source`, `verifierOk`, `repaired`, `latencyS`, `toolCalls`); `TraceDetail` adds `steps` (`tool`, `args`, `resultBytes`, `ms`, `error`), `knowledgeIds`, `verifierErrors`, `output`, `fallback` and the raw `record`. `CoachAskRequest` (`question`, `language`).
+- **Citations:** a finding from another match is cited as `M2:F3`: the match ref from `list_matches` (`M1` is the player's oldest analysed match) and the finding id in that match.
+- **Routes:** `GET /system`; `GET /lab/traces?job=&matchId=&source=&limit=&offset=` and `GET /lab/traces/{id}` (404 unless `RR_LAB_ENABLED`); `POST /players/{pid}/ask` (same events as the Ask tab; the `answer` event adds `matches`, cited ref to match id).
+- **MCP tools:** `list_matches(player_id, map?)` and `find_moments(player_id, detector?, kind?, zone?, map?, limit?)`.
+
+### Migration note (doc 29: R04, R07–R18, 27 Sep 2026)
+
+All in `contracts.py` and mirrored in `apps/web/src/lib/contracts/`; routes in `apps/api/app/api/roadmap.py`.
+
+- **Studio:** `Bookmark` (`id` = `b<n>`, `round`, `t`, `note`, `createdAt`) via `GET`/`POST /matches/{id}/bookmarks` and `DELETE …/bookmarks/{bid}`; `POST /matches/{id}/players/{pid}/bookmarks/{bid}/explain` returns a `MomentExplanation` whose `target` is the window `w<round>:<t0>-<t1>` (6 s before the note to 4 s after). `GoodExamples` (`zone`, `items` of `GoodExample`: `id` = `M2:F7`, `matchId`, `findingId`, `round`, `t`, `zone`, `summary`, `sameMatch`) from `GET …/findings/{fid}/done-well`. `GET …/clips/{cid}.mp4?download=1` names the file after map, player, round, what happened and time.
+- **Coach page:** `PracticePlan` (`playerId`, `lang`, `text`, `citations`, `source`, `matches`, `items`, `createdAt`) of `PlanItem` (`detector`, `label`, `matchesWith`, `matchesTotal`, `per10Recent`, `per10Before`, `example`, `drillId`, `drillTitle`, `drillText`, `done`, `doneAt`): `GET`/`POST /players/{pid}/plan?lang=`, `PUT /players/{pid}/plan/{detector}` (`{done}`). `KnowledgeRow` (passage fields plus `zones`, `cited`, `flags`) from `GET /knowledge?map=&zone=&q=`; `MapZone` (`name`, `polygons` in radar pixels) from `GET /maps/{map}/zones`; `POST /knowledge/{id}/flag` (`{note}`); `POST /knowledge/notes` (`KnowledgeNoteRequest`, Lab only).
+- **Matches, Progress:** `MatchRow` (`id`, `map`, `score`, `when`, `status`, `playerId`, `playerName`, `moments`, `model`, `versions`) from `GET /matches`; `POST /matches/{id}/rerun` (`{language}`) keeps the old moments and explanations (`GET /matches/{id}/versions`) and runs the pipeline again. `ProgressResponse` (`matches` of `ProgressMatch`, `detectors` of `ProgressDetector` with one count per match, `zones` of `ProgressZone` with deaths and `M2:F3` examples) from `GET /players/{pid}/progress`.
+- **Lab** (404 unless `RR_LAB_ENABLED`): `RoundLabel` is exactly a `data/labels` JSONL line (`LabelVerdict`, `MissedEvent`), `PUT /lab/labels`, `GET /lab/labels/{mid}/{pid}?labeller=`, `GET /lab/labels/summary?a=&b=`; `MomentPicks` (`MomentPickRow` up to 6) via `PUT /lab/picks`, `GET /lab/picks/{mid}/{pid}?labeller=` (the score appears only once picks are saved); `GET /lab/bookmarks`. `EvalSummary` (`rows` of `EvalRow` per model and job, `results` of `EvalResultFile`, `ratings` of `RatingTally`) from `GET /lab/eval`; `ABPair` from `GET /lab/eval/pair`, `POST /lab/eval/rate` (`ABRatingRequest`). `DatasetPage` of `DatasetExample` from `GET /lab/dataset?job=&pending=`, `PUT /lab/dataset/{id}` (`DatasetReviewRequest`), `POST /lab/dataset/export`.
+
 According to project history, `cs2coach` detectors emit evidence-linked findings with IDs such as `F12` in `report.json`. Their exact schema is **unknown** (not inspected). Minimum needs of this UI:
 
 ```ts
