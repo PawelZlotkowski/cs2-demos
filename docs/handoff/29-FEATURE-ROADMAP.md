@@ -153,15 +153,15 @@ Same format as [TASKS](../coach/TASKS.md). Pawel assigns them.
 | Before | Tasks | Why |
 |---|---|---|
 | 4 Oct (proposal) | none to build; mention the Coach page and the Lab in the proposal's plan | Graders see the techniques mapped to screens early |
-| 17 Nov (defence) | R00, R01, sample match (4.3), R02, R03, R04, R05, R06, alongside A00–A08 | A demo that shows the agent working across matches, the trace behind it, and a stable setup |
+| 17 Nov (defence) | R00, R01, sample match (4.3), R02, R03, R05, R06, then R04, alongside A00–A08 | A demo that shows the agent working across matches, the trace behind it, and a stable setup |
 | User study | R07, R08, R09, with A09, A10, A13 | Labels and study data come out of the app |
 | 6 Dec (hand-in) | R10–R17, with A11, A12 | Evaluation and fine-tuning results visible in the app |
 | Later | R18, A14 | |
 
 R02 depends on PR #21, since the new pages should use the Tactical Desk system from the start. Everything under `apps/web` waits for the thread that owns it, or for Pawel to hand it over.
 
-## 8. Questions for Pawel
+## 8. Decisions (owner, 27 September 2026)
 
-1. **Lab inside the app** (recommended) or keep labelling and evaluation as scripts? The Lab costs about a week but saves time on T17, T51, T61 and T62 and demos well.
-2. **Coach as its own page** (recommended) or only the ask bar on Home? The page is where cross-match Ask and the practice plan live.
-3. **Round tab before or after the Coach page?** Recommended after R05 and R06, because the Coach page adds more to the grade; the Round tab adds more for players.
+1. **The Lab is built in the app** ([19](./19-DECISIONS.md) #25).
+2. **The Coach gets its own page** (#26).
+3. **The Round tab comes after the Coach page** (#27), so R04 moves after R05 and R06 in the defence batch.
