@@ -1,6 +1,6 @@
 # 26 Design polish plan
 
-Date: 27 September 2026. Baseline: branch `claude/coach-pov-clips-klj78o` (draft PR #8). Plan only; no app code changed.
+Date: 27 September 2026, UI check added the same day. Baseline: branch `development` (everything in `main` plus the POV clips). Plan only; no app code changed.
 
 Related: [03 Design system](./03-DESIGN-SYSTEM.md), [04 Anti-AI rules](./04-ANTI-AI-DESIGN-RULES.md), [05 Analysis Studio](./05-ANALYSIS-STUDIO.md), [09 AI Coach](./09-AI-COACH.md), [14 Responsive](./14-RESPONSIVE-BEHAVIOR.md), [19 Decisions](./19-DECISIONS.md), [25 Frontend review](./25-FRONTEND-REVIEW.md), [AI Coach plan](../coach/AI-COACH-PLAN.md).
 
@@ -48,6 +48,36 @@ Seen in `docs/coach/screenshots/` and the project's `coach-ui/` screenshots (144
 
 The common thread: review tools lead with a summary, turn the summary into a list of time-linked chapters, and make every chapter seek the media. Our moment rail is already that list; it needs a summary above it and an ending below it.
 
+## UI check, 27 September 2026
+
+A hands-on pass over the `development` branch (everything in `main` plus the POV clips), with the coach model off and CS Demo Manager off. It used a synthetic Mirage match with two rounds (the one the API tests use), clicked through every screen at 1440, 1024 and 390 px wide, and tried the error paths. Screenshots are in [`screenshots/ui-check-2026-09-27/`](./screenshots/ui-check-2026-09-27/).
+
+What works: upload rejects a wrong file with a clear fix; the picker works from the keyboard (Enter picks and opens the Studio); moments, rounds, the clock, the Coach lane, the language switch and the citation links all respond; the Ask tab shows three moment-specific questions.
+
+What the check found, most serious first. Each row names the plan item it belongs to.
+
+| # | Where | What happens | Fix | Item |
+|---|---|---|---|---|
+| U1 | Upload | The box says "Drop a demo here" but has no drop handler, so dropping a file does nothing (`app/upload/page.tsx`) | Handle `dragover`/`drop`, highlight the box while a file is over it | 1 |
+| U2 | Upload | A 150–300 MB demo shows only "Uploading…" with no progress or size | Show the file name, size and a real byte progress bar (XHR upload progress) | 6 |
+| U3 | Studio stage | With clips off, a notice with an environment variable ("set RR_CSDM_ENABLED=1 on the Windows host") covers the top-right of the radar, including a player label | Move it off the stage into the Gameplay button's tooltip, in plain words: "Clips are off on this computer" | 1, 5 |
+| U4 | Analysis tab | The pinned "Ask about this round" block takes the lower quarter of the panel, so the round stats (damage, utility, equipment) and the Next moment link are cut off at 1440 × 900 | Keep the Ask block only in the Ask tab | 1, 3 |
+| U5 | Ask tab | Above the pinned questions the panel is empty (about 550 px of blank space) | Put the suggested questions and input at the top; the answers thread grows below | 8 |
+| U6 | Studio, missing match | `/studio/<unknown id>` renders the full Studio chrome with "0 rounds", "Pick a round" and a 0:00.0 clock | A plain page: "This match isn't here. It may have been deleted." with Add demo and Home | 11 |
+| U7 | Processing, missing match | Heading "Processing", the developer line "Real stages only. Counts appear when they exist." and "Match not found." with no way back | Same not-found page as U6 | 1, 11 |
+| U8 | Any unknown URL | Next.js default 404 on a white background, out of the design | Add `app/not-found.tsx` in the Studio style | 11 |
+| U9 | Home | Still says "Review a match on Radar", mentions a "shared playback clock", and says the sample match has no Radar positions, so use a real upload | New Home per item 7; until then, rewrite the copy to describe the coach flow | 1, 7 |
+| U10 | Studio rail | "1 moments" when one moment is picked | Plural rule | 1 |
+| U11 | Coach lane | "Untraded death +2" and "Shot while moving +2" read as a score | "Untraded death and 2 more" | 1 |
+| U12 | Rounds list | Round rows use a grey ▲ for T wins and ● for CT wins, the same shapes that mean mistake and good play elsewhere ([19](./19-DECISIONS.md) #4) | Use side letters (T, CT) or a filled/outlined square for win or loss | 1 |
+| U13 | Timeline | Lanes appear and disappear per round (round 1 has Team and Utility, round 2 has Bomb), so the rows jump when switching | Keep a fixed lane set and show an empty lane quietly | 9 |
+| U14 | Coach text | "Died to P1 in Window 0 s after first contact" | Say "immediately after first contact" under 0.5 s (template change in `coach/templates/`) | 1 |
+| U15 | Tablet and phone | At 1024 the moment labels truncate ("Shot while mov…"); at 390 the explanation sits behind an Analysis button and half the screen below the timeline is empty; the Gameplay/Radar switch wraps to its own row | Bottom sheet per item 10 | 10 |
+| U16 | Every page | Hanken Grotesk and Newsreader fail to load when Google Fonts is unreachable (confirmed: font requests failed in the check), so the whole app renders in the system sans | Self-host the fonts | 1 |
+| U17 | Every page | Tabs all read "Round Reviewer"; there is no favicon | Per-page titles | 11 |
+
+Not checked: the Gameplay view with a real clip (CS Demo Manager needs Windows and CS2) and the Ask tab with the model on. Both need Pawel's PC.
+
 ## Recommendations, ordered by impact
 
 Each item lists what it touches. "API" means `apps/api`; web paths are under `apps/web/src/`.
@@ -77,7 +107,7 @@ Touches `app/studio/[matchId]/page.tsx` (overview state), a new `components/repl
 
 ### 3. A review with a beginning, middle and end
 
-- **Progress in the rail**: "Moment 2 of 6" with the seen state already tracked ("1 of 2 seen"); make it a clear step list, and add **Next moment** (`N` key and a line button under the explanation).
+- **Progress in the rail**: "Moment 2 of 6" with the seen state already tracked ("1 of 2 seen"); make it a clear step list. A "Next moment" link already exists at the bottom of the Analysis tab, but at 1440 × 900 it sits below the fold behind the pinned Ask block (U4 in the UI check above). Move it under the explanation as a line button and add the `N` key.
 - **Moment playback**: selecting a moment seeks to the clip start (moment minus 3 s), plays the POV clip once, and pauses on the key tick with the annotation up. The picked window already exists (PR #8).
 - **End of review**: after the last moment, the panel shows a short wrap-up: what went well, what to fix, and one concrete drill per mistake type (Refrag's "practice this next" pattern), sourced from the knowledge base with `[K..]` citations. Then "Analyse another round" and "Add demo".
 - **Deep links**: `?m=<moment id>&t=<time>` in the URL so a moment can be sent to a teammate or opened straight into during the demo.
@@ -168,7 +198,7 @@ The docs never settled the older olive-dark style (chartreuse accent, Big Should
 
 | When | Items |
 |---|---|
-| Before the intermediary defence (17 Nov) | 1, 2, 3, 4, 6, sample match from 7 |
+| Before the intermediary defence (17 Nov) | U1 to U17 that belong to item 1, then 2, 3, 4, 6, sample match from 7 |
 | Before the prototype hand-in (6 Dec) | 5, rest of 7, 8, 9, 10 |
 | If time allows | 11 |
 
