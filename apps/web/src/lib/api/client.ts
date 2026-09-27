@@ -70,7 +70,7 @@ export const api = {
       xhr.onload = () => {
         const body = xhr.response as (UploadResponse & { detail?: string }) | null;
         if (xhr.status >= 200 && xhr.status < 300 && body) resolve(body);
-        else reject(new Error(body?.detail ?? (xhr.statusText || "Upload failed.")));
+        else reject(new Error(body?.detail ?? (xhr.statusText || "Unable to upload the demo. Check it is a .dem or .dem.zst file and try again.")));
       };
       xhr.onerror = () => reject(new Error("The upload stopped. Check that the API is running."));
       xhr.send(form);

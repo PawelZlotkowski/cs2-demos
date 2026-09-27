@@ -1,35 +1,54 @@
-/* Analysis Studio tokens — aligned to prototype/analysis-studio.html + docs/handoff/03 */
+/* Tactical Desk tokens (docs/handoff/28-VISUAL-DIRECTION.md). Colour carries one meaning each:
+   mistake (orange, triangle), good play (blue, circle), and on the stage enemy (red), team (slate), you (white). */
 
 :root {
-  --surface-page: #e8ebee;
-  --surface-panel: #f5f6f7;
+  --surface-page: #eceff1;
+  --surface-panel: #f6f7f8;
   --surface-raised: #ffffff;
-  --text: #15181c;
-  --text-2: #3f4751;
-  --text-3: #59616b;
-  --border: #d0d5da;
-  --border-soft: #e0e4e8;
-  --negative: #b04512;
-  --negative-soft: rgba(176, 69, 18, 0.1);
-  --positive: #2a52d6;
-  --focus-ring: #15181c;
+  --surface-sunk: #e2e6e9;
+  --text: #111417;
+  --text-2: #3c4550;
+  --text-3: #5a6470;
+  --border: #d4d9dd;
+  --border-soft: #e3e7ea;
+  --negative: #b4470f;
+  --negative-soft: rgba(180, 71, 15, 0.1);
+  --positive: #2851d8;
+  --positive-soft: rgba(40, 81, 216, 0.09);
+  --mistake: var(--negative);
+  --mistake-soft: var(--negative-soft);
+  --good: var(--positive);
+  --good-soft: var(--positive-soft);
+  /* Enemy players off the stage too (fight graph), in a shade that holds contrast on the chrome. */
+  --enemy: #c42b45;
+  --focus-ring: #111417;
 
-  --stage: #0f1214;
+  /* The stage is dark in both themes. */
+  --stage: #0a0c0e;
+  --stage-plate: rgba(10, 12, 14, 0.88);
   --stage-line: #2a3137;
   --stage-text: #eef1f3;
   --stage-text-2: #a6aeb6;
-  --stage-pos: #8fa9ff;
-  --stage-neg: #f28c4c;
+  --stage-pos: #86a8ff;
+  --stage-neg: #ff8a3d;
+  --stage-enemy: #ff5f73;
+  --stage-team: #b9c4ce;
+  --stage-you: #ffffff;
+  --stage-halo: rgba(8, 10, 12, 0.82);
+  --stage-enemy-text: #ff9aa8;
+  --stage-team-text: #c9d2da;
 
   --ui: "Hanken Grotesk", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --serif: "Newsreader", Georgia, "Times New Roman", serif;
+  /* Condensed numerals for game data only: score, round, clock, man advantage, moment numbers. */
+  --display: "Archivo Variable", "Arial Narrow", "Hanken Grotesk", sans-serif;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 
-  --r-ctl: 4px;
-  --r-panel: 6px;
-  --bar: 44px;
+  --r-ctl: 2px;
+  --r-panel: 4px;
+  --bar: 48px;
   --lane-h: 22px;
 
   --fs-11: 11px;
@@ -44,21 +63,23 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  /* No choice stored: the chrome follows the system setting. The stage is dark in both themes. */
+  /* No choice stored: the chrome follows the system setting. */
   :root:not([data-theme="light"]):not([data-theme="dark"]) {
-    --surface-page: #131619;
-    --surface-panel: #1a1e22;
-    --surface-raised: #21262b;
-    --text: #e7eaed;
-    --text-2: #b8c0c8;
-    --text-3: #98a1aa;
-    --border: #30373d;
-    --border-soft: #262c31;
-    --negative: #f28c4c;
-    --negative-soft: rgba(242, 140, 76, 0.12);
-    --positive: #8fa9ff;
-    --focus-ring: #e7eaed;
-    --stage: #0a0c0e;
+    --surface-page: #101316;
+    --surface-panel: #15191c;
+    --surface-raised: #1c2125;
+    --surface-sunk: #0c0f11;
+    --text: #eaedf0;
+    --text-2: #aeb6be;
+    --text-3: #8b959f;
+    --border: #262c31;
+    --border-soft: #1e2327;
+    --negative: #ff8a3d;
+    --negative-soft: rgba(255, 138, 61, 0.12);
+    --positive: #86a8ff;
+    --positive-soft: rgba(134, 168, 255, 0.12);
+    --enemy: #ff5f73;
+    --focus-ring: #eaedf0;
   }
 }
 
@@ -68,19 +89,21 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --surface-page: #131619;
-  --surface-panel: #1a1e22;
-  --surface-raised: #21262b;
-  --text: #e7eaed;
-  --text-2: #b8c0c8;
-  --text-3: #98a1aa;
-  --border: #30373d;
-  --border-soft: #262c31;
-  --negative: #f28c4c;
-  --negative-soft: rgba(242, 140, 76, 0.12);
-  --positive: #8fa9ff;
-  --focus-ring: #e7eaed;
-  --stage: #0a0c0e;
+  --surface-page: #101316;
+  --surface-panel: #15191c;
+  --surface-raised: #1c2125;
+  --surface-sunk: #0c0f11;
+  --text: #eaedf0;
+  --text-2: #aeb6be;
+  --text-3: #8b959f;
+  --border: #262c31;
+  --border-soft: #1e2327;
+  --negative: #ff8a3d;
+  --negative-soft: rgba(255, 138, 61, 0.12);
+  --positive: #86a8ff;
+  --positive-soft: rgba(134, 168, 255, 0.12);
+  --enemy: #ff5f73;
+  --focus-ring: #eaedf0;
 }
 
 *,
@@ -102,7 +125,46 @@ body {
   color: var(--text);
   background: var(--surface-page);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   font-variant-numeric: tabular-nums;
+}
+
+/* Browser surfaces carry the palette too: selection, caret, scrollbars. */
+:root {
+  scrollbar-color: var(--border) transparent;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--text) 20%, transparent);
+  color: var(--text);
+}
+
+.stage ::selection {
+  background: rgba(238, 241, 243, 0.28);
+  color: var(--stage-text);
+}
+
+input,
+textarea {
+  caret-color: var(--text);
+}
+
+.skip-link {
+  position: absolute;
+  z-index: 100;
+  inset-block-start: 8px;
+  inset-inline-start: 8px;
+  padding: 8px 12px;
+  border-radius: var(--r-ctl);
+  background: var(--text);
+  color: var(--surface-panel);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus-visible {
+  transform: none;
 }
 
 button,
@@ -118,6 +180,9 @@ button {
 a {
   color: inherit;
   text-decoration-color: var(--border);
+  text-decoration-thickness: from-font;
+  text-underline-position: from-font;
+  text-underline-offset: 0.16em;
 }
 
 a:hover {
@@ -181,44 +246,84 @@ p {
 .topbar {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
   padding: 0 16px;
   height: var(--bar);
   background: var(--surface-panel);
   border-bottom: 1px solid var(--border);
 }
 
+/* Wordmark in the condensed data face: the one place it is used for words. */
 .brand {
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--display);
+  font-stretch: 78%;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   white-space: nowrap;
   text-decoration: none;
-  font-size: var(--fs-14);
+  font-size: 15px;
+}
+
+/* A round's result cell, the product's own geometry: filled = won, outlined = lost. */
+.brand-mark {
+  display: inline-grid;
+  grid-template-columns: repeat(3, 4px);
+  gap: 2px;
+}
+
+.brand-mark i {
+  width: 4px;
+  height: 12px;
+  background: currentColor;
+}
+
+.brand-mark i:nth-child(2) {
+  background: none;
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.brand-mark i:nth-child(3) {
+  background: var(--mistake);
 }
 
 .nav {
   display: flex;
   gap: 2px;
+  align-self: stretch;
 }
 
 .nav a {
-  padding: 5px 9px;
-  border-radius: var(--r-ctl);
-  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  color: var(--text-3);
   text-decoration: none;
+  font-weight: 500;
+  box-shadow: inset 0 -2px 0 transparent;
+  transition: color 120ms var(--ease-out), box-shadow 120ms var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .nav a:hover {
+    color: var(--text);
+  }
 }
 
 .nav a[aria-current="page"] {
   color: var(--text);
-  background: var(--border-soft);
+  box-shadow: inset 0 -2px 0 var(--text);
 }
 
 .bar-match {
   color: var(--text-3);
   font-size: var(--fs-13);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   min-width: 0;
+  flex: 0 1 auto;
 }
 
 .bar-match b {
@@ -256,10 +361,14 @@ p {
     padding: 0 12px;
   }
 
-  .bar-match,
   .hide-s,
   .nav {
     /* The brand already links home, and the Studio is the page you're on. */
+    display: none;
+  }
+
+  /* In the Studio the scorebug takes the wordmark's room; the mark still links home. */
+  .topbar:has(.sb) .brand-text {
     display: none;
   }
 
@@ -383,7 +492,7 @@ h1 {
 
 .upload-bar::-webkit-progress-value {
   background: var(--text);
-  transition: width 120ms linear;
+
 }
 
 .upload-bar::-moz-progress-bar {
