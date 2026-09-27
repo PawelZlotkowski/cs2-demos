@@ -1,22 +1,35 @@
-import MenuBar from './MenuBar';
-import Dock from './Dock';
-import { WindowState, WindowType } from '../App';
-import styles from './Desktop.module.css';
+import { useEffect } from 'react';
+import { useStore } from '../state/store';
+import { AddMatchWindow } from '../windows/AddMatchWindow';
+import { CoachWindow } from '../windows/CoachWindow';
+import { LabWindow } from '../windows/LabWindow';
+import { MatchesWindow } from '../windows/MatchesWindow';
+import { ProgressWindow } from '../windows/ProgressWindow';
+import { SettingsWindow } from '../windows/SettingsWindow';
+import { StudioWindow } from '../windows/StudioWindow';
+import { Dock } from './Dock';
+import { MenuBar } from './MenuBar';
+import { Notices } from './Notices';
 
-interface DesktopProps {
-  windows: WindowState[];
-  openWindow: (id: WindowType) => void;
-  children: React.ReactNode;
-}
+export function Desktop() {
+  const { wins, open, lab } = useStore();
 
-export default function Desktop({ windows, openWindow, children }: DesktopProps) {
+  useEffect(() => {
+    open('matches');
+  }, [open]);
+
   return (
-    <div className={styles.desktop}>
+    <div className="desktop">
       <MenuBar />
-      <div className={styles['windows-container']}>
-        {children}
-      </div>
-      <Dock windows={windows} openWindow={openWindow} />
+      {wins.matches.open ? <MatchesWindow /> : null}
+      {wins.addMatch.open ? <AddMatchWindow /> : null}
+      {wins.studio.open ? <StudioWindow /> : null}
+      {wins.progress.open ? <ProgressWindow /> : null}
+      {wins.coach.open ? <CoachWindow /> : null}
+      {wins.settings.open ? <SettingsWindow /> : null}
+      {lab && wins.lab.open ? <LabWindow /> : null}
+      <Notices />
+      <Dock />
     </div>
   );
 }

@@ -1,72 +1,414 @@
-/* Night ops tokens */
-@import url('https://api.fontshare.com/v2/css?f[]=instrument-sans@400,500,600,700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Fragment+Mono:ital@0;1&display=swap');
+/* Light macOS materials. System faces first; Hanken Grotesk (the repo's UI face) only where no system face exists. */
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
-  --void: #050505;
-  --panel: #0A0A0A;
-  --ink: #F2F2F2;
-  --muted: #666666;
-  --line: #1A1A1A;
-  --accent: #3B6AE8;
-  
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', 'Hanken Grotesk', system-ui, sans-serif;
+  --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --label: rgba(0, 0, 0, 0.86);
+  --label-2: rgba(0, 0, 0, 0.56);
+  --label-3: rgba(0, 0, 0, 0.36);
+  --sep: rgba(0, 0, 0, 0.09);
+  --sep-strong: rgba(0, 0, 0, 0.15);
+  --fill: rgba(0, 0, 0, 0.045);
+  --fill-2: rgba(0, 0, 0, 0.075);
+  --row-alt: rgba(0, 0, 0, 0.022);
+
+  --accent: #007aff;
+  --accent-text: #0062cc;
+  --accent-soft: rgba(0, 122, 255, 0.11);
+  --accent-ring: rgba(0, 122, 255, 0.32);
+  --mistake: #e8850c;
+  --good: #007aff;
+  --ok: #1e8e3e;
+  --off: rgba(0, 0, 0, 0.45);
+  --bad: #c9252c;
+
+  --window: rgba(242, 242, 245, 0.8);
+  --content: rgba(255, 255, 255, 0.93);
+  --sidebar: rgba(232, 232, 237, 0.55);
+  --menubar: rgba(246, 246, 248, 0.7);
+
+  --shadow-focus: 0 0 0 0.5px rgba(0, 0, 0, 0.22), 0 28px 70px -12px rgba(0, 0, 0, 0.32), 0 10px 24px -6px rgba(0, 0, 0, 0.1);
+  --shadow-idle: 0 0 0 0.5px rgba(0, 0, 0, 0.16), 0 12px 34px -10px rgba(0, 0, 0, 0.2);
+  --control-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.16), 0 0.5px 1.5px rgba(0, 0, 0, 0.1);
+
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
-  --duration: 300ms;
-  --stagger: 40ms;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --swap: 300ms;
 }
 
-* {
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
 }
 
 body {
-  font-family: 'Instrument Sans', system-ui, -apple-system, sans-serif;
-  background: var(--void);
-  color: var(--ink);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--label);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  user-select: none;
 }
 
-.mono {
-  font-family: 'Fragment Mono', ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  color: inherit;
 }
 
 button {
-  font: inherit;
-  cursor: pointer;
-  border: none;
+  cursor: default;
+  border: 0;
   background: none;
-  color: inherit;
-  transition: transform var(--duration) var(--ease);
 }
 
-button:active {
-  transform: scale(0.97);
+a {
+  color: var(--accent-text);
+  text-decoration: none;
 }
 
-.button-primary {
-  background: var(--accent);
-  color: var(--ink);
-  padding: 10px 20px;
-  border-radius: 8px;
+.num,
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.mono,
+code,
+pre,
+kbd {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+
+code {
+  background: var(--fill);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.meta {
+  color: var(--label-2);
+}
+
+.err {
+  color: var(--bad);
+}
+
+/* Push buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 11px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: var(--control-shadow);
   font-weight: 500;
+  white-space: nowrap;
+  transition: transform 120ms var(--ease-out), background-color 120ms;
 }
 
-.button-ghost {
-  border: 1px solid var(--accent);
-  padding: 9px 19px;
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+  background: #f2f2f4;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+}
+
+.btn-default {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 0 0.5px rgba(0, 80, 200, 0.5), 0 0.5px 1.5px rgba(0, 60, 160, 0.25);
+}
+
+.btn-default:active:not(:disabled) {
+  background: #0068d9;
+}
+
+.btn-large {
+  height: 30px;
+  padding: 0 16px;
+  font-size: 13.5px;
+}
+
+.link {
+  color: var(--accent-text);
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link:disabled {
+  color: var(--label-3);
+  text-decoration: none;
+}
+
+/* Segmented control with a sliding selection */
+.seg {
+  position: relative;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--fill-2);
+  isolation: isolate;
+}
+
+.seg-pill {
+  position: absolute;
+  z-index: -1;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / var(--n));
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.12);
+  transform: translateX(calc(var(--i) * 100%));
+  transition: transform 260ms var(--ease);
+}
+
+.seg button {
+  height: 22px;
+  padding: 0 12px;
+  border-radius: 5px;
+  font-weight: 500;
+  color: var(--label-2);
+  white-space: nowrap;
+  transition: color 160ms;
+}
+
+.seg button[aria-pressed='true'] {
+  color: var(--label);
+}
+
+.seg button:disabled {
+  color: var(--label-3);
+}
+
+/* Fields */
+.field,
+.select,
+textarea.field {
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.2), inset 0 0.5px 1px rgba(0, 0, 0, 0.06);
+  outline: none;
+  user-select: text;
+  transition: box-shadow 140ms;
+}
+
+textarea.field {
+  height: auto;
+  padding: 6px 8px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.field:focus,
+.select:focus {
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.2), 0 0 0 3.5px var(--accent-ring);
+}
+
+.select {
+  padding-right: 4px;
+}
+
+input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+  vertical-align: -2px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+/* Finder-style list tables */
+.table-wrap {
   border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+table.data th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 11.5px;
+  color: var(--label-2);
+  padding: 6px 10px;
+  border-bottom: 0.5px solid var(--sep-strong);
+  background: rgba(250, 250, 252, 0.96);
+  white-space: nowrap;
+}
+
+table.data td {
+  padding: 6px 10px;
+  vertical-align: middle;
+}
+
+table.data tbody tr:nth-child(even) td,
+table.data tbody tr:nth-child(even) th {
+  background: var(--row-alt);
+}
+
+table.data tbody tr[aria-selected='true'] td {
+  background: var(--accent-soft);
+}
+
+table.data .n {
+  text-align: right;
+}
+
+.row-open {
+  color: var(--label);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.row-open:hover {
+  color: var(--accent-text);
+}
+
+/* Finding glyphs: orange triangle for a mistake, blue circle for a good play (decision 4) */
+.g {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  flex: none;
+}
+
+.g-mistake {
+  background: var(--mistake);
+  clip-path: polygon(50% 4%, 100% 96%, 0 96%);
+}
+
+.g-strength {
+  background: var(--good);
+  border-radius: 50%;
+}
+
+.g-round {
+  border: 1.5px solid var(--label-3);
+  border-radius: 2px;
+}
+
+.cite {
+  display: inline;
+  padding: 0 3px;
+  margin: 0 1px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cite:hover {
+  background: rgba(0, 122, 255, 0.2);
+}
+
+.cite-plain {
+  cursor: default;
+  background: var(--fill);
+  color: var(--label-2);
+}
+
+.k-passage {
+  display: block;
+  margin: 8px 0 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--fill);
+  font-size: 12.5px;
+}
+
+.k-passage b {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.k-passage .meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+}
+
+.thinking::after {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-left: 6px;
+  vertical-align: -1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--label-3);
+  border-top-color: transparent;
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
+    animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 1ms !important;
   }
 }

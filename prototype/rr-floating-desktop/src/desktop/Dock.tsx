@@ -1,73 +1,52 @@
-import { WindowType, WindowState } from '../App';
-import styles from './Dock.module.css';
+import { useState } from 'react';
+import { WIN_TITLE, useStore, type WinId } from '../state/store';
+import { AppIcon } from '../ui/icons';
 
-interface DockProps {
-  windows: WindowState[];
-  openWindow: (id: WindowType) => void;
-}
+export function Dock() {
+  const s = useStore();
+  const [launching, setLaunching] = useState<WinId | null>(null);
 
-export default function Dock({ windows, openWindow }: DockProps) {
-  const dockItems: { id: WindowType; label: string; icon: JSX.Element }[] = [
-    {
-      id: 'matches',
-      label: 'Matches',
-      icon: (
-        <svg className={styles['dock-icon']} viewBox="0 0 24 24">
-          <rect x="3" y="3" width="18" height="18" rx="2" />
-          <line x1="3" y1="9" x2="21" y2="9" />
-          <line x1="9" y1="21" x2="9" y2="9" />
-        </svg>
-      )
-    },
-    {
-      id: 'analysis',
-      label: 'Analysis',
-      icon: (
-        <svg className={styles['dock-icon']} viewBox="0 0 24 24">
-          <line x1="12" y1="20" x2="12" y2="10" />
-          <line x1="18" y1="20" x2="18" y2="4" />
-          <line x1="6" y1="20" x2="6" y2="16" />
-        </svg>
-      )
-    },
-    {
-      id: 'coach',
-      label: 'Coach',
-      icon: (
-        <svg className={styles['dock-icon']} viewBox="0 0 24 24">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-      )
-    },
-    {
-      id: 'drills',
-      label: 'Drills',
-      icon: (
-        <svg className={styles['dock-icon']} viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 6v6l4 2" />
-        </svg>
-      )
+  const apps: WinId[] = ['matches', 'studio', 'progress', 'coach'];
+  const system: WinId[] = ['settings', ...(s.lab ? (['lab'] as WinId[]) : [])];
+  const transient: WinId[] = s.wins.addMatch.open ? ['addMatch'] : [];
+  const minimized = (Object.keys(WIN_TITLE) as WinId[]).filter((id) => s.wins[id].open && s.wins[id].minimized);
+
+  function launch(id: WinId) {
+    if (!s.wins[id].open) {
+      setLaunching(id);
+      window.setTimeout(() => setLaunching((l) => (l === id ? null : l)), 560);
     }
-  ];
+    s.open(id);
+  }
+
+  const item = (id: WinId) => (
+    <button
+      key={id}
+      type="button"
+      className={`dock-item${launching === id ? ' launch' : ''}`}
+      aria-label={WIN_TITLE[id]}
+      onClick={() => launch(id)}
+    >
+      <AppIcon id={id} />
+      <span className="tip">{WIN_TITLE[id]}</span>
+      {s.wins[id].open ? <span className="run" aria-hidden /> : null}
+    </button>
+  );
 
   return (
-    <div className={styles.dock}>
-      {dockItems.map(item => {
-        const windowState = windows.find(w => w.id === item.id);
-        const isActive = windowState?.isOpen && !windowState?.isMinimized;
-        
-        return (
-          <button
-            key={item.id}
-            className={`${styles['dock-item']} ${isActive ? styles.active : ''}`}
-            onClick={() => openWindow(item.id)}
-            aria-label={item.label}
-          >
-            {item.icon}
-          </button>
-        );
-      })}
-    </div>
+    <nav className="dock" aria-label="Dock">
+      {apps.map(item)}
+      {transient.map(item)}
+      <span className="dock-sep" aria-hidden />
+      {system.map(item)}
+      {minimized.length ? <span className="dock-sep" aria-hidden /> : null}
+      {minimized.map((id) => (
+        <button key={`min-${id}`} type="button" className="dock-item mini" aria-label={`Restore ${WIN_TITLE[id]}`} onClick={() => s.open(id)}>
+          <AppIcon id={id} size={22} />
+          <span className="mini-t">{WIN_TITLE[id]}</span>
+          <span className="tip">{WIN_TITLE[id]}, minimised</span>
+        </button>
+      ))}
+    </nav>
   );
 }
