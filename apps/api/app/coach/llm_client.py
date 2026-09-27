@@ -12,6 +12,10 @@ system is self-hosted by decision.
   when the server runs with ``--reasoning-format deepseek``, or inline as
   ``<think>...</think>``; both are split off here.
 - Streaming: ``stream_chat`` yields text deltas (Ask tab over SSE).
+- Sampling: per model family (``SAMPLING_PROFILES``), picked from the model
+  name or ``RR_LLM_SAMPLING``, with ``RR_LLM_TEMPERATURE`` / ``TOP_P`` /
+  ``TOP_K`` / ``MIN_P`` overrides, so models are compared on their own
+  recommended settings (docs/coach/MODEL-OPTIONS.md).
 
 ``MockLLMClient`` replays scripted responses so tests need no GPU.
 """
@@ -30,6 +34,38 @@ import httpx
 from app.core.config import settings
 
 THINK_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL)
+
+
+# Model cards' recommended sampling, (non-thinking, thinking). Qwen3 keeps the
+# values the 26 Sep baseline ran with.
+SAMPLING_PROFILES: dict[str, tuple[dict[str, float], dict[str, float]]] = {
+    "qwen3": ({"temperature": 0.7, "top_p": 0.8}, {"temperature": 0.6, "top_p": 0.95}),
+    "gemma": (
+        {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+        {"temperature": 1.0, "top_p": 0.95, "top_k": 64},
+    ),
+    "ministral": ({"temperature": 0.05}, {"temperature": 0.05}),
+    "gpt-oss": ({"temperature": 1.0, "top_p": 1.0}, {"temperature": 1.0, "top_p": 1.0}),
+}
+
+
+def sampling_profile(model: str, name: str = "auto") -> str:
+    """The profile for ``name``, or the one whose family appears in the model name."""
+    if name != "auto":
+        if name not in SAMPLING_PROFILES:
+            raise ValueError(f"Unknown sampling profile {name!r}. Use auto or one of: {', '.join(SAMPLING_PROFILES)}.")
+        return name
+    lowered = model.lower()
+    for family in ("gemma", "ministral", "gpt-oss"):
+        if family in lowered:
+            return family
+    return "qwen3"
+
+
+def sampling_for(profile: str, thinking: bool, overrides: dict[str, float | None] | None = None) -> dict[str, float]:
+    values = dict(SAMPLING_PROFILES[profile][1 if thinking else 0])
+    values.update({k: v for k, v in (overrides or {}).items() if v is not None})
+    return values
 
 
 class LLMError(RuntimeError):
@@ -120,9 +156,22 @@ class LLMClient:
         model: str | None = None,
         timeout_s: float | None = None,
         transport: httpx.BaseTransport | None = None,
+        sampling: str | None = None,
+        sampling_overrides: dict[str, float | None] | None = None,
     ) -> None:
         self.base_url = (base_url or settings.llm_base_url).rstrip("/")
         self.model = model or settings.llm_model
+        self.sampling = sampling_profile(self.model, sampling or settings.llm_sampling)
+        self.sampling_overrides = (
+            sampling_overrides
+            if sampling_overrides is not None
+            else {
+                "temperature": settings.llm_temperature,
+                "top_p": settings.llm_top_p,
+                "top_k": settings.llm_top_k,
+                "min_p": settings.llm_min_p,
+            }
+        )
         self._http = httpx.Client(timeout=timeout_s or settings.llm_timeout_seconds, transport=transport)
 
     def close(self) -> None:
@@ -149,10 +198,10 @@ class LLMClient:
             "model": self.model,
             "messages": messages,
             "chat_template_kwargs": {"enable_thinking": thinking},
-            # Qwen3 recommended sampling: thinking 0.6 / 0.95, non-thinking 0.7 / 0.8
-            "temperature": temperature if temperature is not None else (0.6 if thinking else 0.7),
-            "top_p": 0.95 if thinking else 0.8,
+            **sampling_for(self.sampling, thinking, self.sampling_overrides),
         }
+        if temperature is not None:
+            payload["temperature"] = temperature
         if max_tokens:
             payload["max_tokens"] = max_tokens
         payload.update({k: v for k, v in extra.items() if v is not None})
