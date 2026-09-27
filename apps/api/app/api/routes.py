@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
@@ -345,7 +346,8 @@ def list_player_clips(match_id: str, player_id: str) -> list[MomentClip]:
 
 
 @router.get("/matches/{match_id}/players/{player_id}/clips/{clip_id}.mp4")
-def stream_player_clip(match_id: str, player_id: str, clip_id: str) -> FileResponse:
+def stream_player_clip(match_id: str, player_id: str, clip_id: str, download: bool = False) -> FileResponse:
+    """The clip; ``?download=1`` saves it under the moment's label (doc 29 R16)."""
     _require_analysis(match_id, player_id)
     clip = next((c for c in list_moment_clips(match_id, player_id) if c.id == clip_id), None)
     if not clip or clip.status != "ready":
@@ -353,8 +355,26 @@ def stream_player_clip(match_id: str, player_id: str, clip_id: str) -> FileRespo
     return FileResponse(
         moment_clip_file(match_id, clip_id),
         media_type="video/mp4",
-        filename=f"{match_id}-{clip_id}.mp4",
+        filename=clip_download_name(match_id, player_id, clip) if download else f"{match_id}-{clip_id}.mp4",
+        content_disposition_type="attachment" if download else "inline",
     )
+
+
+def clip_download_name(match_id: str, player_id: str, clip: MomentClip) -> str:
+    """"mirage-alex-round-7-dry-peek-0-42.mp4": map, player, round, what happened, round clock."""
+    record = repo.get(match_id) or {}
+    match = record.get("match") or {}
+    player = next((p.get("name") for p in match.get("players") or [] if p.get("id") == player_id), None)
+    what = None
+    if clip.moment_id:
+        moment = next((m for m in repo.analysis.moments(match_id, player_id) if m.id == clip.moment_id), None)
+        by_id = {f.id: f for f in repo.analysis.findings(match_id, player_id)}
+        lead = next((by_id[i] for i in (moment.finding_ids if moment else []) if i in by_id), None)
+        what = (lead.evidence.get("play") if lead and lead.kind == "good" else lead.detector) if lead else None
+    t = int(clip.t0)
+    parts = [match.get("map"), player, f"round {clip.round}", what, f"{t // 60}-{t % 60:02d}"]
+    slug = "-".join(re.sub(r"[^a-z0-9]+", "-", str(p).lower()).strip("-") for p in parts if p)
+    return f"{slug or clip.id}.mp4"
 
 
 @router.post("/matches/{match_id}/players/{player_id}/clips/{clip_id}/retry", response_model=MomentClip)

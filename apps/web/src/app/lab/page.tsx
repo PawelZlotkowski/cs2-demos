@@ -2,8 +2,31 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { DatasetTab } from "@/components/lab/DatasetTab";
+import { EvalTab } from "@/components/lab/EvalTab";
+import { LabelsTab } from "@/components/lab/LabelsTab";
 import { api } from "@/lib/api/client";
 import type { TraceDetail, TracePage } from "@/lib/contracts";
+import { useHashTab } from "@/lib/useHashTab";
+
+const TABS = [
+  { id: "runs", label: "Runs" },
+  { id: "labels", label: "Labels" },
+  { id: "evaluation", label: "Evaluation" },
+  { id: "dataset", label: "Dataset" },
+] as const;
+type Tab = (typeof TABS)[number]["id"];
+const TAB_IDS = TABS.map((t) => t.id);
+
+const LEDES: Record<Tab, string> = {
+  runs: "Every coach run on this computer: which tools the model called, which passages it read, and whether its text passed the verifier.",
+  labels:
+    "Mark each finding right or wrong, add what the detectors missed, and pick your own six moments without seeing the coach's. Saved in the data/labels format.",
+  evaluation:
+    "Each model's runs from the traces, the compare_models results, and a blind vote between two models' answers to the same question.",
+  dataset:
+    "Coach runs that passed the verifier on the first try, one at a time. Accepted and edited ones become the fine-tuning set.",
+};
 
 const JOBS: { id: string; label: string }[] = [
   { id: "", label: "All jobs" },
@@ -13,6 +36,7 @@ const JOBS: { id: string; label: string }[] = [
   { id: "wrapup", label: "Wrap-up" },
   { id: "ask", label: "Ask tab" },
   { id: "ask_across", label: "Coach page" },
+  { id: "practice_plan", label: "Practice plan" },
 ];
 
 const SOURCES: { id: string; label: string }[] = [
@@ -35,9 +59,62 @@ function jobLabel(job: string): string {
   return JOBS.find((j) => j.id === job)?.label ?? job;
 }
 
-/** Lab, Runs: every coach job with its tool calls, passages and verifier verdict (doc 29 §2.2, R03). */
+/** Lab: Runs (R03), Labels (R07), Evaluation (R10), Dataset (R11); doc 29 §2.2. */
 export default function LabPage() {
+  const [tab, setTab] = useHashTab<Tab>(TAB_IDS, "runs");
+  const [off, setOff] = useState(false);
+
+  useEffect(() => {
+    api
+      .features()
+      .then((f) => setOff(!f.lab))
+      .catch(() => undefined);
+  }, []);
+
+  return (
+    <main className="main wide" id="content">
+      <header className="page-h">
+        <div>
+          <h1>Lab</h1>
+          <p className="lede">{LEDES[tab]}</p>
+        </div>
+      </header>
+      <nav className="subtabs" aria-label="Lab">
+        {TABS.map((t) => (
+          <a
+            key={t.id}
+            href={`#${t.id}`}
+            aria-current={tab === t.id ? "page" : undefined}
+            onClick={(e) => {
+              e.preventDefault();
+              setTab(t.id);
+            }}
+          >
+            {t.label}
+          </a>
+        ))}
+      </nav>
+      {off ? (
+        <p className="empty">
+          The Lab is off. Add <code>RR_LAB_ENABLED=1</code> to <code>apps/api/.env</code> and restart the API.
+        </p>
+      ) : tab === "runs" ? (
+        <RunsTab />
+      ) : tab === "labels" ? (
+        <LabelsTab />
+      ) : tab === "evaluation" ? (
+        <EvalTab />
+      ) : (
+        <DatasetTab />
+      )}
+    </main>
+  );
+}
+
+/** Runs: every coach job with its tool calls, passages and verifier verdict (R03). */
+function RunsTab() {
   const [job, setJob] = useState("");
+  const [matchId, setMatchId] = useState("");
   const [source, setSource] = useState("");
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<TracePage | null>(null);
@@ -46,16 +123,21 @@ export default function LabPage() {
   const [detail, setDetail] = useState<TraceDetail | null>(null);
 
   useEffect(() => {
+    setJob(initialParam("job"));
+    setMatchId(initialParam("matchId"));
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     setError(null);
     api
-      .getTraces({ job, source, limit: PAGE, offset })
+      .getTraces({ job, source, matchId, limit: PAGE, offset })
       .then((p) => !cancelled && setPage(p))
       .catch((e: unknown) => !cancelled && setError(e instanceof Error ? e.message : "The API did not answer."));
     return () => {
       cancelled = true;
     };
-  }, [job, source, offset]);
+  }, [job, source, matchId, offset]);
 
   useEffect(() => {
     if (!openId) {
@@ -74,24 +156,7 @@ export default function LabPage() {
 
   const labOff = error?.includes("RR_LAB_ENABLED");
 
-  return (
-    <main className="main wide" id="content">
-      <header className="page-h">
-        <div>
-          <h1>Lab</h1>
-          <p className="lede">
-            Every coach run on this computer: which tools the model called, which passages it read, and whether its
-            text passed the verifier.
-          </p>
-        </div>
-      </header>
-      <nav className="subtabs" aria-label="Lab">
-        <a aria-current="page" href="#runs">
-          Runs
-        </a>
-      </nav>
-
-      {labOff ? (
+  return labOff ? (
         <p className="empty">
           The Lab is off. Add <code>RR_LAB_ENABLED=1</code> to <code>apps/api/.env</code> and restart the API.
         </p>
@@ -213,11 +278,19 @@ export default function LabPage() {
             </div>
           ) : null}
 
+          {matchId ? (
+            <p className="meta">
+              Showing one match&rsquo;s runs. <a href="/lab#runs">Show every run</a>
+            </p>
+          ) : null}
           {detail ? <RunDetail run={detail} onClose={() => setOpenId(null)} /> : null}
         </section>
-      )}
-    </main>
-  );
+      );
+}
+
+/** Filters a link can set, e.g. /lab?matchId=…&job=explain#runs from "How this was written". */
+function initialParam(name: string): string {
+  return new URLSearchParams(window.location.search).get(name) ?? "";
 }
 
 function Verdict({ ok, source, repaired }: { ok: boolean | null; source: string | null; repaired: boolean }) {

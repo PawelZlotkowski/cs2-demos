@@ -7,6 +7,15 @@ import { api } from "@/lib/api/client";
 
 const LAB_KEY = "rr.lab";
 
+/** Whether the Lab is on, as last seen by the nav (for "How this was written" links). */
+export function labRemembered(): boolean {
+  try {
+    return window.localStorage.getItem(LAB_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function NavLinks() {
   const pathname = usePathname() ?? "/";
   const inStudio = pathname.startsWith("/studio");
@@ -37,6 +46,12 @@ export function NavLinks() {
     <nav className="nav" aria-label="Main">
       <Link href="/" aria-current={pathname === "/" ? "page" : undefined}>
         Home
+      </Link>
+      <Link href="/matches" aria-current={current("/matches")}>
+        Matches
+      </Link>
+      <Link href="/progress" aria-current={current("/progress")}>
+        Progress
       </Link>
       <Link href="/coach" aria-current={current("/coach")}>
         Coach

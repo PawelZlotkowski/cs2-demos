@@ -197,6 +197,19 @@ class AnalysisRepository:
             ).fetchone()
         return MomentExplanation.model_validate(json.loads(row[0])) if row else None
 
+    def explanations(self, match_id: str, player_id: str) -> list[MomentExplanation]:
+        """Every stored text for the match and player (moments, rounds, summary, wrap-up; all languages)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT json FROM explanations WHERE match_id = ? AND player_id = ? ORDER BY target, lang",
+                (match_id, player_id),
+            ).fetchall()
+        return [MomentExplanation.model_validate(json.loads(r[0])) for r in rows]
+
+    def clear_explanations(self, match_id: str, player_id: str) -> None:
+        with self._lock, self._connect() as conn:
+            conn.execute("DELETE FROM explanations WHERE match_id = ? AND player_id = ?", (match_id, player_id))
+
     # --- clip jobs (CS Demo Manager recorder, T40) ---
 
     def queue_clip(

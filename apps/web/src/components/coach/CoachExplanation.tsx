@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api/client";
 import type { CoachLanguage, MomentExplanation } from "@/lib/contracts";
 import { COACH_LANGUAGES } from "@/lib/coach/language";
+import { labRemembered } from "@/components/NavLinks";
 import { CoachText, type CiteHandlers } from "./CoachText";
 
 type Props = CiteHandlers & {
@@ -26,6 +27,9 @@ type State =
 export function CoachExplanation({ matchId, playerId, momentId, round, language, onLanguage, ...cites }: Props) {
   const [state, setState] = useState<State>({ kind: "idle" });
   const [roundAsked, setRoundAsked] = useState(false);
+  const [lab, setLab] = useState(false);
+
+  useEffect(() => setLab(labRemembered()), []);
 
   // A new round or moment starts clean; a round has to be asked for again.
   useEffect(() => {
@@ -81,14 +85,22 @@ export function CoachExplanation({ matchId, playerId, momentId, round, language,
           <p className="expl">
             <CoachText text={state.data.text} {...cites} />
           </p>
-          <p className="expl-note">{sourceNote(state.data)}</p>
+          <p className="expl-note">
+            {sourceNote(state.data)}
+            {lab ? (
+              <>
+                {" "}
+                <a href={`/lab?matchId=${encodeURIComponent(matchId)}&job=explain#runs`}>How this was written</a>
+              </>
+            ) : null}
+          </p>
         </>
       )}
     </section>
   );
 }
 
-function sourceNote(e: MomentExplanation): string {
+export function sourceNote(e: MomentExplanation): string {
   if (e.source === "agent") return `Written by ${e.model ?? "the coach model"} and checked against the findings.`;
   if (e.verifierErrors.some((x) => /no findings/i.test(x))) return "No findings to explain here.";
   if (e.verifierErrors.length)

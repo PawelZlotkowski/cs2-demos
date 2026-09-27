@@ -228,6 +228,8 @@ p {
   height: 100%;
   display: grid;
   grid-template-rows: var(--bar) minmax(0, 1fr);
+  /* A wide table scrolls in its own box instead of widening the page */
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .shell > .main,
@@ -365,9 +367,26 @@ p {
     display: none;
   }
 
-  /* Pages keep a compact nav so Coach and Lab stay reachable; in the Studio the scorebug needs the room. */
+  /* Pages keep a compact nav so every page stays reachable; it scrolls sideways rather than
+     pushing the bar off the screen. In the Studio the scorebug needs the room. */
+  .topbar {
+    min-width: 0;
+  }
+
+  .nav {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+
   .nav a {
     padding: 0 6px;
+    white-space: nowrap;
   }
 
   .topbar:has(.sb) .nav {

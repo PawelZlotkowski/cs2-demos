@@ -35,12 +35,20 @@ npx @modelcontextprotocol/inspector python -m cs2_demo_mcp
 | `get_round_timeline(match_id, round)` | kills, grenades, plant/defuse with round clock times and callouts |
 | `get_player_state(match_id, round, t)` | every player's side, callout, health at time t |
 | `get_player_history(player_id, detector?, match_id?)` | detector rates across the player's earlier matches (`match_id` is left out) |
+| `list_matches(player_id, map?)` | the player's analysed matches as `M1`, `M2`, … with map, date, score and counts (Coach page) |
+| `find_moments(player_id, detector?, kind?, zone?, map?, limit?)` | findings across those matches, cited as `M2:F3` |
 | `select_moments(match_id, player_id, moments)` | validates and stores 5–6 picked moments |
 | `search_knowledge(query, map?, k?)` | top map-note passages as `K..` ids with title, source and text |
-| `request_clip(match_id, player_id, round, t0, t1)` | queues a clip of up to 60 s (the CS Demo Manager recorder is not connected yet) |
+| `request_clip(match_id, player_id, round, t0, t1)` | queues a POV clip of up to 60 s for the CS Demo Manager recorder |
 
 Resource `match://{match_id}/overview`. Prompts `select_moments`, `explain_moment(language)`,
 `answer_question(language)`.
+
+## Connect another app
+
+Settings, Connect another app in the web app lists the same commands. For Open WebUI, run the HTTP
+transport and add `http://127.0.0.1:8765/mcp` as an MCP server. For LM Studio, add the stdio command
+to its `mcp.json` with `RR_DATA_DIR` in `env`. The server binds to 127.0.0.1 and has no auth yet.
 
 ## How the coach uses it
 

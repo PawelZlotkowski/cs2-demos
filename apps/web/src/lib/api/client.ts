@@ -1,4 +1,20 @@
 import type {
+  ABPair,
+  Bookmark,
+  BookmarkRequest,
+  DatasetPage,
+  EvalSummary,
+  GoodExamples,
+  KnowledgeNoteRequest,
+  KnowledgeRow,
+  LabelsSummary,
+  MapZone,
+  MatchRow,
+  MomentPicks,
+  PickScore,
+  PracticePlan,
+  ProgressResponse,
+  RoundLabel,
   AskEvent,
   CoachAskRequest,
   CoachedPlayer,
@@ -56,6 +72,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new Error(detail);
   }
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
@@ -178,6 +195,80 @@ export const api = {
     return request<TracePage>(`/lab/traces${qs ? `?${qs}` : ""}`);
   },
   getTrace: (id: string) => request<TraceDetail>(`/lab/traces/${encodeURIComponent(id)}`),
+
+  // Studio Notes (R08) and "done well" (R15)
+  getBookmarks: (matchId: string) => request<Bookmark[]>(`/matches/${matchId}/bookmarks`),
+  addBookmark: (matchId: string, body: BookmarkRequest) =>
+    request<Bookmark>(`/matches/${matchId}/bookmarks`, { method: "POST", body: JSON.stringify(body) }),
+  deleteBookmark: (matchId: string, id: string) =>
+    request<void>(`/matches/${matchId}/bookmarks/${id}`, { method: "DELETE" }),
+  explainBookmark: (matchId: string, playerId: string, id: string, language: CoachLanguage) =>
+    request<MomentExplanation>(`/matches/${matchId}/players/${playerId}/bookmarks/${id}/explain`, {
+      method: "POST",
+      body: JSON.stringify({ language }),
+    }),
+  doneWell: (matchId: string, playerId: string, findingId: string) =>
+    request<GoodExamples>(`/matches/${matchId}/players/${playerId}/findings/${findingId}/done-well`),
+
+  // Coach page Plan (R09) and Knowledge (R12)
+  getPlan: (playerId: string, lang: CoachLanguage) => request<PracticePlan>(`/players/${playerId}/plan?lang=${lang}`),
+  newPlan: (playerId: string, lang: CoachLanguage) =>
+    request<PracticePlan>(`/players/${playerId}/plan?lang=${lang}`, { method: "POST" }),
+  tickPlan: (playerId: string, detector: string, done: boolean, lang: CoachLanguage) =>
+    request<PracticePlan>(`/players/${playerId}/plan/${detector}?lang=${lang}`, {
+      method: "PUT",
+      body: JSON.stringify({ done }),
+    }),
+  browseKnowledge: (opts: { map?: string; zone?: string; q?: string }) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(opts)) if (v) q.set(k, v);
+    return request<KnowledgeRow[]>(`/knowledge?${q.toString()}`);
+  },
+  getZones: (map: string) => request<MapZone[]>(`/maps/${map}/zones`),
+  flagPassage: (id: string, note: string) =>
+    request<void>(`/knowledge/${id}/flag`, { method: "POST", body: JSON.stringify({ note }) }),
+  addKnowledgeNote: (body: KnowledgeNoteRequest) =>
+    request<KnowledgeRow>("/knowledge/notes", { method: "POST", body: JSON.stringify(body) }),
+
+  // Matches and Progress (R13, R17)
+  listMatches: () => request<MatchRow[]>("/matches"),
+  rerunCoach: (matchId: string, language: CoachLanguage) =>
+    request<StatusResponse>(`/matches/${matchId}/rerun`, { method: "POST", body: JSON.stringify({ language }) }),
+  getProgress: (playerId: string) => request<ProgressResponse>(`/players/${playerId}/progress`),
+
+  // Lab: Labels (R07), Evaluation (R10), Dataset (R11)
+  getLabelsSummary: (a?: string, b?: string) => {
+    const q = new URLSearchParams();
+    if (a) q.set("a", a);
+    if (b) q.set("b", b);
+    return request<LabelsSummary>(`/lab/labels/summary?${q.toString()}`);
+  },
+  getRoundLabels: (matchId: string, playerId: string, labeller: string) =>
+    request<RoundLabel[]>(`/lab/labels/${matchId}/${playerId}?labeller=${encodeURIComponent(labeller)}`),
+  saveRoundLabel: (body: RoundLabel) =>
+    request<RoundLabel>("/lab/labels", { method: "PUT", body: JSON.stringify(body) }),
+  getPicks: (matchId: string, playerId: string, labeller: string) =>
+    request<{ picks: MomentPicks | null; score: PickScore | null }>(
+      `/lab/picks/${matchId}/${playerId}?labeller=${encodeURIComponent(labeller)}`,
+    ),
+  savePicks: (body: MomentPicks) =>
+    request<{ picks: MomentPicks; score: PickScore }>("/lab/picks", { method: "PUT", body: JSON.stringify(body) }),
+  getEval: () => request<EvalSummary>("/lab/eval"),
+  getPair: () => request<ABPair | null>("/lab/eval/pair"),
+  ratePair: (a: string, b: string, winner: "a" | "b" | "tie", rater?: string) =>
+    request<void>("/lab/eval/rate", { method: "POST", body: JSON.stringify({ a, b, winner, rater }) }),
+  getDataset: (opts?: { job?: string; pending?: boolean; limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(opts ?? {})) if (v != null && v !== "" && v !== false) q.set(k, String(v));
+    return request<DatasetPage>(`/lab/dataset?${q.toString()}`);
+  },
+  reviewExample: (id: string, verdict: "accept" | "edit" | "reject", text?: string) =>
+    request<void>(`/lab/dataset/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify({ verdict, text }),
+    }),
+  exportDataset: () =>
+    request<{ folder: string; counts: Record<string, number> }>("/lab/dataset/export", { method: "POST" }),
 };
 
 async function streamAsk(

@@ -82,7 +82,7 @@ def test_wrapup_can_cite_a_drill_it_looked_up(analysed, tmp_path):
         tmp_path,
     )
     expl = asyncio.run(jobs.review(mid, pid, "wrapup", "en"))
-    assert expl.prompt_version == "review_wrapup.v1"
+    assert expl.prompt_version == "review_wrapup.v2"
     assert expl.source == "agent", expl.verifier_errors
     assert drill.passage_id in expl.citations
 

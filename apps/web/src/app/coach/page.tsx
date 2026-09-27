@@ -4,11 +4,21 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { STEP_LABELS } from "@/components/coach/CoachPanel";
 import { CoachText } from "@/components/coach/CoachText";
+import { KnowledgeTab } from "@/components/coach/KnowledgeTab";
+import { PlanTab } from "@/components/coach/PlanTab";
 import { api } from "@/lib/api/client";
 import { COACH_LANGUAGES, useCoachLanguage } from "@/lib/coach/language";
-import type { CoachLanguage, CoachedPlayer } from "@/lib/contracts";
+import { useCoachedPlayer } from "@/lib/coach/players";
+import type { CoachLanguage } from "@/lib/contracts";
+import { useHashTab } from "@/lib/useHashTab";
 
-const PLAYER_KEY = "rr.coachPlayer";
+const TABS = [
+  { id: "ask", label: "Ask" },
+  { id: "plan", label: "Plan" },
+  { id: "knowledge", label: "Knowledge" },
+] as const;
+type Tab = (typeof TABS)[number]["id"];
+const TAB_IDS = TABS.map((t) => t.id);
 
 const SUGGESTIONS = [
   "What mistake do I repeat most across my matches?",
@@ -28,11 +38,11 @@ type Turn = {
   matches: Record<string, string>;
 };
 
-/** Coach page, Ask: questions across every analysed match of one player (doc 29 §2.1, R06). */
+/** Coach page: Ask across every analysed match of one player, Plan and Knowledge (doc 29 §2.1, R06, R09, R12). */
 export default function CoachPage() {
-  const [players, setPlayers] = useState<CoachedPlayer[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [playerId, setPlayerId] = useState<string | null>(null);
+  const { players, error: loadError, playerId, player, pick } = useCoachedPlayer();
+  const [tab, setTab] = useHashTab<Tab>(TAB_IDS, "ask");
+  const [admin, setAdmin] = useState(false);
   const [language, setLanguage] = useCoachLanguage();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
@@ -42,30 +52,16 @@ export default function CoachPage() {
 
   useEffect(() => {
     api
-      .getPlayers()
-      .then((ps) => {
-        setPlayers(ps);
-        let saved: string | null = null;
-        try {
-          saved = window.localStorage.getItem(PLAYER_KEY);
-        } catch {
-          /* storage blocked */
-        }
-        setPlayerId(ps.find((p) => p.id === saved)?.id ?? ps[0]?.id ?? null);
-      })
-      .catch((e: unknown) => setLoadError(e instanceof Error ? e.message : "The API did not answer."));
+      .features()
+      .then((f) => setAdmin(f.lab))
+      .catch(() => setAdmin(false));
     const live = aborts.current;
     return () => live.forEach((c) => c.abort());
   }, []);
 
   function pickPlayer(id: string) {
-    setPlayerId(id);
+    pick(id);
     setTurns([]);
-    try {
-      window.localStorage.setItem(PLAYER_KEY, id);
-    } catch {
-      /* storage blocked */
-    }
   }
 
   const patch = (id: number, f: (x: Turn) => Turn) => setTurns((ts) => ts.map((x) => (x.id === id ? f(x) : x)));
@@ -117,18 +113,20 @@ export default function CoachPage() {
     void ask(draft);
   }
 
-  const player = players?.find((p) => p.id === playerId) ?? null;
   const asked = new Set(turns.map((x) => x.q));
   const open = SUGGESTIONS.filter((q) => !asked.has(q));
 
   return (
-    <main className="main page-coach" id="content">
+    <main className={`main page-coach${tab === "knowledge" ? " wide" : ""}`} id="content">
       <header className="page-h">
         <div>
           <h1>Coach</h1>
           <p className="lede">
-            Ask about your play across every match you have reviewed. Answers cite the moments they come from, and
-            each citation opens that match.
+            {tab === "knowledge"
+              ? "What the coach reads before it answers: map notes and Liquipedia, by callout."
+              : tab === "plan"
+                ? "What to practise next, from the mistakes that keep coming back across your matches."
+                : "Ask about your play across every match you have reviewed. Answers cite the moments they come from, and each citation opens that match."}
           </p>
         </div>
         <label className="lang-pick">
@@ -143,7 +141,25 @@ export default function CoachPage() {
         </label>
       </header>
 
-      {loadError ? (
+      <nav className="subtabs" aria-label="Coach">
+        {TABS.map((t) => (
+          <a
+            key={t.id}
+            href={`#${t.id}`}
+            aria-current={tab === t.id ? "page" : undefined}
+            onClick={(e) => {
+              e.preventDefault();
+              setTab(t.id);
+            }}
+          >
+            {t.label}
+          </a>
+        ))}
+      </nav>
+
+      {tab === "knowledge" ? (
+        <KnowledgeTab admin={admin} />
+      ) : loadError ? (
         <p className="err" role="alert">
           Could not load your players: {loadError}. Check that the API is running on port 8000.
         </p>
@@ -183,6 +199,10 @@ export default function CoachPage() {
             ) : null}
           </div>
 
+          {tab === "plan" && playerId ? (
+            <PlanTab playerId={playerId} language={language} />
+          ) : (
+          <>
           <section className="page-thread" aria-live="polite" aria-label="Questions and answers">
             {turns.length ? null : (
               <p className="thread-empty">
@@ -255,6 +275,8 @@ export default function CoachPage() {
               </div>
             </form>
           </div>
+          </>
+          )}
         </>
       )}
     </main>

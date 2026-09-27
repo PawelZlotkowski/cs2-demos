@@ -728,7 +728,8 @@ kbd {
   font-weight: 600;
 }
 
-.pov button {
+.pov button,
+.pov figcaption a {
   font: inherit;
   color: var(--stage-text);
   background: none;
@@ -738,8 +739,13 @@ kbd {
   white-space: nowrap;
 }
 
+.pov figcaption a {
+  text-decoration: none;
+}
+
 @media (hover: hover) and (pointer: fine) {
-  .pov button:hover {
+  .pov button:hover,
+  .pov figcaption a:hover {
     text-decoration: underline;
   }
 }
@@ -2733,4 +2739,195 @@ kbd {
   .pov {
     transition: none;
   }
+}
+
+/* ---- Round and Notes tabs (doc 29 R04, R08): the panel's place, ask bar kept under them ---- */
+
+.ctx.extra .insight {
+  display: none;
+}
+
+.round-tab {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 20px 12px;
+}
+
+.round-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin: 12px 0 4px;
+}
+
+.round-facts dt {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.round-facts dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.round-h {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin: 18px 0 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.round-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+}
+
+.round-list li + li {
+  border-top: 1px solid var(--border-soft);
+}
+
+.round-list button,
+.round-list a {
+  display: grid;
+  grid-template-columns: 44px auto minmax(0, 1fr);
+  gap: 2px 8px;
+  align-items: baseline;
+  width: 100%;
+  padding: 7px 6px;
+  text-align: start;
+  color: var(--text-2);
+  text-decoration: none;
+  border-radius: var(--r-ctl);
+}
+
+.round-list .t {
+  color: var(--text-3);
+}
+
+.round-list .meta {
+  grid-column: 2 / -1;
+  font-size: 12px;
+}
+
+.round-what {
+  color: var(--text);
+}
+
+.duel-won {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.duel-lost {
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.round-note {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .round-list button:hover,
+  .round-list a:hover {
+    background: var(--border-soft);
+  }
+}
+
+.note-add {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 16px;
+}
+
+.note-add label {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.note-add textarea {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.note-add textarea:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 0;
+}
+
+.note-add .btn {
+  justify-self: start;
+}
+
+.note-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.note-list > li {
+  padding: 10px 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.note-at {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+  text-align: start;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.note-at .t {
+  font-size: 12px;
+  color: var(--text-3);
+  padding-top: 2px;
+}
+
+.note-text {
+  overflow-wrap: anywhere;
+}
+
+.note-actions {
+  display: flex;
+  gap: 14px;
+  margin: 4px 0 0 72px;
+  font-size: 12px;
+}
+
+.note-list .expl {
+  font-family: var(--serif);
+  font-size: 15.5px;
+  line-height: 1.55;
+  margin: 8px 0 4px 72px;
+}
+
+.note-list .expl-note,
+.note-list .thinking,
+.note-list .err {
+  margin-left: 72px;
+}
+
+.done-well .round-list {
+  margin-top: 2px;
 }

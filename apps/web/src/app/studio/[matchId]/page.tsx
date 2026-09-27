@@ -65,6 +65,9 @@ import { CoachExplanation } from "@/components/coach/CoachExplanation";
 import { CoachPanel } from "@/components/coach/CoachPanel";
 import { NotFound, isNotFound } from "@/components/NotFound";
 import { RoundStrip } from "@/components/review/RoundStrip";
+import { RoundPanel } from "@/components/review/RoundPanel";
+import { NotesPanel } from "@/components/review/NotesPanel";
+import { DoneWell } from "@/components/review/DoneWell";
 import { ReviewOverview, ReviewWrapUpPanel } from "@/components/review/ReviewPanels";
 import { useCoachLanguage } from "@/lib/coach/language";
 import gsap from "gsap";
@@ -135,6 +138,8 @@ export default function StudioPage() {
   const swapFirst = useRef<Map<string, DOMRect> | null>(null);
   const [whole, setWhole] = useState(false);
   const [asking, setAsking] = useState(false);
+  // The Round and Notes tabs (doc 29 R04, R08) take the panel's place; the ask bar stays under them
+  const [extraTab, setExtraTab] = useState<"round" | "notes" | null>(null);
   const [analysis, setAnalysis] = useState<PlayerAnalysisView | null>(null);
   const [momentId, setMomentId] = useState<string | null>(null);
   /** Design plan items 2 and 3: the opening overview and the closing wrap-up take the panel. */
@@ -706,6 +711,25 @@ export default function StudioPage() {
     [rounds, roundId, replay, clock.pause, seekTo],
   );
 
+  /** Open a round (if it is not the one in view) at a time: the Notes tab's rows. */
+  const openAt = useCallback(
+    (roundNo: number, t: number) => {
+      const target = rounds.find((r) => r.number === roundNo);
+      if (!target) return;
+      clock.pause();
+      setReview(null);
+      if (target.id === roundId && replay) {
+        seekTo(t);
+      } else {
+        pendingSeek.current = t;
+        setMomentId(null);
+        setRoundId(target.id);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rounds, roundId, replay, clock.pause, seekTo],
+  );
+
   const stepEvent = useCallback(
     (dir: 1 | -1) => {
       const ts = events.map((e) => e.t);
@@ -784,6 +808,7 @@ export default function StudioPage() {
       } else if (e.key === "/") {
         e.preventDefault();
         setAsking(true);
+        setExtraTab(null);
         if (!panelOn) setPanelOn(true);
         setCtxOpen(true);
         window.setTimeout(() => askRef.current?.focus(), 0);
@@ -1493,7 +1518,7 @@ export default function StudioPage() {
       </section>
 
       <aside
-        className={`ctx${ctxOpen ? " open" : ""}${asking ? " asking" : ""}`}
+        className={`ctx${ctxOpen ? " open" : ""}${asking && !extraTab ? " asking" : ""}${extraTab ? " extra" : ""}`}
         id="ctx"
         aria-label="Analysis of this round"
       >
@@ -1587,9 +1612,12 @@ export default function StudioPage() {
               type="button"
               role="tab"
               id="tab-insight"
-              aria-selected={!asking}
+              aria-selected={!asking && !extraTab}
               aria-controls="insight"
-              onClick={() => setAsking(false)}
+              onClick={() => {
+                setAsking(false);
+                setExtraTab(null);
+              }}
             >
               Analysis
             </button>
@@ -1597,11 +1625,34 @@ export default function StudioPage() {
               type="button"
               role="tab"
               id="tab-ask"
-              aria-selected={asking}
+              aria-selected={asking && !extraTab}
               aria-controls="coach"
-              onClick={() => setAsking(true)}
+              onClick={() => {
+                setAsking(true);
+                setExtraTab(null);
+              }}
             >
               Ask
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="tab-round"
+              aria-selected={extraTab === "round"}
+              aria-controls="round-tab"
+              onClick={() => setExtraTab("round")}
+            >
+              Round
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="tab-notes"
+              aria-selected={extraTab === "notes"}
+              aria-controls="notes-tab"
+              onClick={() => setExtraTab("notes")}
+            >
+              Notes
             </button>
           </div>
           <button
@@ -1733,6 +1784,10 @@ export default function StudioPage() {
               onLanguage={setCoachLang}
               {...coachCites}
             />
+          ) : null}
+
+          {analysis && headFinding ? (
+            <DoneWell matchId={matchId} playerId={analysis.playerId} finding={headFinding} onFinding={coachCites.onFinding} />
           ) : null}
 
           {activeMoment && momentIdx >= 0 ? (
@@ -1957,6 +2012,39 @@ export default function StudioPage() {
           )}
         </div>
 
+        {extraTab === "round" ? (
+          activeRound ? (
+            <RoundPanel
+              roundNumber={activeRound.number}
+              events={events}
+              stats={roundStats}
+              findings={roundFindings}
+              focusId={analysis?.playerId ?? focus?.id ?? null}
+              focusName={analysis ? analysedName : (focus?.name ?? "the player")}
+              lookup={lookup}
+              onSeek={(t, eventId) => {
+                clock.pause();
+                seekTo(t, eventId);
+              }}
+            />
+          ) : (
+            <div className="round-tab" role="tabpanel" id="round-tab" aria-labelledby="tab-round">
+              <p className="meta">Pick a round to see what happened in it.</p>
+            </div>
+          )
+        ) : extraTab === "notes" ? (
+          <NotesPanel
+            matchId={matchId}
+            playerId={analysis?.playerId ?? null}
+            playerName={analysedName || "the player"}
+            round={activeRound?.number ?? 1}
+            t={clock.t}
+            language={coachLang}
+            onOpen={openAt}
+            {...coachCites}
+          />
+        ) : null}
+
         {activeRound ? (
           <CoachPanel
             key={activeRound.id}
@@ -1978,7 +2066,10 @@ export default function StudioPage() {
                   ? "Why did this happen?"
                   : `What decided round ${activeRound.number}?`
             }
-            onAsk={() => setAsking(true)}
+            onAsk={() => {
+              setAsking(true);
+              setExtraTab(null);
+            }}
             {...coachCites}
           />
         ) : null}

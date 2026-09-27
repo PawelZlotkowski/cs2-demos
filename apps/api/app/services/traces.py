@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -40,11 +41,11 @@ def _load(line: str) -> dict[str, Any] | None:
     return record if isinstance(record, dict) else None
 
 
-def _steps(record: dict[str, Any]) -> list[dict[str, Any]]:
+def steps_of(record: dict[str, Any]) -> list[dict[str, Any]]:
     return [s for run in record.get("runs") or [] for s in run.get("steps") or []]
 
 
-def _verifier(record: dict[str, Any]) -> tuple[bool | None, list[str]]:
+def verdict_of(record: dict[str, Any]) -> tuple[bool | None, list[str]]:
     if isinstance(record.get("verifier"), dict):
         v = record["verifier"]
         return bool(v.get("ok")), [str(e) for e in v.get("errors") or []]
@@ -54,7 +55,7 @@ def _verifier(record: dict[str, Any]) -> tuple[bool | None, list[str]]:
 
 
 def _summary(trace_id: str, record: dict[str, Any]) -> dict[str, Any]:
-    ok, _ = _verifier(record)
+    ok, _ = verdict_of(record)
     latency = record.get("latencyS")
     if latency is None and record.get("attempts"):
         latency = round(sum(a.get("latencyS") or 0 for a in record["attempts"]), 3)
@@ -70,8 +71,18 @@ def _summary(trace_id: str, record: dict[str, Any]) -> dict[str, Any]:
         "verifier_ok": ok,
         "repaired": bool(record.get("repaired")) or len(record.get("attempts") or []) > 1,
         "latency_s": latency,
-        "tool_calls": len(_steps(record)),
+        "tool_calls": len(steps_of(record)),
     }
+
+
+def iter_traces() -> Iterator[tuple[str, dict[str, Any]]]:
+    """Every trace, oldest first, as ``(id, record)``."""
+    days = sorted(p.stem for p in _folder().glob("*.jsonl") if DAY_RE.match(p.stem))
+    for day in days:
+        for n, line in enumerate(_lines(day), start=1):
+            record = _load(line)
+            if record is not None:
+                yield f"{day}:{n}", record
 
 
 def list_traces(
@@ -112,7 +123,7 @@ def get_trace(trace_id: str) -> TraceDetail | None:
     record = _load(lines[idx])
     if record is None:
         return None
-    _, errors = _verifier(record)
+    _, errors = verdict_of(record)
     messages = [m for run in record.get("runs") or [] for m in run.get("messages") or []]
     output = record.get("runs", [{}])[-1].get("output") if record.get("runs") else None
     if output is None and record.get("attempts"):
@@ -120,7 +131,7 @@ def get_trace(trace_id: str) -> TraceDetail | None:
     return TraceDetail.model_validate(
         {
             **_summary(trace_id, record),
-            "steps": [TraceToolStep.model_validate(s) for s in _steps(record)],
+            "steps": [TraceToolStep.model_validate(s) for s in steps_of(record)],
             "knowledge_ids": sorted(knowledge_in(messages)),
             "verifier_errors": errors,
             "output": output,

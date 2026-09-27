@@ -91,6 +91,87 @@ export default function SettingsPage() {
           </>
         )}
       </section>
+
+      <ConnectApp tools={status?.mcpTools ?? []} />
     </main>
+  );
+}
+
+const LM_STUDIO = `{
+  "mcpServers": {
+    "cs2-demo": {
+      "command": "python",
+      "args": ["-m", "cs2_demo_mcp"],
+      "env": { "RR_DATA_DIR": "C:/path/to/cs2-demos/apps/api/data" }
+    }
+  }
+}`;
+
+/** Settings, Connect another app: the cs2-demo MCP server in a local chat app (doc 29 §4.2, R14). */
+function ConnectApp({ tools }: { tools: string[] }) {
+  const [copied, setCopied] = useState<string | null>(null);
+
+  async function copy(id: string, text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(id);
+      window.setTimeout(() => setCopied(null), 1500);
+    } catch {
+      setCopied(null);
+    }
+  }
+
+  const rows: { id: string; label: string; text: string; note: string }[] = [
+    {
+      id: "http",
+      label: "Streamable HTTP",
+      text: "python -m cs2_demo_mcp --transport http",
+      note: "Serves http://127.0.0.1:8765/mcp. Add that URL as an MCP server in Open WebUI (External tools in recent versions).",
+    },
+    {
+      id: "stdio",
+      label: "Standard input and output",
+      text: "python -m cs2_demo_mcp",
+      note: "For apps that start the server themselves. LM Studio: put the block below in its mcp.json.",
+    },
+    {
+      id: "inspector",
+      label: "Check it first",
+      text: "npx @modelcontextprotocol/inspector python -m cs2_demo_mcp",
+      note: "Lists the tools and lets you call one by hand.",
+    },
+  ];
+
+  return (
+    <section id="connect" className="settings-sec" aria-labelledby="connect-h">
+      <div className="sec-h">
+        <h2 id="connect-h">Connect another app</h2>
+      </div>
+      <p className="meta">
+        The coach&rsquo;s tools are an MCP server, so a local chat app can read your matches the same way the coach does. Run
+        it from the repo with the API&rsquo;s Python environment, and set <code>RR_DATA_DIR</code> to{" "}
+        <code>apps/api/data</code> when you start it from another folder. It listens on this computer only and has no
+        sign-in yet, and two tools write (<code>select_moments</code>, <code>request_clip</code>), so connect only apps
+        you trust.
+      </p>
+      <ul className="checks connect">
+        {rows.map((r) => (
+          <li key={r.id}>
+            <span className="check-name">{r.label}</span>
+            <code className="cmd">{r.text}</code>
+            <button type="button" className="link small" onClick={() => void copy(r.id, r.text)}>
+              {copied === r.id ? "Copied" : "Copy"}
+            </button>
+            <span className="check-detail">{r.note}</span>
+          </li>
+        ))}
+      </ul>
+      <pre className="out">{LM_STUDIO}</pre>
+      {tools.length ? (
+        <p className="meta">
+          {tools.length} tools: {tools.join(", ")}.
+        </p>
+      ) : null}
+    </section>
   );
 }
