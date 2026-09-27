@@ -11,7 +11,7 @@ export default function HomePage() {
       </p>
       <p>
         <Link className="btn btn-fill" href="/upload">
-          Add demo
+          Add match
         </Link>
       </p>
       <p className="meta" style={{ marginTop: 24 }}>
