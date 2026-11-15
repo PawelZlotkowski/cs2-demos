@@ -1,0 +1,132 @@
+<!doctype html>
+<!-- Film Room static reference, exported from the design canvas on 15 Nov 2026. Sample data only. Not app code: rebuild as React components using tokens. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Processing and player setup</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#08090B}
+a{color:#A4AAB4;text-decoration:none}a:hover{color:#EDEFF2}
+.num{font-family:'Archivo',sans-serif;font-stretch:68%;font-variant-numeric:tabular-nums}
+.code{font-family:'Archivo',sans-serif;font-stretch:80%;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.nav{font-size:13px;color:#A4AAB4;padding:6px 8px;border-radius:4px}
+.pl{display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;border-radius:6px;font-size:14px;color:#EDEFF2;border:0;background:transparent;font-family:inherit;width:100%;text-align:left;cursor:pointer;box-sizing:border-box}
+.av{width:24px;height:24px;border-radius:12px;background:#1E2228;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;color:#A4AAB4;flex:none}
+.opt{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding:12px 0;border-top:1px solid #1A1D22;cursor:pointer}
+.radio{width:16px;height:16px;border-radius:8px;border:1.5px solid #5B616B;box-sizing:border-box;margin-top:2px}
+.optt{font-size:14px;font-weight:600}
+.optd{font-size:13px;line-height:19px;color:#A4AAB4}
+.st{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:12px;padding:11px 0;align-items:start}
+.stt{font-size:14px;font-weight:600}
+.std{font-size:12px;line-height:18px;color:#7D8490}
+.tm{font-family:'Archivo',sans-serif;font-stretch:80%;font-weight:600;font-size:12px;color:#7D8490;font-variant-numeric:tabular-nums}
+</style>
+
+<div style="width:100%;min-height:900px;box-sizing:border-box;background:#08090B;color:#EDEFF2;font-family:'Hanken Grotesk',system-ui,sans-serif;display:flex;flex-direction:column">
+
+  <header style="height:52px;flex:none;display:flex;align-items:center;gap:18px;padding:0 16px">
+    <a href="#" style="display:flex;align-items:center;gap:9px;color:#EDEFF2">
+      <svg width="20" height="20" viewBox="0 0 22 22" aria-hidden="true"><rect x="1" y="1" width="20" height="20" rx="4" fill="none" stroke="#EDEFF2" stroke-width="1.5"></rect><path d="M6 15V7h5a2.5 2.5 0 0 1 0 5H6m5 0 4 3" fill="none" stroke="#EDEFF2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <span class="num" style="font-size:16px;font-weight:700;letter-spacing:.05em">ROUND REVIEWER</span>
+    </a>
+    <nav aria-label="Main" style="display:flex;gap:2px"><a class="nav" href="#">Home</a><a class="nav" href="#" style="color:#EDEFF2;background:#15181D" aria-current="page">Matches</a><a class="nav" href="#">Progress</a><a class="nav" href="#">Coach</a></nav>
+    <div style="flex:1"></div>
+    <span aria-label="Account" style="width:28px;height:28px;border-radius:14px;background:#1E2228;color:#EDEFF2;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center">P</span>
+  </header>
+
+  <main style="flex:1 1 auto;margin:0 8px 8px;border:1px solid #1A1D22;border-radius:6px;background:#0C0D10;display:flex;flex-wrap:wrap;overflow:hidden">
+
+    <section aria-labelledby="setup-h" style="flex:999 1 560px;min-width:0;padding:32px 40px;box-sizing:border-box;display:flex;flex-direction:column;gap:22px">
+      <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 24px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <span class="code" style="font-size:12px;color:#7D8490">ANUBIS · 10 PLAYERS · FACEIT · MATCH-2026-11-12.DEM.ZST · 182 MB</span>
+          <h1 id="setup-h" style="margin:0;font-size:28px;line-height:34px;font-weight:600;letter-spacing:-0.015em">Who should the coach review?</h1>
+        </div>
+        <span style="font-size:13px;color:#7D8490;line-height:20px;max-width:340px">The demo is unpacked. Full parsing starts once you confirm, so the analysis is built around one player.</span>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:24px">
+        <div role="radiogroup" aria-label="Team that started T" style="flex:1 1 260px;display:flex;flex-direction:column;gap:2px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 12px 8px;border-bottom:1px solid #1A1D22;margin-bottom:6px">
+            <span style="font-size:13px;font-weight:600"><span class="code" style="color:#D9B77A;margin-right:8px">T</span>Started T</span><span class="std">5 players</span>
+          </div>
+          <button class="pl" role="radio" aria-checked="true" type="button" style="background:#171A1F;outline:1px solid #EDEFF2;outline-offset:-1px"><span class="av" style="background:#EDEFF2;color:#0C0D10">P</span><span style="font-weight:600">pawcio_</span><span class="std" style="margin-left:6px">chosen last time</span><svg style="margin-left:auto" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="m3 7.3 2.6 2.6L11 4.4" fill="none" stroke="#EDEFF2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+          <button class="pl" role="radio" aria-checked="false" type="button"><span class="av">K</span>kestrel</button>
+          <button class="pl" role="radio" aria-checked="false" type="button"><span class="av">M</span>mirek_08</button>
+          <button class="pl" role="radio" aria-checked="false" type="button"><span class="av">B</span>b0rys</button>
+          <button class="pl" role="radio" aria-checked="false" type="button"><span class="av">H</span>halftone</button>
+        </div>
+        <div role="radiogroup" aria-label="Team that started CT" style="flex:1 1 260px;display:flex;flex-direction:column;gap:2px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 12px 8px;border-bottom:1px solid #1A1D22;margin-bottom:6px">
+            <span style="font-size:13px;font-weight:600"><span class="code" style="color:#9DB7D9;margin-right:8px">CT</span>Started CT</span><span class="std">5 players</span>
+          </div>
+          <button class="pl" role="radio" aria-checked="false" type="button"><span class="av">V</span>voltage</button>
+          <button class="pl" role="radio" aria-checked="false" type="button"><span class="av">C</span>cresco</button>
+          <button class="pl" role="radio" aria-checked="false" type="button"><span class="av">D</span>d0nut</button>
+          <button class="pl" role="radio" aria-checked="false" type="button"><span class="av">F</span>fennec</button>
+          <button class="pl" role="radio" aria-checked="false" type="button"><span class="av">G</span>gold_rush</button>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:24px 40px">
+        <fieldset style="flex:1 1 360px;border:0;margin:0;padding:0;min-width:0">
+          <legend style="font-size:13px;font-weight:600;padding:0;margin-bottom:8px">Focus</legend>
+          <div class="opt"><span class="radio" style="border:5px solid #EDEFF2"></span><span><span class="optt">Overall</span><br><span class="optd">A balanced review of shooting, utility and support.</span></span></div>
+          <div class="opt"><span class="radio"></span><span><span class="optt">Shooting</span><br><span class="optd">Movement while firing, opening duels and won fights.</span></span></div>
+          <div class="opt"><span class="radio"></span><span><span class="optt">Utility</span><br><span class="optd">Flashes, grenade damage and utility held at death.</span></span></div>
+          <div class="opt" style="border-bottom:1px solid #1A1D22"><span class="radio"></span><span><span class="optt">Teamwork</span><br><span class="optd">Your trades, support and flashes. Still a one-player review.</span></span></div>
+        </fieldset>
+        <div style="flex:1 1 240px;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:13px;font-weight:600">Coach language</span>
+            <div role="radiogroup" aria-label="Coach language" style="display:flex;padding:2px;border-radius:6px;background:#15181D;border:1px solid #23272E;align-self:flex-start">
+              <button type="button" role="radio" aria-checked="true" style="font-family:inherit;font-size:13px;font-weight:600;height:30px;padding:0 14px;border-radius:4px;border:0;background:#262A31;color:#EDEFF2">English</button>
+              <button type="button" role="radio" aria-checked="false" style="font-family:inherit;font-size:13px;font-weight:600;height:30px;padding:0 14px;border-radius:4px;border:0;background:transparent;color:#A4AAB4">Polski</button>
+            </div>
+            <span class="std">Callouts stay in English.</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:auto">
+            <button type="button" style="height:44px;border-radius:6px;border:0;background:#EDEFF2;color:#0C0D10;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer">Start review for pawcio_</button>
+            <a href="#" style="font-size:13px;text-align:center">Watch the radar without analysis</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside aria-label="Run log" style="flex:1 1 400px;max-width:100%;box-sizing:border-box;border-left:1px solid #1A1D22;background:#0E1013;padding:32px 28px;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+        <h2 style="margin:0;font-size:15px;font-weight:600">Run log</h2>
+        <span class="tm">0:12 SO FAR</span>
+      </div>
+
+      <div class="st"><svg width="18" height="18" viewBox="0 0 18 18" aria-label="Done" role="img"><circle cx="9" cy="9" r="8.25" fill="#1E2228"></circle><path d="m5.5 9.3 2.3 2.3 4.7-5" fill="none" stroke="#EDEFF2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg><span><span class="stt">Upload received</span><br><span class="std">182 MB</span></span><span class="tm">0:04</span></div>
+      <div class="st"><svg width="18" height="18" viewBox="0 0 18 18" aria-label="Done" role="img"><circle cx="9" cy="9" r="8.25" fill="#1E2228"></circle><path d="m5.5 9.3 2.3 2.3 4.7-5" fill="none" stroke="#EDEFF2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg><span><span class="stt">Unpack demo</span><br><span class="std">zstd to .dem</span></span><span class="tm">0:06</span></div>
+      <div class="st"><svg width="18" height="18" viewBox="0 0 18 18" aria-label="Done" role="img"><circle cx="9" cy="9" r="8.25" fill="#1E2228"></circle><path d="m5.5 9.3 2.3 2.3 4.7-5" fill="none" stroke="#EDEFF2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg><span><span class="stt">Read player list</span><br><span class="std">10 players, map Anubis</span></span><span class="tm">0:02</span></div>
+
+      <div class="st" style="background:#15181D;margin:0 -12px;padding:11px 12px;border-radius:6px;outline:1px solid #2E333B;outline-offset:-1px"><svg width="18" height="18" viewBox="0 0 18 18" aria-label="Waiting for you" role="img"><circle cx="9" cy="9" r="7.5" fill="none" stroke="#EDEFF2" stroke-width="1.5"></circle><circle cx="9" cy="9" r="3" fill="#EDEFF2"></circle></svg><span><span class="stt">Set up your review</span><br><span class="std" style="color:#A4AAB4">Waiting for you: player, focus and language</span></span><span class="tm" style="color:#EDEFF2">NOW</span></div>
+
+      <div style="height:1px;background:#1A1D22;margin:8px 0"></div>
+      <div class="st" style="opacity:.75"><svg width="18" height="18" viewBox="0 0 18 18" aria-label="Pending" role="img"><circle cx="9" cy="9" r="7.5" fill="none" stroke="#3A3F48" stroke-width="1.5" stroke-dasharray="3 3"></circle></svg><span><span class="stt" style="color:#A4AAB4">Parse demo</span><br><span class="std">Every tick: positions, shots, damage, grenades</span></span><span class="tm"></span></div>
+      <div class="st" style="opacity:.75"><svg width="18" height="18" viewBox="0 0 18 18" aria-label="Pending" role="img"><circle cx="9" cy="9" r="7.5" fill="none" stroke="#3A3F48" stroke-width="1.5" stroke-dasharray="3 3"></circle></svg><span><span class="stt" style="color:#A4AAB4">Find mistakes and good plays</span><br><span class="std">10 detectors, plain code</span></span><span class="tm"></span></div>
+      <div class="st" style="opacity:.75"><svg width="18" height="18" viewBox="0 0 18 18" aria-label="Pending" role="img"><circle cx="9" cy="9" r="7.5" fill="none" stroke="#3A3F48" stroke-width="1.5" stroke-dasharray="3 3"></circle></svg><span><span class="stt" style="color:#A4AAB4">Pick moments</span><br><span class="std">Coach agent, code ranker as fallback</span></span><span class="tm"></span></div>
+      <div class="st" style="opacity:.75"><svg width="18" height="18" viewBox="0 0 18 18" aria-label="Pending" role="img"><circle cx="9" cy="9" r="7.5" fill="none" stroke="#3A3F48" stroke-width="1.5" stroke-dasharray="3 3"></circle></svg><span><span class="stt" style="color:#A4AAB4">Write and check explanations</span><br><span class="std">Qwen3-14B on the local GPU, then the verifier</span></span><span class="tm"></span></div>
+      <div class="st" style="opacity:.75"><svg width="18" height="18" viewBox="0 0 18 18" aria-label="Pending" role="img"><circle cx="9" cy="9" r="7.5" fill="none" stroke="#3A3F48" stroke-width="1.5" stroke-dasharray="3 3"></circle></svg><span><span class="stt" style="color:#A4AAB4">Record clips</span><br><span class="std">After the radar is ready. Does not block the review</span></span><span class="tm"></span></div>
+
+      <div style="flex:1"></div>
+      <div style="border-top:1px solid #1A1D22;padding-top:14px;display:flex;flex-direction:column;gap:8px">
+        <span style="display:flex;align-items:center;gap:8px;font-size:12px;color:#A4AAB4"><span style="width:7px;height:7px;border-radius:4px;background:#EDEFF2"></span>Coach model ready · Qwen3-14B</span>
+        <span style="display:flex;align-items:center;gap:8px;font-size:12px;color:#A4AAB4"><span style="width:7px;height:7px;border-radius:4px;border:1.5px solid #7D8490;box-sizing:border-box"></span>Clip recorder off · clips will be skipped, the radar is not affected</span>
+        <span style="font-size:12px;color:#7D8490;margin-top:4px">You can leave this page. The review keeps going and appears in Matches.</span>
+      </div>
+    </aside>
+  </main>
+</div>
+
+</body>
+</html>

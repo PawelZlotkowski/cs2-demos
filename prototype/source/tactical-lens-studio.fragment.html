@@ -1,0 +1,270 @@
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;450;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+<style>
+#tactical-studio{--tl-bg:#111318;--tl-panel:#191c23;--tl-raised:#222630;--tl-line:#343a47;--tl-ink:#f1f3f8;--tl-muted:#a7afbf;--tl-accent:#a5b9ff;--tl-solid:#415be8;--tl-soft:#29344e;--tl-glass:rgba(22,27,39,.86);--tl-shadow:#0005;--tl-blur:18px;color-scheme:dark;background:var(--tl-bg);color:var(--tl-ink);font:400 14px/1.5 'IBM Plex Sans',system-ui,sans-serif;max-width:1024px;margin:auto;border-radius:14px;isolation:isolate}
+#tactical-studio[data-palette="ice"]{--tl-bg:#131719;--tl-panel:#1c2226;--tl-raised:#252e33;--tl-line:#3b474e;--tl-ink:#eef5f7;--tl-muted:#a8bac3;--tl-accent:#9ad6ed;--tl-solid:#28647b;--tl-soft:#293e48;--tl-glass:rgba(25,34,40,.88)}
+#tactical-studio[data-palette="paper"]{--tl-bg:#eceff5;--tl-panel:#fafbfe;--tl-raised:#e3e8f2;--tl-line:#bfc8d9;--tl-ink:#202735;--tl-muted:#566278;--tl-accent:#3553bd;--tl-solid:#3553bd;--tl-soft:#e0e7ff;--tl-glass:rgba(247,250,255,.91);--tl-shadow:#26345024;color-scheme:light}
+#tactical-studio *{box-sizing:border-box}#tactical-studio [hidden]{display:none!important}#tactical-studio button,#tactical-studio input,#tactical-studio textarea,#tactical-studio select{font:inherit}#tactical-studio button,#tactical-studio summary{cursor:inherit}#tactical-studio button{color:inherit}#tactical-studio button:disabled{opacity:.5;cursor:default}#tactical-studio svg.lucide{width:17px;height:17px;stroke-width:1.6;flex:none}#tactical-studio button{transition:background .16s,box-shadow .16s,transform .16s}#tactical-studio button:not(:disabled):active{transform:translateY(1px)}#tactical-studio a{color:var(--tl-muted);text-underline-offset:3px}#tactical-studio .tl-mono{font-family:'IBM Plex Mono',monospace;font-size:11px;font-variant-numeric:tabular-nums}#tactical-studio .tl-muted{color:var(--tl-muted)}#tactical-studio .tl-small{font-size:12px}#tactical-studio h1,#tactical-studio h2,#tactical-studio h3,#tactical-studio p{margin:0}#tactical-studio .tl-top{display:flex;align-items:center;gap:20px;padding:17px 24px;border-bottom:1px solid var(--tl-line);min-height:65px}#tactical-studio .tl-brand{font-weight:600;font-size:16px;letter-spacing:-.65px;display:flex;gap:10px;align-items:center}#tactical-studio .tl-brandmark{width:21px;height:21px;border:1.5px solid var(--tl-accent);border-radius:50%;position:relative}#tactical-studio .tl-brandmark:after{content:"";position:absolute;width:9px;height:9px;inset:4.5px;border:1px solid var(--tl-accent);border-radius:2px}#tactical-studio .tl-top-label{border-left:1px solid var(--tl-line);padding-left:20px;color:var(--tl-muted);font-size:12px}#tactical-studio .tl-prototype{margin-left:auto;color:var(--tl-muted);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+#tactical-studio .tl-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:24px 24px 21px}#tactical-studio .tl-title{display:flex;gap:16px;align-items:center}#tactical-studio .tl-round{font-size:44px;line-height:1;font-weight:450;letter-spacing:-3px;color:var(--tl-accent)}#tactical-studio h1{font-size:23px;line-height:1.2;letter-spacing:-.65px;font-weight:500}#tactical-studio .tl-kicker{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--tl-muted);margin-bottom:5px}#tactical-studio .tl-subtitle{font-size:12px;color:var(--tl-muted);margin-top:5px}#tactical-studio .tl-settings{position:relative;z-index:12}#tactical-studio .tl-settings summary{list-style:none;display:flex;gap:7px;align-items:center;border:1px solid var(--tl-line);padding:8px 10px;border-radius:7px;font-size:12px;background:var(--tl-panel)}#tactical-studio .tl-settings summary::-webkit-details-marker{display:none}#tactical-studio .tl-settings[open] summary{background:var(--tl-raised)}#tactical-studio .tl-popover{position:absolute;right:0;top:43px;width:242px;background:var(--tl-panel);border:1px solid var(--tl-line);padding:14px;border-radius:10px;box-shadow:0 14px 40px var(--tl-shadow)}#tactical-studio .tl-popover h2{font-size:12px;font-weight:500;margin-bottom:10px}#tactical-studio .tl-palette{display:flex;align-items:center;gap:9px;border:0;background:transparent;padding:10px 8px;width:100%;text-align:left;border-radius:5px;font-size:12px}#tactical-studio .tl-palette[aria-pressed=true]{background:var(--tl-soft);color:var(--tl-accent)}#tactical-studio .tl-swatch{width:19px;height:19px;border:1px solid var(--tl-line);border-radius:50%;background:linear-gradient(135deg,var(--swatch-bg) 50%,var(--swatch-fg) 50%)}#tactical-studio .tl-palette .tl-check{margin-left:auto;visibility:hidden}#tactical-studio .tl-palette[aria-pressed=true] .tl-check{visibility:visible}#tactical-studio .tl-pref{display:flex;gap:8px;align-items:center;font-size:12px;margin-top:12px}#tactical-studio input[type=checkbox]{accent-color:var(--tl-solid);width:16px;height:16px}
+#tactical-studio .tl-workspace{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(285px,1fr);gap:0;padding:0 24px 24px}#tactical-studio .tl-left{min-width:0;padding-right:22px}#tactical-studio .tl-tabs{display:flex;position:relative;border-bottom:1px solid var(--tl-line);gap:23px;margin-bottom:16px}#tactical-studio .tl-tab{border:0;background:transparent;padding:10px 0 12px;font-size:13px;color:var(--tl-muted);position:relative}#tactical-studio .tl-tab[aria-selected=true]{color:var(--tl-ink)}#tactical-studio .tl-tab-line{position:absolute;bottom:-1px;left:0;height:2px;background:var(--tl-accent);width:40px;pointer-events:none}#tactical-studio .tl-panel{min-height:336px}#tactical-studio .tl-stage{position:relative;aspect-ratio:1.74;background:#222a35;border-radius:9px;overflow:hidden;color:#f5f7fc;isolation:isolate}#tactical-studio .tl-scene{display:block;width:100%;height:100%;object-fit:cover;filter:saturate(.48) brightness(.84)}#tactical-studio .tl-stage:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(0deg,#0b1223a6,transparent 46%,#10182d38);z-index:1}#tactical-studio .tl-stage-caption{position:absolute;left:12px;bottom:10px;z-index:2;color:#f4f5fa;font-size:11px;background:#111827b8;padding:3px 6px;border-radius:3px}#tactical-studio .tl-frost{background:var(--tl-glass);color:var(--tl-ink);backdrop-filter:blur(var(--tl-blur));-webkit-backdrop-filter:blur(var(--tl-blur));border:1px solid var(--tl-line);box-shadow:inset 0 1px 0 #ffffff12,0 6px 20px #050a1420}#tactical-studio .tl-tools{position:absolute;z-index:4;left:12px;top:12px;display:flex;gap:3px;padding:4px;border-radius:7px}#tactical-studio .tl-tools button{display:flex;gap:6px;align-items:center;background:transparent;border:0;border-radius:4px;padding:6px 8px;font-size:11px}#tactical-studio .tl-tools button[aria-pressed=true]{background:var(--tl-soft);color:var(--tl-accent)}#tactical-studio .tl-stamp{position:absolute;right:12px;top:16px;z-index:3;font:400 11px/1.5 'IBM Plex Mono',monospace;color:#f4f6ff;padding:4px 7px;background:#121927c9;border-radius:4px}
+#tactical-studio .tl-lens{position:absolute;left:55%;top:48%;width:74px;height:74px;transform:translate(-50%,-50%);border:1px solid #d8e3ffd9;border-radius:50%;box-shadow:0 0 0 8px #c7d4ff12;z-index:3;pointer-events:none}#tactical-studio .tl-lens:before,#tactical-studio .tl-lens:after{content:"";position:absolute;top:50%;height:1px;width:12px;background:#eff4ff;left:-17px}#tactical-studio .tl-lens:after{left:auto;right:-17px}#tactical-studio .tl-player{position:absolute;z-index:3;transform:translate(-50%,-50%);display:flex;align-items:center;gap:5px;pointer-events:none;font:500 11px/1 'IBM Plex Mono',monospace;color:#fff;text-shadow:0 1px 4px #000}#tactical-studio .tl-player:before{content:"";width:9px;height:9px;background:#cbd8ff;border:1px solid #202b43;border-radius:50%;box-shadow:0 1px 5px #0008}#tactical-studio .tl-player.support:before{border-radius:1px;background:#fff}#tactical-studio .tl-location{position:absolute;left:50%;top:70%;z-index:2;font-size:11px;letter-spacing:.1em;text-shadow:0 1px 5px #000;color:#fff;pointer-events:none}#tactical-studio .tl-observation{display:flex;align-items:flex-start;gap:13px;padding:15px 0 14px}#tactical-studio .tl-observation-number{font:500 11px/1.5 'IBM Plex Mono',monospace;color:var(--tl-accent);border:1px solid var(--tl-line);border-radius:4px;padding:5px 7px}#tactical-studio .tl-observation h2{font-size:18px;line-height:1.3;font-weight:500;letter-spacing:-.35px;margin-bottom:4px}#tactical-studio .tl-observation p{color:var(--tl-muted);font-size:12px;max-width:430px}
+#tactical-studio .tl-transport{display:flex;align-items:center;gap:9px;border-top:1px solid var(--tl-line);padding-top:13px}#tactical-studio .tl-iconbutton{display:flex;align-items:center;justify-content:center;border:1px solid var(--tl-line);background:var(--tl-panel);width:33px;height:33px;border-radius:6px;padding:0}#tactical-studio .tl-play{background:var(--tl-solid);border-color:var(--tl-solid);color:white;width:36px;height:36px}#tactical-studio .tl-time{color:var(--tl-ink);font-size:12px;margin-left:3px;min-width:88px}#tactical-studio .tl-speed-wrap{margin-left:auto;color:var(--tl-muted);font-size:11px;display:flex;gap:6px;align-items:center}#tactical-studio select{border:1px solid var(--tl-line);background:var(--tl-panel);color:var(--tl-ink);border-radius:5px;padding:5px 4px;font-size:11px}#tactical-studio .tl-timeline{padding:15px 0 0}#tactical-studio .tl-timeline-head{display:flex;justify-content:space-between;color:var(--tl-muted);font-size:11px;margin-bottom:3px}#tactical-studio .tl-range{width:100%;height:25px;accent-color:var(--tl-accent);display:block;margin:0}#tactical-studio .tl-ruler{display:flex;justify-content:space-between;color:var(--tl-muted);font:400 11px/1.4 'IBM Plex Mono',monospace}#tactical-studio .tl-events{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:17px}#tactical-studio .tl-event{text-align:left;border:0;border-top:2px solid var(--tl-line);padding:9px 8px 8px;background:transparent;border-radius:0 0 5px 5px;min-width:0}#tactical-studio .tl-event span{display:block;font-size:11px;color:var(--tl-muted);margin-bottom:4px}#tactical-studio .tl-event strong{font-weight:500;font-size:12px}#tactical-studio .tl-event[aria-pressed=true]{border-top-color:var(--tl-accent);background:var(--tl-soft)}#tactical-studio .tl-event[aria-pressed=true] span{color:var(--tl-accent)}
+#tactical-studio .tl-evidence-intro{font-size:12px;color:var(--tl-muted);margin-bottom:10px}#tactical-studio .tl-evidence-row{padding:16px 0;border-top:1px solid var(--tl-line)}#tactical-studio .tl-evidence-row h3{font-size:15px;font-weight:500;margin:5px 0 6px}#tactical-studio .tl-evidence-row p{font-size:13px;color:var(--tl-muted);line-height:1.6}#tactical-studio .tl-link{border:0;background:transparent;padding:6px 0;display:inline-flex;gap:6px;align-items:center;color:var(--tl-accent);font-size:12px;text-align:left}#tactical-studio .tl-note-label{display:block;font-size:14px;margin:14px 0 8px}#tactical-studio textarea{resize:vertical;width:100%;background:var(--tl-panel);border:1px solid var(--tl-line);color:var(--tl-ink);border-radius:7px;padding:12px;line-height:1.6;font-size:14px}#tactical-studio textarea::placeholder{color:var(--tl-muted);opacity:1}#tactical-studio .tl-note-area{min-height:150px}#tactical-studio .tl-note-status{font-size:11px;color:var(--tl-muted);margin-top:5px}#tactical-studio .tl-drill{margin-top:18px;border-left:2px solid var(--tl-accent);padding:0 0 0 14px}#tactical-studio .tl-drill h3{font-size:15px;font-weight:500;margin:5px 0}#tactical-studio .tl-drill p{font-size:13px;color:var(--tl-muted)}
+#tactical-studio .tl-coach{min-width:0;border-left:1px solid var(--tl-line);padding:0 0 0 22px;display:flex;flex-direction:column;align-self:stretch}#tactical-studio .tl-coach-head{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;margin-bottom:16px}#tactical-studio .tl-coach-title{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500}#tactical-studio .tl-coach-title svg{color:var(--tl-accent)}#tactical-studio .tl-model-label{font-size:11px;color:var(--tl-muted)}#tactical-studio .tl-context{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--tl-muted);margin-bottom:18px}#tactical-studio .tl-context-dot{height:5px;width:5px;background:var(--tl-accent);border-radius:50%}#tactical-studio .tl-user-question{background:var(--tl-raised);border-radius:9px 9px 3px 9px;padding:13px 15px;margin-left:23px;font-size:13px;line-height:1.6;overflow-wrap:anywhere}#tactical-studio .tl-answer{padding:20px 0 16px;position:relative}#tactical-studio .tl-answer-eyebrow{display:flex;justify-content:space-between;font-size:11px;color:var(--tl-muted);margin-bottom:12px}#tactical-studio .tl-answer h3{font-size:23px;line-height:1.22;letter-spacing:-.65px;font-weight:500;margin-bottom:12px;max-width:260px}#tactical-studio .tl-answer p{font-size:14px;line-height:1.7;margin-bottom:13px}#tactical-studio .tl-answer .tl-answer-secondary{color:var(--tl-muted);font-size:13px}#tactical-studio .tl-citation{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--tl-line);background:var(--tl-panel);padding:11px 12px;width:100%;text-align:left;border-radius:7px;color:var(--tl-accent);font-size:12px;margin:12px 0}#tactical-studio .tl-citation small{display:block;color:var(--tl-muted);font-size:11px;margin-top:3px}#tactical-studio .tl-save{font-size:12px;color:var(--tl-muted);background:transparent;padding:5px 0;border:0;display:flex;gap:7px;align-items:center}#tactical-studio .tl-save[aria-pressed=true]{color:var(--tl-accent)}#tactical-studio .tl-composer{margin-top:auto;padding-top:12px}#tactical-studio .tl-suggestions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}#tactical-studio .tl-suggestion{border:1px solid var(--tl-line);background:transparent;border-radius:6px;font-size:11px;padding:7px 9px;text-align:left}#tactical-studio .tl-compose-box{border:1px solid var(--tl-line);border-radius:9px;background:var(--tl-panel);padding:10px 11px;transition:box-shadow .2s,border-color .2s}#tactical-studio .tl-compose-box:focus-within{border-color:var(--tl-accent);box-shadow:0 0 0 3px var(--tl-soft)}#tactical-studio .tl-compose-box textarea{border:0;padding:0;min-height:62px;background:transparent;border-radius:0;resize:vertical;font-size:13px}#tactical-studio .tl-compose-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}#tactical-studio .tl-compose-caption{font-size:11px;color:var(--tl-muted)}#tactical-studio .tl-send{background:var(--tl-solid);color:white;border:0;border-radius:6px;padding:7px 10px;font-size:12px;display:flex;align-items:center;gap:6px;min-height:33px}#tactical-studio .tl-compose-note{font-size:11px;color:var(--tl-muted);margin-top:8px}#tactical-studio .tl-loading{padding:25px 0 22px;min-height:230px}#tactical-studio .tl-loading-heading{display:flex;gap:9px;align-items:center;font-size:13px;color:var(--tl-accent);margin-bottom:20px}#tactical-studio .tl-loading-dot{height:7px;width:7px;border:1px solid var(--tl-accent);border-radius:50%;animation:tl-breathe 1.4s ease-in-out infinite}#tactical-studio .tl-loading-line{height:7px;background:var(--tl-raised);border-radius:3px;margin:12px 0;transform-origin:left;animation:tl-grow 1.4s ease-in-out infinite alternate}#tactical-studio .tl-loading-line:nth-child(3){width:87%;animation-delay:.15s}#tactical-studio .tl-loading-line:nth-child(4){width:63%;animation-delay:.3s}#tactical-studio .tl-loading p{font-size:11px;color:var(--tl-muted);margin-top:24px}#tactical-studio .tl-previous{margin-bottom:15px;font-size:12px}#tactical-studio .tl-previous summary{color:var(--tl-muted);padding:7px 0}#tactical-studio .tl-previous p{font-size:12px;line-height:1.6;padding:6px 0}#tactical-studio .tl-previous article{border-bottom:1px solid var(--tl-line);padding:9px 0}#tactical-studio .tl-footer{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:space-between;border-top:1px solid var(--tl-line);padding:12px 24px;font-size:11px;color:var(--tl-muted)}#tactical-studio .tl-footer a{font-size:11px}#tactical-studio .tl-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#tactical-studio .tl-transport{flex-wrap:wrap}#tactical-studio .tl-ruler{position:relative;height:16px;margin:0 7px}#tactical-studio .tl-ruler span{position:absolute;top:0}#tactical-studio .tl-ruler span:nth-child(1){left:0}#tactical-studio .tl-ruler span:nth-child(2){left:28.571%;transform:translateX(-50%)}#tactical-studio .tl-ruler span:nth-child(3){left:57.143%;transform:translateX(-50%)}#tactical-studio .tl-ruler span:nth-child(4){right:0}
+#tactical-studio[data-opaque=true] .tl-frost{background:var(--tl-panel);backdrop-filter:none;-webkit-backdrop-filter:none}#tactical-studio[data-reduced=true] *{animation:none!important;transition:none!important}
+@keyframes tl-breathe{50%{background:var(--tl-accent);transform:scale(1.2)}}@keyframes tl-grow{to{transform:scaleX(.92);opacity:.5}}
+@media(hover:hover){#tactical-studio .tl-iconbutton:not(:disabled):hover,#tactical-studio .tl-suggestion:not(:disabled):hover,#tactical-studio .tl-palette:hover{background:var(--tl-raised)}#tactical-studio .tl-citation:hover{background:var(--tl-soft);transform:translateY(-2px);box-shadow:0 5px 14px var(--tl-shadow)}#tactical-studio .tl-event:hover{background:var(--tl-raised)}#tactical-studio .tl-tools button:hover{background:var(--tl-raised)}#tactical-studio .tl-send:not(:disabled):hover{box-shadow:0 3px 13px var(--tl-shadow);transform:translateY(-1px)}#tactical-studio .tl-tab:hover,#tactical-studio .tl-link:hover,#tactical-studio .tl-save:hover{color:var(--tl-accent)}}
+@media(max-width:760px){#tactical-studio .tl-workspace{grid-template-columns:1fr}#tactical-studio .tl-left{padding-right:0}#tactical-studio .tl-coach{border-left:0;border-top:1px solid var(--tl-line);padding:20px 0 0;margin-top:25px}#tactical-studio .tl-panel{min-height:0}#tactical-studio .tl-coach-head{margin-bottom:8px}#tactical-studio .tl-answer h3{max-width:none}#tactical-studio .tl-user-question{margin-left:15%}#tactical-studio .tl-loading{min-height:170px}}
+@media(max-width:430px){#tactical-studio .tl-top{padding:15px;gap:12px}#tactical-studio .tl-top-label{padding-left:12px}#tactical-studio .tl-prototype{display:none}#tactical-studio .tl-heading{padding:20px 15px;align-items:flex-start}#tactical-studio .tl-title{gap:10px}#tactical-studio .tl-round{font-size:36px}#tactical-studio h1{font-size:21px}#tactical-studio .tl-heading .tl-kicker{font-size:11px;letter-spacing:.06em}#tactical-studio .tl-settings summary .tl-appearance-label{display:none}#tactical-studio .tl-workspace{padding:0 15px 20px}#tactical-studio .tl-stage{aspect-ratio:1.28}#tactical-studio .tl-stamp{top:auto;bottom:38px;right:10px}#tactical-studio .tl-stage-caption{font-size:11px;left:8px;bottom:8px}#tactical-studio .tl-events{grid-template-columns:repeat(2,minmax(0,1fr))}#tactical-studio .tl-speed-label{display:none}#tactical-studio .tl-transport{gap:6px}#tactical-studio .tl-footer{padding:12px 15px}}
+@media(pointer:coarse){#tactical-studio button,#tactical-studio summary{min-height:44px}#tactical-studio .tl-iconbutton{width:44px;flex:none}#tactical-studio textarea{font-size:16px!important}#tactical-studio .tl-speed-wrap{gap:0}#tactical-studio select{min-height:44px}}
+@media(prefers-reduced-motion:reduce){#tactical-studio *{animation:none!important;transition:none!important}}
+@supports not (backdrop-filter:blur(1px)){#tactical-studio .tl-frost{background:var(--tl-panel)}}
+</style>
+<div id="tactical-studio" data-palette="cobalt" data-reduced="false" data-opaque="false" aria-label="Tactical Lens Studio prototype">
+ <header class="tl-top"><div class="tl-brand"><span class="tl-brandmark" aria-hidden="true"></span>Round Reviewer</div><span class="tl-top-label">Studio</span><span class="tl-prototype">Interactive concept</span></header>
+ <div class="tl-heading">
+  <div class="tl-title"><span class="tl-round" aria-hidden="true">12</span><div><div class="tl-kicker">Round 12 · CT side</div><h1>Mirage / A site</h1><div class="tl-subtitle">Pawel’s perspective · Tactical Lens</div></div></div>
+  <details class="tl-settings"><summary class="cursor-interaction" aria-label="Appearance settings"><i data-lucide="sliders-horizontal" aria-hidden="true"></i><span class="tl-appearance-label">Appearance</span></summary><div class="tl-popover"><h2>Studio palette</h2>
+   <button class="tl-palette cursor-interaction" data-palette="cobalt" type="button" aria-pressed="true"><span class="tl-swatch" style="--swatch-bg:#191c23;--swatch-fg:#a5b9ff"></span>Carbon / Cobalt<span class="tl-check">✓</span></button>
+   <button class="tl-palette cursor-interaction" data-palette="ice" type="button" aria-pressed="false"><span class="tl-swatch" style="--swatch-bg:#1c2226;--swatch-fg:#9ad6ed"></span>Graphite / Ice<span class="tl-check">✓</span></button>
+   <button class="tl-palette cursor-interaction" data-palette="paper" type="button" aria-pressed="false"><span class="tl-swatch" style="--swatch-bg:#fafbfe;--swatch-fg:#3553bd"></span>Paper / Ultramarine<span class="tl-check">✓</span></button>
+   <label class="tl-pref"><input id="tl-motion" type="checkbox">Reduce motion</label><label class="tl-pref"><input id="tl-opaque" type="checkbox">Use solid surfaces</label>
+  </div></details>
+ </div>
+ <div class="tl-workspace">
+  <section class="tl-left" aria-label="Match workspace">
+   <div class="tl-tabs" role="tablist" aria-label="Studio views">
+    <button id="tl-tab-replay" class="tl-tab cursor-interaction" role="tab" aria-controls="tl-panel-replay" aria-selected="true" type="button" data-tab="replay">Replay</button>
+    <button id="tl-tab-evidence" class="tl-tab cursor-interaction" role="tab" aria-controls="tl-panel-evidence" aria-selected="false" type="button" data-tab="evidence">Evidence</button>
+    <button id="tl-tab-notes" class="tl-tab cursor-interaction" role="tab" aria-controls="tl-panel-notes" aria-selected="false" type="button" data-tab="notes">Notes & practice</button><span class="tl-tab-line"></span>
+   </div>
+   <div class="tl-panel" id="tl-panel-replay" role="tabpanel" aria-labelledby="tl-tab-replay">
+    <div class="tl-stage">
+     <img class="tl-scene" src="https://cdn.jsdelivr.net/gh/MurkyYT/cs2-map-icons@main/images/thumbs/de_mirage_1_png.png" alt="Mirage A site reference image; overlaid positions are illustrative">
+     <div class="tl-tools tl-frost" role="group" aria-label="Replay annotation mode"><button type="button" class="cursor-interaction" data-overlay="true" aria-pressed="true"><i data-lucide="focus" aria-hidden="true"></i>Lens</button><button type="button" class="cursor-interaction" data-overlay="false" aria-pressed="false"><i data-lucide="image" aria-hidden="true"></i>Clean</button></div>
+     <div class="tl-stamp">R12 <span class="tl-stage-time">00:38.0</span></div>
+     <div class="tl-annotation"><div class="tl-lens"></div><div class="tl-player" id="tl-p1">P</div><div class="tl-player support" id="tl-p2">A</div><span class="tl-location">A SITE</span></div>
+     <span class="tl-stage-caption">Reference still · simulated movement</span>
+    </div>
+    <div class="tl-observation"><span class="tl-observation-number">02</span><div><h2 class="tl-observation-title">One beat before your teammate.</h2><p class="tl-observation-detail">First contact comes before support reaches the angle.</p></div></div>
+   </div>
+   <div class="tl-panel" id="tl-panel-evidence" role="tabpanel" aria-labelledby="tl-tab-evidence" hidden>
+    <p class="tl-evidence-intro">Sample evidence · observations and interpretation kept separate</p>
+    <article class="tl-evidence-row"><div class="tl-kicker">Observation / timing</div><h3>Contact and support are separated.</h3><p>In this example, first contact occurs at 00:38; the support marker reaches its position at 00:40.</p><button type="button" class="tl-link cursor-interaction" data-seek="38">Inspect 00:38 → 00:40 <i data-lucide="arrow-up-right" aria-hidden="true"></i></button></article>
+    <article class="tl-evidence-row"><div class="tl-kicker">Interpretation / needs validation</div><h3>There may be a missed trade opportunity.</h3><p>Timing alone does not establish visibility or a clear shot. Real coaching needs cover, line of sight and player intent.</p></article>
+    <article class="tl-evidence-row"><div class="tl-kicker">Positive / sample annotation</div><h3>You return to cover.</h3><p>The illustrated reset is a useful habit to reinforce, alongside reviewing the first swing.</p><button type="button" class="tl-link cursor-interaction" data-seek="44">Inspect reset · 00:44 <i data-lucide="arrow-up-right" aria-hidden="true"></i></button></article>
+   </div>
+   <div class="tl-panel" id="tl-panel-notes" role="tabpanel" aria-labelledby="tl-tab-notes" hidden>
+    <div class="tl-kicker">Turn a review into a habit</div><label class="tl-note-label" for="tl-notes">Your round notes</label><textarea id="tl-notes" class="tl-note-area" placeholder="What will you change next round?" maxlength="1500"></textarea><div class="tl-note-status">Kept in this prototype session</div>
+    <div class="tl-drill"><div class="tl-kicker">Suggested practice</div><h3>Call, align, swing.</h3><p>With a teammate, rehearse five coordinated swings from cover. Call when both players are ready, then check the trade spacing together.</p><button type="button" class="tl-save cursor-interaction" aria-pressed="false"><i data-lucide="bookmark" aria-hidden="true"></i><span>Save practice focus</span></button></div>
+   </div>
+   <div class="tl-transport" aria-label="Simulated replay controls"><button class="tl-iconbutton cursor-interaction" id="tl-back" type="button" aria-label="Back two seconds"><i data-lucide="rotate-ccw" aria-hidden="true"></i></button><button class="tl-iconbutton tl-play cursor-interaction" id="tl-play" type="button" aria-label="Play simulated replay"><span id="tl-play-symbol" aria-hidden="true">▶</span></button><button class="tl-iconbutton cursor-interaction" id="tl-forward" type="button" aria-label="Forward two seconds"><i data-lucide="rotate-cw" aria-hidden="true"></i></button><span class="tl-mono tl-time"><span id="tl-time">00:38.0</span><span class="tl-muted"> / 46s</span></span><label class="tl-speed-wrap"><span class="tl-speed-label">Speed</span><select id="tl-speed" aria-label="Replay speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+   <div class="tl-timeline"><div class="tl-timeline-head"><label for="tl-scrubber">Round excerpt</label><span>Elapsed round time</span></div><input id="tl-scrubber" class="tl-range cursor-interaction" type="range" min="32" max="46" step="0.1" value="38" aria-valuetext="38 seconds elapsed"><div class="tl-ruler" aria-hidden="true"><span>00:32</span><span>00:36</span><span>00:40</span><span>00:46</span></div></div>
+   <div class="tl-events" aria-label="Selected moments"><button class="tl-event cursor-interaction" type="button" data-event="0" aria-pressed="false"><span class="tl-mono">01 / 00:34</span><strong>Set up</strong></button><button class="tl-event cursor-interaction" type="button" data-event="1" aria-pressed="true"><span class="tl-mono">02 / 00:38</span><strong>First contact</strong></button><button class="tl-event cursor-interaction" type="button" data-event="2" aria-pressed="false"><span class="tl-mono">03 / 00:40</span><strong>Support</strong></button><button class="tl-event cursor-interaction" type="button" data-event="3" aria-pressed="false"><span class="tl-mono">04 / 00:44</span><strong>Reset</strong></button></div>
+  </section>
+  <aside class="tl-coach" aria-label="Coach chat">
+   <div class="tl-coach-head"><div class="tl-coach-title"><i data-lucide="scan-line" aria-hidden="true"></i>Round coach</div><span class="tl-model-label">Sample conversation</span></div>
+   <div class="tl-context"><span class="tl-context-dot" aria-hidden="true"></span>Mirage · Round 12 · <span id="tl-chat-context">00:38</span></div>
+   <details class="tl-previous" hidden><summary>Previous exchanges</summary><div id="tl-history"></div></details>
+   <div class="tl-user-question" id="tl-question">Why was this duel hard to trade?</div>
+   <div id="tl-response" class="tl-answer"></div>
+   <div id="tl-loading" class="tl-loading" hidden><div class="tl-loading-heading"><span class="tl-loading-dot" aria-hidden="true"></span><span id="tl-loading-label">Preparing sample coaching…</span></div><div class="tl-loading-line" aria-hidden="true"></div><div class="tl-loading-line" aria-hidden="true"></div><div class="tl-loading-line" aria-hidden="true"></div><p>Simulated response · no model is running</p></div>
+   <form class="tl-composer" id="tl-form">
+    <div class="tl-suggestions"><button class="tl-suggestion cursor-interaction" type="button" data-prompt="What did I do well?">What went well?</button><button class="tl-suggestion cursor-interaction" type="button" data-prompt="Give me a practice drill.">Give me a drill</button></div>
+    <div class="tl-compose-box"><label for="tl-input" class="tl-sr">Ask the round coach</label><textarea id="tl-input" maxlength="500" placeholder="Ask about this moment…" rows="2"></textarea><div class="tl-compose-footer"><span class="tl-compose-caption">R12 · <span id="tl-compose-time">00:38</span></span><button type="button" class="tl-send cursor-interaction" id="tl-send" disabled><span id="tl-send-label">Send</span><i data-lucide="arrow-up" aria-hidden="true"></i></button></div></div><div class="tl-compose-note">Sample replies, not live match analysis.</div>
+   </form>
+  </aside>
+ </div>
+ <footer class="tl-footer"><span>Mirage image © Valve · <a href="https://github.com/MurkyYT/cs2-map-icons" target="_blank" rel="noopener noreferrer">CS2 Map Icons</a></span><span>Colour references: <a href="https://spectrum.adobe.com/page/color/" target="_blank" rel="noopener noreferrer">Adobe Spectrum</a> · <a href="https://www.radix-ui.com/colors/docs/palette-composition/understanding-the-scale" target="_blank" rel="noopener noreferrer">Radix</a></span></footer>
+ <div id="tl-status" class="tl-sr" role="status" aria-live="polite"></div>
+</div>
+<script>
+(()=>{
+ const root=document.getElementById('tactical-studio');
+ const $=s=>root.querySelector(s), $$=s=>[...root.querySelectorAll(s)];
+ const events=[
+  {time:34,title:'Start with a little room.',detail:'The sample begins with both players still near cover.',p:[30,58],a:[19,66]},
+  {time:38,title:'One beat before your teammate.',detail:'First contact comes before support reaches the angle.',p:[55,48],a:[29,62]},
+  {time:40,title:'Support reaches the angle.',detail:'Compare this moment with your first contact two seconds earlier.',p:[56,48],a:[41,56]},
+  {time:44,title:'A reset worth keeping.',detail:'Return to cover and give yourself another decision.',p:[37,58],a:[34,62]}
+ ];
+ const answers={
+  trade:{title:'Give the trade a chance.',body:'In this sample, you make contact at 00:38. Support reaches its position at 00:40, leaving a two-second gap.',next:'Before the next swing, confirm your teammate is ready. Timing is a clue, not proof of a clear trade: cover and line of sight still need checking.',time:38,cite:'Compare contact and support',range:'00:38 → 00:40',practice:'Call, align, swing.'},
+  positive:{title:'Keep the reset.',body:'The sample highlights a return to cover at 00:44. That reset gives you another chance to choose the next fight.',next:'Keep that habit. Review the earlier swing separately, so one timing mistake does not hide a positive decision.',time:44,cite:'Watch the return to cover',range:'00:44 · reset',practice:'Reset after first contact.'},
+  drill:{title:'Practise the shared swing.',body:'With a teammate, start behind cover. Call when both players are ready, then swing together. Repeat five times.',next:'Review whether both players could engage the same opponent. Adjust spacing and timing together; there is no universal two-second rule.',time:38,cite:'Return to the timing example',range:'00:38 → 00:40',practice:'Five coordinated swings.'},
+  limited:{title:'Keep the answer grounded.',body:'This prototype has three scripted replies: trade timing, the positive reset and a practice drill. It cannot analyse a new question or your own match.',next:'Try “Why was this hard to trade?”, “What did I do well?” or “Give me a practice drill” to explore the chat interaction.',time:38,cite:'Inspect the example',range:'Round 12 · sample',practice:null}
+ };
+ const state={palette:'cobalt',tab:'replay',time:38,speed:1,overlay:true,reduced:false,opaque:false,notes:'',draft:'',saved:false,practice:'Call, align, swing.',answer:'trade',question:'Why was this duel hard to trade?',chatTime:38,history:[]};
+ const design={frost:18};
+ let playing=false,raf=0,lastFrame=0,job=0,busy=false,saveTimer=0,selected=-1,resizeObserver,lastPersisted='';
+ const motionQuery=window.matchMedia('(prefers-reduced-motion: reduce)');
+ const reduced=()=>state.reduced||motionQuery.matches;
+ const fmt=(n,decimal=false)=>'00:'+n.toFixed(decimal?1:0).padStart(decimal?4:2,'0');
+ function announce(text){$('#tl-status').textContent=text;}
+ function persist(){
+  const snapshot={modelContent:{concept:'Tactical Lens',palette:state.palette,view:state.tab,selectedTime:Number(state.time.toFixed(1)),reducedMotion:state.reduced,solidSurfaces:state.opaque,savedPractice:state.saved?state.practice:null},privateContent:{...state,history:state.history.slice(-3)}};
+  lastPersisted=JSON.stringify(snapshot.privateContent);
+  try{window.openai?.setWidgetState?.(snapshot)?.catch(()=>{});}catch{}
+ }
+ function animateIn(node,stagger=false){
+  if(!node||reduced())return;
+  const targets=stagger?[...node.children]:[node];
+  if(window.gsap){window.gsap.killTweensOf(targets);window.gsap.fromTo(targets,{opacity:.15,y:7},{opacity:1,y:0,duration:.3,stagger:stagger?.065:0,ease:'power2.out',clearProps:'transform,opacity'});}
+  else targets.forEach((el,i)=>el.animate?.([{opacity:.15,transform:'translateY(7px)'},{opacity:1,transform:'translateY(0)'}],{duration:280,delay:stagger?i*60:0,easing:'ease-out'}));
+ }
+ function updateAppearance(){
+  root.dataset.palette=state.palette;root.dataset.opaque=String(state.opaque);root.dataset.reduced=String(reduced());
+  $('#tl-motion').checked=state.reduced;$('#tl-opaque').checked=state.opaque;
+  $$('.tl-palette').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.palette===state.palette)));
+  root.style.setProperty('--tl-blur',design.frost+'px');
+  if(reduced()&&window.gsap){window.gsap.killTweensOf(root.querySelectorAll('*'));root.querySelectorAll('[style*="opacity"]').forEach(el=>{el.style.opacity='';el.style.transform='';});}
+ }
+ function marker(animate=false){
+  const b=$('.tl-tab[aria-selected=true]'),line=$('.tl-tab-line');if(!b)return;
+  const to={x:b.offsetLeft,width:b.offsetWidth};
+  if(animate&&!reduced()&&window.gsap)window.gsap.to(line,{...to,duration:.28,ease:'power3.out',overwrite:true});
+  else{line.style.transform='translateX('+to.x+'px)';line.style.width=to.width+'px';}
+ }
+ function changeTab(name,animate=true,save=true){
+  if(!['replay','evidence','notes'].includes(name))return;
+  state.tab=name;
+  $$('.tl-tab').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===name)));
+  $$('.tl-panel').forEach(p=>p.hidden=p.id!=='tl-panel-'+name);
+  if(name!=='replay')pause();
+  marker(animate);if(animate)animateIn($('#tl-panel-'+name));
+  if(save)persist();
+ }
+ function pointAt(t,key){
+  if(t<=34)return events[0][key];if(t>=44)return events[3][key];
+  const idx=events.findIndex((e,i)=>i<3&&t>=e.time&&t<events[i+1].time);
+  const a=events[idx],b=events[idx+1],u=(t-a.time)/(b.time-a.time);
+  return [a[key][0]+(b[key][0]-a[key][0])*u,a[key][1]+(b[key][1]-a[key][1])*u];
+ }
+ function renderTime(){
+  state.time=Math.max(32,Math.min(46,state.time));
+  $('#tl-time').textContent=fmt(state.time,true);$('.tl-stage-time').textContent=fmt(state.time,true);
+  $('#tl-compose-time').textContent=fmt(state.time);$('#tl-scrubber').value=state.time;
+  $('#tl-scrubber').setAttribute('aria-valuetext',state.time.toFixed(1)+' seconds elapsed');
+  let index=0;events.forEach((e,i)=>{if(state.time>=e.time)index=i;});
+  if(index!==selected){
+   selected=index;const e=events[index];
+   $('.tl-observation-number').textContent=String(index+1).padStart(2,'0');
+   $('.tl-observation-title').textContent=e.title;$('.tl-observation-detail').textContent=e.detail;
+   $$('.tl-event').forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));
+  }
+  const p=pointAt(state.time,'p'),a=pointAt(state.time,'a');
+  [['#tl-p1',p],['#tl-p2',a],['.tl-lens',p]].forEach(([s,xy])=>{const el=$(s);el.style.left=xy[0]+'%';el.style.top=xy[1]+'%';});
+ }
+ function pause(){playing=false;cancelAnimationFrame(raf);$('#tl-play-symbol').textContent='▶';$('#tl-play').setAttribute('aria-label','Play simulated replay');}
+ function tick(ts){
+  if(!playing)return;
+  if(lastFrame)state.time+=Math.min((ts-lastFrame)/1000,.1)*state.speed;
+  lastFrame=ts;renderTime();
+  if(state.time>=46){pause();persist();return;}raf=requestAnimationFrame(tick);
+ }
+ function seek(time,showReplay=true){
+  pause();state.time=time;renderTime();if(showReplay)changeTab('replay',true,false);
+  if(state.overlay&&!reduced())animateIn($('.tl-observation'));
+  announce('Selected sample moment '+fmt(time));persist();
+ }
+ function syncSaved(){
+  $$('.tl-save').forEach(b=>{const matches=state.saved&&state.practice===(b.dataset.practice||'Call, align, swing.');b.setAttribute('aria-pressed',String(matches));const label=b.querySelector('span');if(label)label.textContent=matches?'Practice focus saved':'Save practice focus';});
+  const drill=$('.tl-drill h3');drill.textContent=state.saved?state.practice:'Call, align, swing.';
+  $('.tl-drill p').textContent=state.saved&&state.practice==='Reset after first contact.'?'After first contact, practise returning to cover before choosing your next angle. Review whether you leave enough room to retreat.':'With a teammate, rehearse five coordinated swings from cover. Call when both players are ready, then check the trade spacing together.';
+  $('.tl-drill .tl-save').dataset.practice=state.saved?state.practice:'Call, align, swing.';
+  $('.tl-drill .tl-save').setAttribute('aria-pressed',String(state.saved));
+  $('.tl-drill .tl-save span').textContent=state.saved?'Practice focus saved':'Save practice focus';
+ }
+ function el(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;}
+ function renderAnswer(animate=false){
+  const a=answers[state.answer]||answers.trade,host=$('#tl-response');host.replaceChildren();host.hidden=false;$('#tl-loading').hidden=true;
+  $('#tl-question').textContent=state.question;$('#tl-chat-context').textContent=fmt(state.chatTime);
+  const eyebrow=el('div','tl-answer-eyebrow');eyebrow.append(el('span','','COACH / SAMPLE'),el('span','tl-mono','R12'));
+  host.append(eyebrow,el('h3','',a.title),el('p','',a.body),el('p','tl-answer-secondary',a.next));
+  const cite=el('button','tl-citation cursor-interaction');cite.type='button';cite.dataset.seek=String(a.time);
+  const copy=el('span','',a.cite);copy.append(el('small','tl-mono',a.range));cite.append(copy,el('span','','↗'));host.append(cite);
+  if(a.practice){const save=el('button','tl-save cursor-interaction');save.type='button';save.setAttribute('aria-pressed',String(state.saved));save.append(el('span','','Save practice focus'));save.dataset.practice=a.practice;host.append(save);}
+  syncSaved();renderHistory();if(animate)animateIn(host,true);
+ }
+ function renderHistory(){
+  const history=$('#tl-history');history.replaceChildren();$('.tl-previous').hidden=!state.history.length;
+  state.history.forEach(h=>{const a=el('article');a.append(el('p','',h.question),el('p','tl-muted',(answers[h.answer]||answers.trade).body));history.append(a);});
+ }
+ function updateSend(){const b=$('#tl-send');b.disabled=!busy&&!$('#tl-input').value.trim();$('#tl-send-label').textContent=busy?'Stop':'Send';$$('.tl-suggestion').forEach(b=>b.disabled=busy);}
+ function stopReply(){
+  job++;busy=false;$('#tl-loading').hidden=true;renderAnswer();updateSend();announce('Sample reply stopped. Previous response restored.');
+ }
+ function answerFor(q){if(/\b(well|good|positive|right)\b/i.test(q))return'positive';if(/\b(drill|practi[cs]e|training)\b/i.test(q))return'drill';if(/\b(trade|duel|timing|swing|support)\b/i.test(q))return'trade';return'limited';}
+ function send(q){
+  q=q.trim().slice(0,500);if(!q||busy)return;
+  clearTimeout(saveTimer);busy=true;const id=++job,at=state.time,key=answerFor(q);
+  $('#tl-question').textContent=q;$('#tl-chat-context').textContent=fmt(at);
+  $('#tl-response').hidden=true;$('#tl-loading').hidden=false;$('#tl-loading-label').textContent='Preparing sample coaching…';
+  $('#tl-input').value='';state.draft='';updateSend();announce('Preparing a simulated coach reply.');
+  setTimeout(()=>{if(id===job)$('#tl-loading-label').textContent='Putting the example in context…';},650);
+  setTimeout(()=>{
+   if(id!==job)return;
+   state.history.push({question:state.question,answer:state.answer});state.history=state.history.slice(-3);
+   state.question=q;state.answer=key;state.chatTime=at;busy=false;
+   renderAnswer(true);updateSend();announce('Sample coach reply ready: '+answers[key].title);persist();
+  },1550);
+ }
+ function restore(snapshot){
+  const s=snapshot?.privateContent;if(!s||typeof s!=='object')return;
+  if(['cobalt','ice','paper'].includes(s.palette))state.palette=s.palette;
+  if(['replay','evidence','notes'].includes(s.tab))state.tab=s.tab;
+  if(Number.isFinite(s.time))state.time=Math.max(32,Math.min(46,s.time));
+  ['overlay','reduced','opaque','saved'].forEach(k=>{if(typeof s[k]==='boolean')state[k]=s[k];});
+  ['notes','draft','question','practice'].forEach(k=>{if(typeof s[k]==='string')state[k]=s[k].slice(0,k==='notes'?1500:500);});
+  if(answers[s.answer])state.answer=s.answer;
+  if(Number.isFinite(s.chatTime))state.chatTime=Math.max(32,Math.min(46,s.chatTime));
+  if([.5,1,2].includes(s.speed))state.speed=s.speed;
+  if(Array.isArray(s.history))state.history=s.history.filter(h=>h&&typeof h.question==='string'&&answers[h.answer]).slice(-3).map(h=>({question:h.question.slice(0,500),answer:h.answer}));
+ }
+ function renderAll(){
+  updateAppearance();changeTab(state.tab,false,false);renderTime();renderAnswer();
+  $('#tl-notes').value=state.notes;$('#tl-input').value=state.draft;$('#tl-speed').value=state.speed;renderOverlay();updateSend();
+ }
+ function renderOverlay(){$('.tl-annotation').hidden=!state.overlay;$$('[data-overlay]').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.overlay==='true')===state.overlay)));}
+ root.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b||!root.contains(b))return;
+  if(b.dataset.tab)changeTab(b.dataset.tab);
+  else if(b.dataset.palette){state.palette=b.dataset.palette;updateAppearance();persist();}
+  else if(b.dataset.event!==undefined)seek(events[Number(b.dataset.event)].time);
+  else if(b.dataset.seek)seek(Number(b.dataset.seek));
+  else if(b.dataset.overlay){state.overlay=b.dataset.overlay==='true';renderOverlay();persist();}
+  else if(b.dataset.prompt)send(b.dataset.prompt);
+  else if(b.classList.contains('tl-save')){const practice=b.dataset.practice||'Call, align, swing.';state.saved=!(state.saved&&state.practice===practice);state.practice=practice;syncSaved();announce(state.saved?'Practice focus saved.':'Practice focus removed.');persist();}
+ });
+ $('.tl-tabs').addEventListener('keydown',e=>{
+  const tabs=$$('.tl-tab'),i=tabs.indexOf(document.activeElement);if(i<0)return;
+  let n=i;if(e.key==='ArrowRight')n=(i+1)%tabs.length;else if(e.key==='ArrowLeft')n=(i+tabs.length-1)%tabs.length;else if(e.key==='Home')n=0;else if(e.key==='End')n=tabs.length-1;else return;
+  e.preventDefault();tabs[n].focus();changeTab(tabs[n].dataset.tab);
+ });
+ $('#tl-play').addEventListener('click',()=>{if(playing){pause();persist();}else{changeTab('replay',false,false);if(state.time>=46)state.time=32;playing=true;lastFrame=0;$('#tl-play-symbol').textContent='Ⅱ';$('#tl-play').setAttribute('aria-label','Pause simulated replay');raf=requestAnimationFrame(tick);}});
+ $('#tl-back').addEventListener('click',()=>seek(Math.max(32,state.time-2)));
+ $('#tl-forward').addEventListener('click',()=>seek(Math.min(46,state.time+2)));
+ $('#tl-scrubber').addEventListener('input',e=>{pause();state.time=Number(e.target.value);renderTime();});
+ $('#tl-scrubber').addEventListener('change',persist);
+ $('#tl-speed').addEventListener('change',e=>{state.speed=Number(e.target.value);persist();});
+ $('#tl-motion').addEventListener('change',e=>{state.reduced=e.target.checked;updateAppearance();marker();persist();});
+ $('#tl-opaque').addEventListener('change',e=>{state.opaque=e.target.checked;updateAppearance();persist();});
+ $('#tl-notes').addEventListener('input',e=>{state.notes=e.target.value;clearTimeout(saveTimer);saveTimer=setTimeout(persist,400);});
+ $('#tl-input').addEventListener('input',e=>{state.draft=e.target.value;updateSend();clearTimeout(saveTimer);saveTimer=setTimeout(persist,400);});
+ $('#tl-send').addEventListener('click',()=>{if(busy)stopReply();else send($('#tl-input').value);});
+ $('#tl-form').addEventListener('submit',e=>{e.preventDefault();if(!busy)send($('#tl-input').value);});
+ $('#tl-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();if(!busy)send(e.target.value);}});
+ const settings=$('.tl-settings');
+ settings.addEventListener('toggle',()=>{if(settings.open)animateIn($('.tl-popover'));});
+ root.addEventListener('keydown',e=>{if(e.key==='Escape'&&settings.open){settings.open=false;settings.querySelector('summary').focus();}});
+ document.addEventListener('click',e=>{if(settings.open&&!settings.contains(e.target))settings.open=false;});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
+ motionQuery.addEventListener?.('change',updateAppearance);
+ window.addEventListener('openai:set_globals',e=>{const s=e.detail?.globals?.widgetState;if(s&&JSON.stringify(s.privateContent)!==lastPersisted){job++;busy=false;pause();restore(s);renderAll();}});
+ restore(window.openai?.widgetState);renderAll();
+ if(window.ResizeObserver){resizeObserver=new ResizeObserver(()=>marker());resizeObserver.observe($('.tl-tabs'));}
+ document.fonts?.ready.then(()=>marker());
+ if(globalThis.Tweak){const tweak=new Tweak({container:root,onChange:()=>root.style.setProperty('--tl-blur',design.frost+'px')});tweak.addSlider(design,'frost',{label:'Control frost',min:8,max:26,step:2,unit:'px',reference:'--tl-blur'});}
+})();
+</script>
