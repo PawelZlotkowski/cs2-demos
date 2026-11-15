@@ -1,0 +1,173 @@
+{
+  "date": "2026-10-20",
+  "scope": "Organisation and source provenance only",
+  "passed": true,
+  "baseline_files_unchanged": 512,
+  "intentional_existing_document_edits": [
+    "AGENTS.md",
+    "README.md",
+    "docs/README.md",
+    "docs/handoff/00-README.md"
+  ],
+  "original_source_files_unchanged": 1218,
+  "imports_verified": [
+    {
+      "path": "docs/reference/phase1/AGENTIC-IMPLEMENTATION-PLAN.md",
+      "sha256": "a4420eeab7dad0650e553e265888533fa45143290b12794745199a4e7ded74ae",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/APP-PLAN.md",
+      "sha256": "986691d392a3b9b8096143f2a9c0dc0062997ecdc539fce2fab72107a39d4c5c",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/APP-REVIEW.md",
+      "sha256": "1e838907a937207d0bc093f410ff133255f1659dd72a39ffe24bcef01814be03",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/CONSOLIDATED-PLAN-DRAFT.md",
+      "sha256": "4204199e3f2971b8942a6e199e9dcbf324c857a801411854553ade5014dd3dda",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/planning/FINAL-DELIVERY-PLAN.md",
+      "sha256": "480360f4c0849f78f3f53841849c44b85f062b572cdc8280f24d3ec9636daa2f",
+      "post_copy_edit": "Workspace consolidation and design-pause notice."
+    },
+    {
+      "path": "docs/planning/HOSTING-AND-GPU-PLAN.md",
+      "sha256": "61d0ce3c50275308449fdbe7281cc2a0bbf7b1a12dc21e3f604bdb1ee2e50855",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/PHASE1-RESULTS.md",
+      "sha256": "08b8caae60a30eadfd1a9d8a1f6dba32398e5ae67f113df1f04ec64bf337db10",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/PROMPTS.md",
+      "sha256": "35b8d1b9185fd9d58bb5fcba52b13d2fda6efe0a2dc38f5c34d5634671d2685e",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/PYTHON-DEPENDENCY-AUDIT.md",
+      "sha256": "8a769534fe86e39376f2db5dc9f4b9c9a188b9785306f623360cb30dcd47e313",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/planning/RECORDING-AND-TRAINING-PLAN.md",
+      "sha256": "93f74a5dfb69e6a0dc0f7db32c7f031eda1aaedadb9adf80935cd36e948bc8c5",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/reproduce_findings.py",
+      "sha256": "857c8644378b1abd43803a640e45a434d46a7414f45d3af44071ce6a3b50c5a7",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/RESEARCH.md",
+      "sha256": "4f4b6ef12aed074d0d2cdfc3262bf62a3739180413b3138566e32812bdf2c659",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/skills/rr-architecture/SKILL.md",
+      "sha256": "ff2b1872c55c52131dc1ad4e29ab4bb50f61fb51bf702b4a8b1449820442bd5a",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/skills/rr-coach/SKILL.md",
+      "sha256": "c28d21dfc36a4b210ad25b7e53fe593a8d31a77a713bdc11cdd0ecd885f47333",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/skills/rr-deployment/SKILL.md",
+      "sha256": "e99ddf4b3f158fa3ea24c259e3b9ecfbfb1024410a500475aacce091f354d1a1",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/skills/rr-detector/SKILL.md",
+      "sha256": "fb73501cf55ec40735341b3f8b0f91715727e9ced6bc977249652fcafc735396",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/skills/rr-eval/SKILL.md",
+      "sha256": "ea0c449c25a5e11dcbbaeccd4ad19c22ff5f3f75d99ced4aa7b6e52c1cc4cb27",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/skills/rr-parser/SKILL.md",
+      "sha256": "59caed8b95b7025edd573ec3cd89900991e7d86570f1bea8ce683163083dca22",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/skills/rr-recording/SKILL.md",
+      "sha256": "93c19ee475d02fb38c8625ad6dd695afe8035a37cabc3b531f11774a8f355a7b",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/skills/rr-replay-3d/SKILL.md",
+      "sha256": "8ad34d508c9690dca89fca7739986e3572f7f15bebcae652c0b992ba59be4914",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/skills/rr-security/SKILL.md",
+      "sha256": "ec64ff89a5a0259b03977e1ee24e9c3a891d319129807738b386ef76c86a5376",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/planning/STUDIO-UI-AND-MOTION-PLAN.md",
+      "sha256": "0927654f9471f2554f21c50baee4fcf4b4cbad53bd395af28860b7495bed2b6b",
+      "post_copy_edit": "Explicit user-requested design-pause notice."
+    },
+    {
+      "path": "docs/reference/phase1/THREEJS-RESEARCH.md",
+      "sha256": "62a9c53847517e898c036fb7118c6a826d58cc5cded38a6da238e7382eda0f58",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/VALIDATION.md",
+      "sha256": "b3ac0ad4d95fd919a004f36355effc229f769d6325f1148d340ece8a20cc7878",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/SOURCE-START-HERE.md",
+      "sha256": "4394e71a7cdae4a0e6dc453fccda7c91b3fa9ed4ec0dd4b49a6b1ba23a15091c",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/ORIGINAL-PACKAGE-MANIFEST.json",
+      "sha256": "8e58b54090050772fbf432ba8d4da5ac1b9339bb9b07a87493ee18c8c9a0aff9",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/reference/phase1/DOCKER-SETUP.md",
+      "sha256": "8bf8f27ebadc0ca2cf66224367dcf8967b978faa3e50f4e6463a0b55ad100feb",
+      "post_copy_edit": null
+    },
+    {
+      "path": "docs/university/project-proposal-Pawel-Zlotkowski-original.docx",
+      "sha256": "ea6f0b981e2c56934f9cbd93667dce0204f063554539643a258fba12154dd33c",
+      "post_copy_edit": null
+    },
+    {
+      "path": "prototype/source/tactical-lens-studio.fragment.html",
+      "sha256": "efe3328972f7e4fc7175ec94342427ff9c0628b400444786c469eca13eb913c3",
+      "post_copy_edit": null
+    }
+  ],
+  "patches_checked_without_applying": 5,
+  "selected_phase1_file_variants": 69,
+  "documentation_links_verified": 138,
+  "existing_historical_link_gaps": [],
+  "derived_preview": {
+    "path": "prototype/tactical-lens-studio.html",
+    "sha256": "3141611d897014b34f81546d8d4533f6d1b35a4f0402d0b635ca095655f076ad",
+    "source": "prototype/source/tactical-lens-studio.fragment.html",
+    "method": "Bundled visualize render.py export; no design edits."
+  },
+  "application_tests_run": false,
+  "application_code_merged": false,
+  "errors": []
+}

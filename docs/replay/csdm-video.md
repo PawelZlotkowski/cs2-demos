@@ -1,5 +1,7 @@
 # CS Demo Manager gameplay video
 
+> Research update, 20 October 2026: this page includes historical implementation and stub-test notes, not fresh proof of real recording. Current CS:DM documentation supports CS2 recording on Windows and Linux; HLAE is Windows-only. For Azure/Google VM candidates, session checks, costs and the Three.js trade-off, use the [current hosting feasibility research](../planning/HOSTING-AND-GPU-PLAN.md#azure--google-recording-feasibility--research-20-october-2026). The agreed Windows route still needs a real capture preflight.
+
 Round Reviewer records per-round first-person clips with [CS Demo Manager](https://cs-demo-manager.com/) so Studio can show **Gameplay** alongside **Radar** on one clock.
 
 ## Spike status (local machine)
@@ -61,7 +63,7 @@ Tests mock the CLI (`tests/coach/test_moment_clips.py`); CS:DM and CS2 only run 
 4. Studio polls clip metadata; Gameplay enables when `status=ready`.
 5. Shared playback clock: Gameplay mode uses the `<video>` element as time master; Radar mode uses RAF and keeps video scrubbed if mounted.
 
-Docker Linux **cannot** run CS:DM. Run the API (or a host worker) on Windows with a bind-mounted `data/matches` directory, or keep `RR_CSDM_ENABLED=0` and use Radar-only.
+The existing Linux API container does not provide the Windows/HLAE recording environment. Keep the API/parser on the cloud host and use a separate Windows recording worker. CS:DM itself also supports Linux recording with a different capture setup; that route is unvalidated here. Radar should remain usable when recording is disabled or unavailable.
 
 ## CS Demo Manager PostgreSQL (Docker)
 

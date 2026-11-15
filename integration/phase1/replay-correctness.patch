@@ -1,0 +1,759 @@
+--- /dev/null
++++ b/apps/web/scripts/run-replay-checks.cjs
+@@ -0,0 +1,21 @@
++/* eslint @typescript-eslint/no-require-imports: off */
++const fs = require("node:fs");
++const ts = require("typescript");
++
++require.extensions[".ts"] = (module, filename) => {
++  const source = fs.readFileSync(filename, "utf8");
++  const { outputText } = ts.transpileModule(source, {
++    compilerOptions: {
++      module: ts.ModuleKind.CommonJS,
++      target: ts.ScriptTarget.ES2022,
++      esModuleInterop: true,
++    },
++    fileName: filename,
++  });
++  module._compile(outputText, filename);
++};
++
++const { runReplayUnitChecks } = require("../src/lib/replay/checks.ts");
++const result = runReplayUnitChecks();
++if (!result?.ok) throw new Error("Replay unit checks did not pass");
++process.stdout.write("Replay unit checks passed.\n");
+--- a/apps/web/src/components/replay/PovClip.tsx
++++ b/apps/web/src/components/replay/PovClip.tsx
+@@ -82,7 +82,7 @@
+       clip.status === "queued" || clip.status === "recording"
+         ? `Recording ${playerName}'s view of ${span}…`
+         : clip.status === "failed"
+-          ? (clip.error ?? "Unable to record this clip. The radar still covers the moment.")
++          ? (clip.error ?? "Recording failed.")
+           : (clip.error ?? "Gameplay recording is off.");
+     return (
+       <div className={`pov pov-note${clip.status === "failed" ? " is-failed" : ""}`} role="status">
+@@ -123,10 +123,6 @@
+         <button type="button" aria-pressed={!muted} onClick={() => setMuted((m) => !m)}>
+           {muted ? "Sound off" : "Sound on"}
+         </button>
+-        {/* The API names the file after the moment: map, player, round, what happened, time */}
+-        <a href={`${src}${src.includes("?") ? "&" : "?"}download=1`} download>
+-          Download
+-        </a>
+         {main ? null : (
+           <button type="button" onClick={onEnlarge} title="Show the clip large (V)">
+             Enlarge
+--- a/apps/web/src/components/replay/RadarView.tsx
++++ b/apps/web/src/components/replay/RadarView.tsx
+@@ -1,21 +1,15 @@
+ "use client";
+ 
+-import { useLayoutEffect, useRef, type RefObject } from "react";
+-import gsap from "gsap";
+ import type { InterpolatedPlayer } from "@/lib/replay/interpolate";
+ import type { ReplayPlayer } from "@/lib/contracts";
+ import { getMapMeta } from "@/lib/replay/maps";
+ import { roleOf, type RosterLookup } from "@/lib/replay/roster";
+ import { trailPoints, type Box, type Track, type UtilityMark } from "@/lib/replay/camera";
+-import { reducedMotion } from "@/lib/motion";
+ 
+-/* Radar language (28 Visual direction): you white, team slate, enemy red, as on the in-game radar.
+-   Orange and blue stay reserved for mistake and good play. */
+-const YOU = "var(--stage-you)";
+-const ENEMY = "var(--stage-enemy)";
+-const TEAM = "var(--stage-team)";
+-const STX = "var(--stage-text)";
+-const HALO = "var(--stage-halo)";
++const POS = "#8FA9FF";
++const NEG = "#F28C4C";
++const TEAM = "#9AA4AE";
++const STX = "#EEF1F3";
+ const TRAIL_SEC = 4;
+ 
+ type Props = {
+@@ -29,23 +23,7 @@
+   viewBox: Box;
+   /** Screen pixels per radar unit, so marks stay the same size at any zoom. */
+   pxPerUnit: number;
+-  /** The picked moment's window: the followed player's whole path through it is drawn faintly. */
+-  moment?: { id: string; t0: number; t1: number } | null;
+-  /** True while a keyboard shortcut is handled: the path then appears at once (keyboard actions never animate). */
+-  instantRef?: RefObject<boolean>;
+ };
+-
+-/** Radar points of one track between t0 and t1, while alive. */
+-function windowPoints(tr: Track, t0: number, t1: number): string {
+-  const pts: string[] = [];
+-  for (let i = 0; i < tr.t.length; i += 1) {
+-    const t = tr.t[i];
+-    if (t < t0) continue;
+-    if (t > t1 || !tr.alive[i]) break;
+-    pts.push(`${tr.rx[i].toFixed(1)},${tr.ry[i].toFixed(1)}`);
+-  }
+-  return pts.length > 1 ? `M${pts.join(" L")}` : "";
+-}
+ 
+ export function RadarView({
+   mapName,
+@@ -57,30 +35,11 @@
+   utility,
+   viewBox,
+   pxPerUnit,
+-  moment,
+-  instantRef,
+ }: Props) {
+   const meta = getMapMeta(mapName);
+   const size = meta?.radarSize ?? 1024;
+   const u = (px: number) => px / Math.max(pxPerUnit, 0.01);
+   const vb = `${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`;
+-  const pathRef = useRef<SVGPathElement>(null);
+-
+-  // Draw the followed player's path through the moment once, when the moment opens (GSAP, space).
+-  const focusTrack = focus ? tracks.get(focus.id) : undefined;
+-  const momentPath = moment && focusTrack ? windowPoints(focusTrack, moment.t0, moment.t1) : "";
+-  useLayoutEffect(() => {
+-    const el = pathRef.current;
+-    if (!el || reducedMotion() || instantRef?.current) return;
+-    const tween = gsap.fromTo(
+-      el,
+-      { strokeDashoffset: 1 },
+-      { strokeDashoffset: 0, duration: 0.42, ease: "power2.out", clearProps: "strokeDashoffset" },
+-    );
+-    return () => {
+-      tween.kill();
+-    };
+-  }, [moment?.id]);
+ 
+   // Draw the followed player last so they sit on top.
+   const ordered = [...players].sort(
+@@ -96,26 +55,10 @@
+       aria-label={`Radar replay on ${meta?.displayName ?? mapName}`}
+     >
+       {meta?.radarImage ? (
+-        <image className="radar-map" href={meta.radarImage} width={size} height={size} />
++        <image href={meta.radarImage} width={size} height={size} opacity={0.82} />
+       ) : (
+-        <rect width={size} height={size} fill="#1a1f24" />
++        <rect width={size} height={size} fill="#20272d" />
+       )}
+-
+-      {momentPath ? (
+-        <path
+-          ref={pathRef}
+-          d={momentPath}
+-          pathLength={1}
+-          fill="none"
+-          style={{ stroke: YOU }}
+-          strokeOpacity={0.34}
+-          strokeWidth={1.5}
+-          strokeDasharray="1 1"
+-          strokeLinejoin="round"
+-          strokeLinecap="round"
+-          vectorEffect="non-scaling-stroke"
+-        />
+-      ) : null}
+ 
+       <g>
+         {utility.map((m) =>
+@@ -125,8 +68,8 @@
+               cx={m.rx}
+               cy={m.ry}
+               r={m.r}
+-              fill="rgba(210,214,218,.38)"
+-              stroke="rgba(238,241,243,.8)"
++              fill="rgba(210,214,218,.42)"
++              stroke="rgba(238,241,243,.85)"
+               strokeWidth={1}
+               vectorEffect="non-scaling-stroke"
+               opacity={m.u > 0.9 ? (1 - m.u) * 10 : 1}
+@@ -150,7 +93,7 @@
+               cy={m.ry}
+               r={m.r * (0.4 + m.u * 0.6)}
+               fill="none"
+-              style={{ stroke: STX }}
++              stroke={STX}
+               strokeWidth={1.4}
+               vectorEffect="non-scaling-stroke"
+               opacity={1 - m.u}
+@@ -163,44 +106,38 @@
+         {ordered.map((p) => {
+           const info = lookup(p.id);
+           const role = roleOf(info, focus) ?? "team";
+-          const you = role === "you";
+-          const col = you ? YOU : role === "team" ? TEAM : ENEMY;
++          const col = role === "you" ? POS : role === "team" ? TEAM : NEG;
+           const track = tracks.get(p.id);
+           const a = (-p.yaw * Math.PI) / 180;
+-          const L = u(you ? 30 : 12);
+-          const w = 0.4;
++          const L = u(role === "you" ? 26 : 11);
++          const w = 0.42;
+           return (
+-            <g key={p.id} opacity={p.alive ? 1 : 0.55}>
++            <g key={p.id} opacity={p.alive ? 1 : 0.5}>
+               {track && p.alive ? (
+                 <polyline
+                   points={trailPoints(track, t - TRAIL_SEC, t, p)}
+                   fill="none"
+-                  style={{ stroke: col }}
+-                  strokeOpacity={you ? 0.9 : 0.45}
+-                  strokeWidth={you ? 2 : 1.2}
++                  stroke={col}
++                  strokeOpacity={role === "you" ? 0.95 : 0.5}
++                  strokeWidth={role === "you" ? 2 : 1.2}
+                   strokeLinejoin="round"
+-                  strokeLinecap="round"
+                   vectorEffect="non-scaling-stroke"
+                 />
+               ) : null}
+-              {p.alive && you ? (
++              {p.alive && role === "you" ? (
+                 <path
+                   d={`M${p.rx} ${p.ry}L${p.rx + Math.cos(a - w) * L} ${p.ry + Math.sin(a - w) * L}A${L} ${L} 0 0 1 ${p.rx + Math.cos(a + w) * L} ${p.ry + Math.sin(a + w) * L}Z`}
+-                  fill="rgba(255,255,255,.16)"
+-                  stroke="rgba(255,255,255,.35)"
+-                  strokeWidth={1}
+-                  vectorEffect="non-scaling-stroke"
++                  fill="rgba(143,169,255,.22)"
+                 />
+               ) : null}
+-              {p.alive && !you ? (
++              {p.alive && role !== "you" ? (
+                 <line
+                   x1={p.rx}
+                   y1={p.ry}
+                   x2={p.rx + Math.cos(a) * L}
+                   y2={p.ry + Math.sin(a) * L}
+-                  style={{ stroke: col }}
++                  stroke={col}
+                   strokeWidth={1.5}
+-                  strokeLinecap="round"
+                   vectorEffect="non-scaling-stroke"
+                 />
+               ) : null}
+@@ -208,31 +145,30 @@
+                 <circle
+                   cx={p.rx}
+                   cy={p.ry}
+-                  r={u(you ? 5.5 : 4.2)}
+-                  style={{ fill: col, stroke: HALO }}
+-                  strokeWidth={you ? 2.5 : 1.5}
++                  r={u(role === "you" ? 5 : 4)}
++                  fill={role === "you" ? "#FFFFFF" : col}
++                  stroke={role === "you" ? POS : "none"}
++                  strokeWidth={2}
+                   vectorEffect="non-scaling-stroke"
+                 />
+               ) : (
+                 <path
+                   d="M-1 -1L1 1M1 -1L-1 1"
+                   transform={`translate(${p.rx} ${p.ry}) scale(${u(4.5)})`}
+-                  style={{ stroke: col }}
+-                  strokeWidth={2}
+-                  strokeLinecap="round"
++                  stroke={role === "enemy" ? NEG : STX}
++                  strokeWidth={1.8}
+                   vectorEffect="non-scaling-stroke"
+                 />
+               )}
+               <text
+-                className="radar-name"
+-                x={p.rx + u(9)}
+-                y={p.ry - u(7)}
+-                style={{
+-                  fill: you ? YOU : role === "enemy" ? "var(--stage-enemy-text)" : "var(--stage-team-text)",
+-                  stroke: HALO,
+-                }}
++                x={p.rx + u(8)}
++                y={p.ry - u(6)}
++                fill={role === "enemy" ? "#F4A274" : "#C3CAD1"}
+                 fontSize={u(11)}
++                fontFamily="Hanken Grotesk, sans-serif"
++                fontWeight={600}
+                 paintOrder="stroke"
++                stroke="rgba(10,12,14,.7)"
+                 strokeWidth={u(3)}
+               >
+                 {info?.name ?? p.id.slice(-4)}
+--- a/apps/web/src/components/replay/ReplayTimeline.tsx
++++ b/apps/web/src/components/replay/ReplayTimeline.tsx
+@@ -1,7 +1,8 @@
+ "use client";
+ 
+ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+-import { LANE_NAMES, LANE_ORDER, type AliveStep, type Lane, type LaneMark } from "@/lib/replay/roster";
++import type { RoundSummary } from "@/lib/contracts";
++import { LANE_NAMES, LANE_ORDER, reasonLabel, type Lane, type LaneMark } from "@/lib/replay/roster";
+ import { formatClock } from "@/lib/replay/time";
+ 
+ type Props = {
+@@ -10,12 +11,15 @@
+   marks: LaneMark[];
+   /** Lanes to draw, in order; fixed for the match so rows don't move between rounds. */
+   lanes?: readonly Lane[];
+-  /** Players alive per side over the round, for the Fight lane's step graph. */
+-  alive: AliveStep[];
+-  /** The picked moment in view: a tinted band across every lane with its number and label. */
+-  band?: { t0: number; t1: number; label: string; glyph: "mistake" | "strength" | "note"; n: number } | null;
++  rounds: RoundSummary[];
++  /** Per-round result from the match (1 = won), for the match strip. */
++  won: (0 | 1 | null)[];
++  /** Round number -> glyph of its coaching moment, drawn above the match strip. */
++  momentRounds?: ReadonlyMap<number, "mistake" | "strength">;
++  roundId: string | null;
+   selectedEventId: string | null;
+   laneH: number;
++  onSelectRound: (id: string) => void;
+   onSeek: (t: number, eventId?: string) => void;
+   onScrub: (active: boolean) => void;
+ };
+@@ -35,10 +39,13 @@
+   t,
+   marks,
+   lanes = LANE_ORDER,
+-  alive,
+-  band,
++  rounds,
++  won,
++  momentRounds,
++  roundId,
+   selectedEventId,
+   laneH,
++  onSelectRound,
+   onSeek,
+   onScrub,
+ }: Props) {
+@@ -85,25 +92,21 @@
+         flushCoach();
+         continue;
+       }
+-      // Fight ticks cluster per side, so a trade stays two ticks, one above the axis and one below.
+-      const runs = lane === "fight" ? [ms.filter((m) => m.side === "us"), ms.filter((m) => m.side !== "us")] : [ms];
+-      for (const run of runs) {
+-        let group: LaneMark[] = [];
+-        const flush = () => {
+-          if (group.length === 1) out.push({ kind: "mark", lane, mark: group[0] });
+-          else if (group.length > 1) out.push({ kind: "cluster", lane, group });
+-          group = [];
+-        };
+-        for (const m of run) {
+-          const prev = group[group.length - 1];
+-          if (prev && ((m.t - prev.t) / max) * trackW < CLUSTER_GAP) group.push(m);
+-          else {
+-            flush();
+-            group = [m];
+-          }
++      let group: LaneMark[] = [];
++      const flush = () => {
++        if (group.length === 1) out.push({ kind: "mark", lane, mark: group[0] });
++        else if (group.length > 1) out.push({ kind: "cluster", lane, group });
++        group = [];
++      };
++      for (const m of ms) {
++        const prev = group[group.length - 1];
++        if (prev && ((m.t - prev.t) / max) * trackW < CLUSTER_GAP) group.push(m);
++        else {
++          flush();
++          group = [m];
+         }
+-        flush();
+       }
++      flush();
+     }
+     return out;
+   }, [lanes, marks, max, trackW]);
+@@ -142,9 +145,36 @@
+ 
+   return (
+     <div className="tl" style={{ "--lane-h": `${laneH}px` } as CSSProperties}>
++      <div className="row">
++        <span className="row-n">Match</span>
++        <div
++          className="rounds"
++          style={{ gridTemplateColumns: `repeat(${Math.max(rounds.length, 1)}, 1fr)` }}
++        >
++          {rounds.map((r, i) => {
++            const detail = `${r.winner ? `${r.winner} win` : "No result"}, ${reasonLabel(r.reason).toLowerCase()}`;
++            const moment = momentRounds?.get(r.number);
++            return (
++              <button
++                key={r.id}
++                type="button"
++                className={`rcell${won[i] ? " won" : ""}${r.id === roundId ? " cur" : ""}`}
++                aria-label={`Round ${r.number}, ${detail}${moment ? ", has a coaching moment" : ""}`}
++                aria-current={r.id === roundId ? "true" : undefined}
++                onClick={() => onSelectRound(r.id)}
++                onMouseEnter={(e) => showTip(e.currentTarget, `Round ${r.number}`, detail)}
++                onMouseLeave={hideTip}
++              >
++                {moment ? <i className={`g g-${moment} rmark`} aria-hidden /> : null}
++              </button>
++            );
++          })}
++        </div>
++      </div>
++
+       <div className="lanes">
+         {lanes.map((lane) => (
+-          <LaneRow key={lane} lane={lane} extra={lane === "fight" ? <FightGraph alive={alive} max={max} /> : null}>
++          <LaneRow key={lane} lane={lane}>
+             {items
+               .filter((it) => it.lane === lane)
+               .map((it) =>
+@@ -166,7 +196,7 @@
+                     type="button"
+                     className={`mk${now(it.mark) ? " now" : ""}${
+                       it.mark.eventId === selectedEventId ? " sel" : ""
+-                    }${it.mark.side ? ` k-${it.mark.side}` : ""}${it.mark.you ? " k-you" : ""}`}
++                    }`}
+                     style={{ left: pct(it.mark.t) }}
+                     aria-label={`${it.mark.label}, ${formatClock(it.mark.t)}`}
+                     onClick={() => onSeek(it.mark.t, it.mark.eventId)}
+@@ -175,13 +205,13 @@
+                     onFocus={(e) => showTip(e.currentTarget, it.mark.label, formatClock(it.mark.t))}
+                     onBlur={hideTip}
+                   >
+-                    {it.mark.side ? <i className="k" aria-hidden /> : <i className={`d d-${it.mark.glyph}`} aria-hidden />}
++                    <i className={`d d-${it.mark.glyph}`} aria-hidden />
+                   </button>
+                 ) : (
+                   <button
+                     key={it.group[0].key}
+                     type="button"
+-                    className={`cluster${it.lane === "fight" ? ` k-${it.group[0].side ?? "them"}` : ""}`}
++                    className="cluster"
+                     style={{
+                       left: pct(it.group.reduce((s, m) => s + m.t, 0) / it.group.length),
+                     }}
+@@ -207,18 +237,6 @@
+             <div className="lane-n">Events</div>
+             <div className="lane-t" />
+           </>
+-        ) : null}
+-
+-        {band ? (
+-          <div
+-            className={`band band-${band.glyph}`}
+-            style={{ "--b0": Math.max(0, band.t0) / max, "--b1": Math.min(max, band.t1) / max } as CSSProperties}
+-            aria-hidden
+-          >
+-            <span>
+-              <b>{String(band.n).padStart(2, "0")}</b> {band.label}
+-            </span>
+-          </div>
+         ) : null}
+ 
+         <div
+@@ -342,44 +360,13 @@
+   );
+ }
+ 
+-function LaneRow({ lane, extra, children }: { lane: Lane; extra?: ReactNode; children: ReactNode }) {
++function LaneRow({ lane, children }: { lane: Lane; children: ReactNode }) {
+   return (
+     <>
+       <div className={`lane-n l-${lane}`}>{LANE_NAMES[lane]}</div>
+       <div className={`lane-t l-${lane}`} data-lane={lane}>
+-        {extra}
+         {children}
+       </div>
+     </>
+   );
+ }
+-
+-/**
+- * Players alive per side as a mirrored step graph: the followed player's team above the axis,
+- * the other team below. Each kill is a step, so trades and man advantage read at a glance.
+- */
+-function FightGraph({ alive, max }: { alive: AliveStep[]; max: number }) {
+-  if (!alive.length) return null;
+-  const top = Math.max(5, ...alive.map((a) => Math.max(a.us, a.them)));
+-  const H = 10;
+-  const mid = H / 2;
+-  const k = (mid - 0.4) / top;
+-  const path = (sign: 1 | -1, key: "us" | "them") => {
+-    let d = `M0 ${mid}`;
+-    let prev = alive[0][key];
+-    d += ` L0 ${mid - sign * prev * k}`;
+-    for (const a of alive.slice(1)) {
+-      d += ` L${a.t} ${mid - sign * prev * k} L${a.t} ${mid - sign * a[key] * k}`;
+-      prev = a[key];
+-    }
+-    d += ` L${max} ${mid - sign * prev * k} L${max} ${mid} Z`;
+-    return d;
+-  };
+-  return (
+-    <svg className="fight" viewBox={`0 0 ${max} ${H}`} preserveAspectRatio="none" aria-hidden>
+-      <path className="fight-us" d={path(1, "us")} vectorEffect="non-scaling-stroke" />
+-      <path className="fight-them" d={path(-1, "them")} vectorEffect="non-scaling-stroke" />
+-      <line x1={0} x2={max} y1={mid} y2={mid} className="fight-axis" vectorEffect="non-scaling-stroke" />
+-    </svg>
+-  );
+-}
+--- a/apps/web/src/lib/replay/checks.ts
++++ b/apps/web/src/lib/replay/checks.ts
+@@ -1,11 +1,45 @@
+ import { tickToSeconds, secondsToTick } from "./time";
+ import { lerpYaw, interpolateAt } from "./interpolate";
+ import type { ReplaySample } from "@/lib/contracts";
++import type { RoundStats } from "@/lib/contracts";
++
++/** A neutral score uses the match's initial CT/T lineup; selected stats use the player's side. */
++export function scorePerspectivePhrase(
++  score: string,
++  rounds?: readonly Pick<RoundStats, "won">[],
++): string {
++  if (rounds) {
++    const wins = rounds.filter((round) => round.won === true).length;
++    const losses = rounds.filter((round) => round.won === false).length;
++    const unknown = rounds.length - wins - losses;
++    const result = wins + losses === 0
++      ? "Result unavailable"
++      : wins === losses
++        ? `Drew ${wins} to ${losses}`
++        : wins > losses
++          ? `Won ${wins} to ${losses}`
++          : `Lost ${wins} to ${losses}`;
++    return unknown ? `${result}, ${unknown} round${unknown === 1 ? "" : "s"} unknown` : result;
++  }
++
++  const match = score.match(/(\d+)\s*[–-]\s*(\d+)/);
++  if (!match) return score && score !== "–" ? `Initial CT lineup: ${score}` : "Initial CT lineup score unavailable";
++  return `Initial CT lineup: CT ${Number(match[1])} — T ${Number(match[2])}`;
++}
+ 
+ /** Callable checks for seek / interpolation / tick conversion. */
+ export function runReplayUnitChecks(): { ok: true } {
+   if (tickToSeconds(128, 0, 64) !== 2) throw new Error("tickToSeconds");
+   if (secondsToTick(2, 0, 64) !== 128) throw new Error("secondsToTick");
++  if (scorePerspectivePhrase("11–13") !== "Initial CT lineup: CT 11 — T 13") {
++    throw new Error("neutral score must name initial CT/T lineup");
++  }
++  if (
++    scorePerspectivePhrase("11–13", [{ won: true }, { won: false }, { won: null }]) !==
++    "Drew 1 to 1, 1 round unknown"
++  ) {
++    throw new Error("selected-player score must count unknown rounds explicitly");
++  }
+ 
+   const yaw = lerpYaw(0, 90, 0.5);
+   if (Math.abs(yaw - 45) > 1e-6) throw new Error(`lerpYaw got ${yaw}`);
+@@ -30,6 +64,43 @@
+   if (mid.length !== 1) throw new Error("interp length");
+   if (mid[0].rx !== 20 || mid[0].ry !== 30) throw new Error("interp pos");
+   if (mid[0].yaw !== 45) throw new Error("interp yaw");
++
++  const discrete: ReplaySample[] = [
++    {
++      tick: 0,
++      t: 0,
++      players: [{ id: "1", x: 0, y: 0, z: 0, yaw: 0, health: 100, alive: true, rx: 0, ry: 0 }],
++    },
++    {
++      tick: 8,
++      t: 1,
++      players: [{ id: "1", x: 8, y: 8, z: 0, yaw: 0, health: 0, alive: false, rx: 8, ry: 8 }],
++    },
++  ];
++  const beforeDeath = interpolateAt(discrete, 0.5);
++  if (beforeDeath[0].health !== 100 || !beforeDeath[0].alive) {
++    throw new Error("HP/alive should hold the prior sample between ticks");
++  }
++  const deathEvent = {
++    id: "kill-6",
++    type: "kill",
++    tick: 6,
++    t: 0.75,
++    label: "Player killed",
++    victimId: "1",
++  };
++  const beforeEvent = interpolateAt(discrete, 0.75 - 1e-4, undefined, [deathEvent]);
++  if (!beforeEvent[0].alive || beforeEvent[0].health !== 100) {
++    throw new Error("player should remain alive before the kill tick");
++  }
++  const atEvent = interpolateAt(discrete, 0.75, undefined, [deathEvent]);
++  if (atEvent[0].alive || atEvent[0].health !== 0) {
++    throw new Error("kill event should change discrete state at its exact time");
++  }
++  const atSample = interpolateAt(discrete, 1);
++  if (atSample[0].alive || atSample[0].health !== 0) {
++    throw new Error("sampled discrete state should take effect at the sample time");
++  }
+ 
+   // Without rx/ry and without map meta, coords are unavailable (do not invent transforms).
+   const bare: ReplaySample[] = [
+--- a/apps/web/src/lib/replay/interpolate.ts
++++ b/apps/web/src/lib/replay/interpolate.ts
+@@ -1,4 +1,4 @@
+-import type { ReplaySample, SamplePlayerState } from "@/lib/contracts";
++import type { ReplayEvent, ReplaySample, SamplePlayerState } from "@/lib/contracts";
+ import { getMapMeta, worldToRadar } from "./maps";
+ 
+ function lerp(a: number, b: number, u: number): number {
+@@ -7,7 +7,7 @@
+ 
+ /** Shortest-path yaw interpolation in degrees (−180…180). */
+ export function lerpYaw(a: number, b: number, u: number): number {
+-  let delta = ((b - a + 540) % 360) - 180;
++  const delta = ((b - a + 540) % 360) - 180;
+   return a + delta * u;
+ }
+ 
+@@ -45,8 +45,12 @@
+   samples: ReplaySample[],
+   t: number,
+   mapName?: string | null,
++  events: ReplayEvent[] = [],
+ ): InterpolatedPlayer[] {
+   if (!samples.length) return [];
++
++  const isDeadAt = (playerId: string): boolean =>
++    events.some((event) => event.type === "kill" && event.victimId === playerId && event.t <= t);
+ 
+   const mapPlayer = (p: SamplePlayerState): InterpolatedPlayer | null => {
+     const radar = resolveRadar(p, mapName);
+@@ -55,11 +59,15 @@
+   };
+ 
+   if (t <= samples[0].t) {
+-    return samples[0].players.map(mapPlayer).filter((p): p is InterpolatedPlayer => p != null);
++    return samples[0].players
++      .map((p) => mapPlayer(isDeadAt(p.id) ? { ...p, health: 0, alive: false } : p))
++      .filter((p): p is InterpolatedPlayer => p != null);
+   }
+   const last = samples[samples.length - 1];
+   if (t >= last.t) {
+-    return last.players.map(mapPlayer).filter((p): p is InterpolatedPlayer => p != null);
++    return last.players
++      .map((p) => mapPlayer(isDeadAt(p.id) ? { ...p, health: 0, alive: false } : p))
++      .filter((p): p is InterpolatedPlayer => p != null);
+   }
+ 
+   let i = 0;
+@@ -76,14 +84,18 @@
+     const ra = resolveRadar(pa, mapName);
+     const rb = resolveRadar(pb, mapName);
+     if (!ra || !rb) continue;
++    const discrete = t >= b.t ? pb : pa;
++    const dead = isDeadAt(pa.id);
+     out.push({
+       id: pa.id,
+       x: lerp(pa.x, pb.x, u),
+       y: lerp(pa.y, pb.y, u),
+       z: lerp(pa.z, pb.z, u),
+       yaw: lerpYaw(pa.yaw, pb.yaw, u),
+-      health: Math.round(lerp(pa.health, pb.health, u)),
+-      alive: u < 0.5 ? pa.alive : pb.alive,
++      // HP and life state are discrete. Hold the last observed sample until
++      // the next sample; a kill event can place death at its exact event time.
++      health: dead ? 0 : discrete.health,
++      alive: dead ? false : discrete.alive,
+       rx: lerp(ra.rx, rb.rx, u),
+       ry: lerp(ra.ry, rb.ry, u),
+     });
+--- a/apps/web/src/lib/replay/roster.ts
++++ b/apps/web/src/lib/replay/roster.ts
+@@ -16,20 +16,19 @@
+   };
+ }
+ 
+-/**
+- * Lanes (28 Visual direction): coach findings, the fight (players alive per side, kills as ticks),
+- * the bomb and utility. Kills live on one lane so the round reads as a sequence of trades.
+- */
+-export type Lane = "coach" | "fight" | "bomb" | "util";
++/** Lanes follow the prototype: coach findings, the followed player, their team, the other team. */
++export type Lane = "coach" | "you" | "team" | "enemy" | "bomb" | "util";
+ 
+ export const LANE_NAMES: Record<Lane, string> = {
+   coach: "Coach",
+-  fight: "Fight",
++  you: "You",
++  team: "Team",
++  enemy: "Enemy",
+   bomb: "Bomb",
+   util: "Utility",
+ };
+ 
+-export const LANE_ORDER: Lane[] = ["coach", "fight", "bomb", "util"];
++export const LANE_ORDER: Lane[] = ["coach", "you", "team", "enemy", "bomb", "util"];
+ 
+ export function roleOf(
+   player: ReplayPlayer | undefined,
+@@ -53,34 +52,7 @@
+   detail?: string;
+   /** Coach lane: which marker leads when several share a spot (higher first). */
+   priority?: number;
+-  /** Fight lane: whose player died ("us" = the followed player's team), and whether the followed player took part. */
+-  side?: "us" | "them";
+-  you?: boolean;
+ };
+-
+-/** Players alive per side after each kill, from the followed player's point of view. */
+-export type AliveStep = { t: number; us: number; them: number };
+-
+-export function aliveSteps(
+-  events: ReplayEvent[],
+-  roster: ReplayPlayer[],
+-  lookup: RosterLookup,
+-  focus: ReplayPlayer | undefined,
+-): AliveStep[] {
+-  const side = focus?.team ?? "CT";
+-  let us = roster.filter((p) => p.team === side).length || 5;
+-  let them = roster.filter((p) => p.team && p.team !== side).length || 5;
+-  const out: AliveStep[] = [{ t: 0, us, them }];
+-  for (const e of events) {
+-    if (e.type !== "kill") continue;
+-    const victim = lookup(e.victimId);
+-    if (!victim) continue;
+-    if (victim.team === side) us = Math.max(0, us - 1);
+-    else them = Math.max(0, them - 1);
+-    out.push({ t: e.t, us, them });
+-  }
+-  return out;
+-}
+ 
+ const UTIL_TYPES = new Set(["smoke", "flash", "he", "molotov", "incendiary", "decoy"]);
+ 
+@@ -96,16 +68,8 @@
+     if (e.type === "kill") {
+       const killer = roleOf(lookup(e.actorId), focus);
+       const victim = roleOf(lookup(e.victimId), focus);
+-      out.push({
+-        key: e.id,
+-        eventId: e.id,
+-        lane: "fight",
+-        t: e.t,
+-        glyph: victim === "enemy" ? "kill" : "death",
+-        label: e.label,
+-        side: victim === "enemy" ? "them" : "us",
+-        you: killer === "you" || victim === "you",
+-      });
++      if (killer) out.push({ key: `${e.id}:k`, eventId: e.id, lane: killer, t: e.t, glyph: "kill", label: e.label });
++      if (victim) out.push({ key: `${e.id}:d`, eventId: e.id, lane: victim, t: e.t, glyph: "death", label: e.label });
+       continue;
+     }
+     if (e.type === "plant" || e.type === "defuse" || e.type.startsWith("bomb")) {
+--- a/apps/web/src/lib/replay/usePlaybackClock.ts
++++ b/apps/web/src/lib/replay/usePlaybackClock.ts
+@@ -1,7 +1,6 @@
+ "use client";
+ 
+ import { useCallback, useEffect, useRef, useState } from "react";
+-import { readStartRate } from "@/lib/prefs";
+ 
+ export type PlaybackRate = 0.5 | 1 | 2 | 4;
+ export type ClockMaster = "raf" | "video";
+@@ -148,11 +147,6 @@
+     [pause, setT, syncVideoTime],
+   );
+ 
+-  // The starting speed from Settings (A07); read after mount so the server render matches
+-  useEffect(() => {
+-    setRate(readStartRate());
+-  }, []);
+-
+   useEffect(() => {
+     rateRef.current = rate;
+     const v = videoRef.current;

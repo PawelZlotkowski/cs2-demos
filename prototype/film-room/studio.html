@@ -1,0 +1,339 @@
+<!doctype html>
+<!-- Film Room static reference, exported from the design canvas on 15 Nov 2026. Sample data only. Not app code: rebuild as React components using tokens. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Studio moment review</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&amp;family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#08090B}
+a{color:#A4AAB4;text-decoration:none}a:hover{color:#EDEFF2}
+.num{font-family:'Archivo',sans-serif;font-stretch:68%;font-variant-numeric:tabular-nums}
+.code{font-family:'Archivo',sans-serif;font-stretch:80%;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.nav{font-size:13px;color:#A4AAB4;padding:6px 8px;border-radius:4px}
+.ev{font-family:'Archivo',sans-serif;font-stretch:80%;font-weight:600;letter-spacing:.03em;font-size:11px;color:#EDEFF2;border:1px solid #2E333B;border-radius:4px;padding:1px 5px;background:#111317;vertical-align:1px}
+.mom{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;padding:10px;border-radius:6px;color:#EDEFF2;text-decoration:none}
+.momt{font-size:13px;font-weight:600;line-height:18px;display:flex;align-items:center;gap:6px}
+.bar{position:relative;height:3px;background:#262A31;border-radius:2px;margin:7px 0 6px}
+.meta{font-size:11px;color:#7D8490}
+.cell{width:22px;height:26px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-family:'Archivo',sans-serif;font-stretch:72%;font-weight:700;font-size:11px;position:relative}
+.won{background:#20242B;color:#EDEFF2}
+.lost{border:1px solid #262A31;color:#7D8490;box-sizing:border-box}
+.dotm{position:absolute;bottom:-7px;left:50%;margin-left:-3px;width:6px;height:6px}
+.lane{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:center;height:26px;border-top:1px solid #181B20}
+.lanel{font-size:11px;font-weight:600;color:#7D8490;padding-left:16px}
+.tab{font-size:13px;color:#A4AAB4;padding:14px 2px 12px;border-bottom:2px solid transparent}
+.evr{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid #1A1D22;font-size:13px}
+.btn{font-family:'Hanken Grotesk',sans-serif;font-size:13px;font-weight:600;height:32px;padding:0 12px;border-radius:6px;border:1px solid #2E333B;background:#171A1F;color:#EDEFF2;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.ico{width:32px;height:32px;border-radius:6px;border:0;background:transparent;color:#A4AAB4;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.plate{position:absolute;background:rgba(5,6,7,.88);border:1px solid #23272E;border-radius:4px;padding:6px 10px;font-size:12px;color:#EDEFF2;display:flex;align-items:center;gap:8px}
+.vf{position:absolute;width:14px;height:14px;border-color:#5B616B;border-style:solid;border-width:0}
+</style>
+
+<div style="width:100%;min-height:900px;box-sizing:border-box;background:#08090B;color:#EDEFF2;font-family:'Hanken Grotesk',system-ui,sans-serif;display:flex;flex-direction:column">
+
+  <header style="height:52px;flex:none;display:flex;align-items:center;gap:18px;padding:0 16px;flex-wrap:wrap">
+    <a href="#" style="display:flex;align-items:center;gap:9px;color:#EDEFF2">
+      <svg width="20" height="20" viewBox="0 0 22 22" aria-hidden="true"><rect x="1" y="1" width="20" height="20" rx="4" fill="none" stroke="#EDEFF2" stroke-width="1.5"></rect><path d="M6 15V7h5a2.5 2.5 0 0 1 0 5H6m5 0 4 3" fill="none" stroke="#EDEFF2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <span class="num" style="font-size:16px;font-weight:700;letter-spacing:.05em">ROUND REVIEWER</span>
+    </a>
+    <nav aria-label="Main" style="display:flex;gap:2px">
+      <a class="nav" href="#">Home</a>
+      <a class="nav" href="#" aria-current="page" style="color:#EDEFF2;background:#15181D">Matches</a>
+      <a class="nav" href="#">Progress</a>
+      <a class="nav" href="#">Coach</a>
+    </nav>
+    <div style="flex:1 1 40px"></div>
+    <div style="display:flex;align-items:center;gap:12px" aria-label="Match score">
+      <span class="code" style="font-size:12px;color:#A4AAB4">ANUBIS</span>
+      <span class="num" style="font-size:24px;font-weight:800;line-height:24px">13</span>
+      <span class="num" style="font-size:20px;color:#5B616B">:</span>
+      <span class="num" style="font-size:24px;font-weight:800;line-height:24px;color:#7D8490">7</span>
+      <span class="code" style="font-size:11px;color:#EDEFF2;background:#1A1D22;border-radius:4px;padding:3px 6px">WON</span>
+      <span style="font-size:12px;color:#7D8490">pawcio_ · started T</span>
+    </div>
+    <div style="flex:1 1 40px"></div>
+    <a href="#" style="height:32px;padding:0 14px;border-radius:6px;background:#EDEFF2;color:#12060B;font-size:13px;font-weight:700;display:inline-flex;align-items:center;gap:6px">
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1v10M1 6h10" stroke="#12060B" stroke-width="1.8" stroke-linecap="round"></path></svg>Add match</a>
+    <span aria-label="Account" style="width:28px;height:28px;border-radius:14px;background:#1E2228;color:#EDEFF2;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center">P</span>
+  </header>
+
+  <main style="flex:1 1 auto;margin:0 8px 8px;border:1px solid #1A1D22;border-radius:6px;background:#0C0D10;display:flex;flex-wrap:wrap;overflow:hidden;min-height:840px">
+
+    <aside aria-label="Review reel" style="flex:1 1 236px;max-width:100%;box-sizing:border-box;border-right:1px solid #1A1D22;background:#0E1013;display:flex;flex-direction:column;padding:14px 10px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 6px 4px">
+        <h2 style="margin:0;font-size:13px;font-weight:600">Review</h2>
+        <span class="meta">2 of 6 seen</span>
+      </div>
+      <p style="margin:0 6px 12px;font-size:12px;line-height:18px;color:#7D8490">pawcio_ · focus Overall · English</p>
+
+      <a class="mom" href="#" style="grid-template-columns:26px minmax(0,1fr)">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" style="margin-top:1px"><path d="M2 4h12M2 8h12M2 12h8" stroke="#7D8490" stroke-width="1.5" stroke-linecap="round"></path></svg>
+        <span style="display:flex;flex-direction:column;gap:2px"><span class="momt">Match brief</span><span class="meta">Score, rounds and what to watch</span></span>
+      </a>
+
+      <div style="height:1px;background:#1A1D22;margin:8px 6px"></div>
+
+      <a class="mom" href="#">
+        <span class="num" style="font-size:20px;font-weight:700;line-height:20px;color:#7D8490">01</span>
+        <span>
+          <span class="momt"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="4.5" fill="#7EA6FF"></circle></svg>Entry kill<svg width="12" height="12" viewBox="0 0 12 12" aria-label="Seen" role="img" style="margin-left:auto"><path d="m2.5 6.2 2.2 2.2 4.8-5" fill="none" stroke="#7D8490" stroke-width="1.5" stroke-linecap="round"></path></svg></span>
+          <span class="bar"><span style="position:absolute;left:10%;width:8%;top:-2px;height:7px;border-radius:2px;background:#7EA6FF"></span></span>
+          <span class="code meta">R3 · 0:12 · B MAIN</span>
+        </span>
+      </a>
+
+      <a class="mom" href="#" aria-current="true" style="background:#171A1F;outline:1px solid #EDEFF2;outline-offset:-1px">
+        <span class="num" style="font-size:20px;font-weight:700;line-height:20px">02</span>
+        <span>
+          <span class="momt"><svg width="10" height="9" viewBox="0 0 10 9" aria-hidden="true"><path d="M5 0 10 9H0Z" fill="#FF7A3D"></path></svg>Shot while moving</span>
+          <span class="bar"><span style="position:absolute;left:32%;width:9%;top:-2px;height:7px;border-radius:2px;background:#FF7A3D"></span><span style="position:absolute;left:35.9%;top:-4px;width:1px;height:11px;background:#EDEFF2"></span></span>
+          <span class="code meta" style="color:#A4AAB4">R12 · 0:41 · CANAL</span>
+          <span style="display:block;margin-top:6px;font-size:12px;line-height:17px;color:#A4AAB4">Picked because the round was lost and this was the first death.</span>
+        </span>
+      </a>
+
+      <a class="mom" href="#">
+        <span class="num" style="font-size:20px;font-weight:700;line-height:20px;color:#7D8490">03</span>
+        <span>
+          <span class="momt"><svg width="10" height="9" viewBox="0 0 10 9" aria-hidden="true"><path d="M5 0 10 9H0Z" fill="#FF7A3D"></path></svg>Dry peek</span>
+          <span class="bar"><span style="position:absolute;left:47%;width:8%;top:-2px;height:7px;border-radius:2px;background:#FF7A3D"></span></span>
+          <span class="code meta">R14 · 0:58 · A MAIN</span>
+        </span>
+      </a>
+
+      <a class="mom" href="#">
+        <span class="num" style="font-size:20px;font-weight:700;line-height:20px;color:#7D8490">04</span>
+        <span>
+          <span class="momt"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="4.5" fill="#7EA6FF"></circle></svg>Trade kill</span>
+          <span class="bar"><span style="position:absolute;left:27%;width:7%;top:-2px;height:7px;border-radius:2px;background:#7EA6FF"></span></span>
+          <span class="code meta">R16 · 0:33 · MID</span>
+        </span>
+      </a>
+
+      <a class="mom" href="#">
+        <span class="num" style="font-size:20px;font-weight:700;line-height:20px;color:#7D8490">05</span>
+        <span>
+          <span class="momt"><svg width="10" height="9" viewBox="0 0 10 9" aria-hidden="true"><path d="M5 0 10 9H0Z" fill="#FF7A3D"></path></svg>Unused utility</span>
+          <span class="bar"><span style="position:absolute;left:58%;width:10%;top:-2px;height:7px;border-radius:2px;background:#FF7A3D"></span></span>
+          <span class="code meta">R18 · 1:08 · B SITE</span>
+        </span>
+      </a>
+
+      <a class="mom" href="#">
+        <span class="num" style="font-size:20px;font-weight:700;line-height:20px;color:#7D8490">06</span>
+        <span>
+          <span class="momt"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="4.5" fill="#7EA6FF"></circle></svg>Flash assist</span>
+          <span class="bar"><span style="position:absolute;left:21%;width:8%;top:-2px;height:7px;border-radius:2px;background:#7EA6FF"></span></span>
+          <span class="code meta">R20 · 0:26 · A SITE</span>
+        </span>
+      </a>
+
+      <div style="height:1px;background:#1A1D22;margin:8px 6px"></div>
+      <a class="mom" href="#">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" style="margin-top:1px"><path d="M3 8.5 6.5 12 13 4.5" fill="none" stroke="#7D8490" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span style="display:flex;flex-direction:column;gap:2px"><span class="momt">Debrief</span><span class="meta">Two habits to practise</span></span>
+      </a>
+      <div style="flex:1"></div>
+      <a href="#" style="font-size:12px;padding:8px 6px;display:flex;justify-content:space-between"><span>All 20 rounds</span><span aria-hidden="true">›</span></a>
+    </aside>
+
+    <section aria-label="Replay" style="flex:999 1 560px;min-width:0;display:flex;flex-direction:column">
+      <div style="height:52px;flex:none;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid #1A1D22;overflow:hidden">
+        <span style="font-size:11px;font-weight:600;color:#7D8490">Rounds</span>
+        <div style="display:flex;gap:3px;align-items:center" role="list" aria-label="Round results, 20 rounds">
+          <span class="cell won" role="listitem">1</span><span class="cell won" role="listitem">2</span>
+          <span class="cell won" role="listitem">3<svg class="dotm" viewBox="0 0 6 6" aria-hidden="true"><circle cx="3" cy="3" r="3" fill="#7EA6FF"></circle></svg></span>
+          <span class="cell lost" role="listitem">4</span><span class="cell won" role="listitem">5</span><span class="cell won" role="listitem">6</span><span class="cell lost" role="listitem">7</span><span class="cell won" role="listitem">8</span><span class="cell won" role="listitem">9</span><span class="cell lost" role="listitem">10</span><span class="cell won" role="listitem">11</span>
+          <span class="cell lost" role="listitem" style="outline:1.5px solid #EDEFF2;outline-offset:1px;color:#EDEFF2">12<svg class="dotm" viewBox="0 0 6 6" aria-hidden="true"><path d="M3 0 6 6H0Z" fill="#FF7A3D"></path></svg></span>
+          <span style="width:1px;height:20px;background:#2E333B;margin:0 5px"></span>
+          <span class="cell won" role="listitem">13</span>
+          <span class="cell lost" role="listitem">14<svg class="dotm" viewBox="0 0 6 6" aria-hidden="true"><path d="M3 0 6 6H0Z" fill="#FF7A3D"></path></svg></span>
+          <span class="cell won" role="listitem">15</span>
+          <span class="cell won" role="listitem">16<svg class="dotm" viewBox="0 0 6 6" aria-hidden="true"><circle cx="3" cy="3" r="3" fill="#7EA6FF"></circle></svg></span>
+          <span class="cell lost" role="listitem">17</span>
+          <span class="cell lost" role="listitem">18<svg class="dotm" viewBox="0 0 6 6" aria-hidden="true"><path d="M3 0 6 6H0Z" fill="#FF7A3D"></path></svg></span>
+          <span class="cell won" role="listitem">19</span>
+          <span class="cell won" role="listitem">20<svg class="dotm" viewBox="0 0 6 6" aria-hidden="true"><circle cx="3" cy="3" r="3" fill="#7EA6FF"></circle></svg></span>
+        </div>
+        <div style="flex:1"></div>
+        <span class="code" style="font-size:11px;color:#7D8490;white-space:nowrap">T 8:4 · CT 5:3</span>
+      </div>
+
+      <div style="position:relative;flex:1 1 auto;min-height:440px;background:#050607">
+        <span class="vf" style="left:10px;top:10px;border-left-width:1.5px;border-top-width:1.5px"></span>
+        <span class="vf" style="right:10px;top:10px;border-right-width:1.5px;border-top-width:1.5px"></span>
+        <span class="vf" style="left:10px;bottom:10px;border-left-width:1.5px;border-bottom-width:1.5px"></span>
+        <span class="vf" style="right:10px;bottom:10px;border-right-width:1.5px;border-bottom-width:1.5px"></span>
+
+        <div style="position:absolute;inset:18px;display:flex;justify-content:center">
+          <div style="position:relative;height:100%;aspect-ratio:1 / 1;max-width:100%">
+            <img src="../../apps/web/public/maps/de_anubis_radar.png" alt="Anubis radar" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;filter:grayscale(.62) brightness(.5) contrast(1.15)">
+            <svg viewBox="0 0 1024 1024" role="img" aria-label="Round 12 at 0:41: pawcio_ peeks Canal while moving, two enemies hold A main" style="position:absolute;inset:0;width:100%;height:100%">
+              <circle cx="742" cy="478" r="46" fill="#AEB8C4" fill-opacity=".14" stroke="#AEB8C4" stroke-opacity=".5" stroke-width="2" stroke-dasharray="6 6"></circle>
+              <path d="M492 532h-22v22M748 532h22v22M492 676h-22v-22M748 676h22v-22" fill="none" stroke="#EDEFF2" stroke-width="3"></path>
+              <path d="M398 742 L444 700 L486 664 L524 628 L562 604" fill="none" stroke="#FFFFFF" stroke-opacity=".75" stroke-width="4" stroke-dasharray="10 9" stroke-linecap="round"></path>
+              <path d="M562 604 L716 548 L716 650 Z" fill="#FFFFFF" fill-opacity=".09"></path>
+              <path d="M572 601 L684 590" stroke="#FFFFFF" stroke-opacity=".55" stroke-width="2"></path>
+              <circle cx="618" cy="597" r="4" fill="#FFFFFF"></circle><circle cx="640" cy="595" r="4" fill="#FFFFFF"></circle><circle cx="660" cy="593" r="4" fill="#FFFFFF"></circle>
+              <circle cx="562" cy="604" r="14" fill="#FFFFFF" stroke="#050607" stroke-width="4"></circle>
+              <text x="540" y="572" font-family="Archivo, sans-serif" font-size="26" font-weight="700" fill="#FFFFFF" stroke="#050607" stroke-width="7" style="paint-order:stroke">pawcio_</text>
+              <circle cx="694" cy="590" r="12" fill="#FF5A6A" stroke="#050607" stroke-width="3"></circle>
+              <path d="M694 590 l-20 2" stroke="#FF5A6A" stroke-width="4" stroke-linecap="round"></path>
+              <text x="708" y="626" font-family="Archivo, sans-serif" font-size="24" font-weight="700" fill="#FF8B96" stroke="#050607" stroke-width="7" style="paint-order:stroke">voltage</text>
+              <circle cx="742" cy="520" r="12" fill="#FF5A6A" stroke="#050607" stroke-width="3"></circle>
+              <path d="M742 520 l-14 14" stroke="#FF5A6A" stroke-width="4" stroke-linecap="round"></path>
+              <circle cx="738" cy="262" r="11" fill="#FF5A6A" fill-opacity=".55"></circle>
+              <circle cx="436" cy="226" r="11" fill="#FF5A6A" fill-opacity=".55"></circle>
+              <circle cx="472" cy="694" r="11" fill="#AEB8C4" stroke="#050607" stroke-width="3"></circle>
+              <circle cx="336" cy="560" r="11" fill="#AEB8C4" stroke="#050607" stroke-width="3"></circle>
+              <circle cx="300" cy="636" r="11" fill="#AEB8C4" stroke="#050607" stroke-width="3"></circle>
+              <path d="M632 712l16 16m0-16-16 16" stroke="#AEB8C4" stroke-width="4" stroke-linecap="round"></path>
+            </svg>
+          </div>
+        </div>
+
+        <div class="plate" style="left:24px;top:24px">
+          <svg width="10" height="9" viewBox="0 0 10 9" aria-hidden="true"><path d="M5 0 10 9H0Z" fill="#FF7A3D"></path></svg>
+          <span class="num" style="font-size:15px;font-weight:700">02</span>
+          <span style="font-weight:600">Shot while moving</span>
+          <span style="color:#7D8490">Canal</span>
+        </div>
+        <div style="position:absolute;right:24px;top:24px;display:flex;gap:6px">
+          <button class="btn" type="button" style="background:rgba(5,6,7,.88)">Whole map</button>
+        </div>
+        <div class="plate" style="left:24px;bottom:24px;gap:12px;font-size:11px;color:#A4AAB4">
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:5px;background:#fff"></span>You</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:5px;background:#AEB8C4"></span>Team</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:5px;background:#FF5A6A"></span>Enemy</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;border-top:2px dashed #fff"></span>Your path</span>
+        </div>
+        <div class="plate" style="right:24px;bottom:24px;font-size:11px;color:#A4AAB4">
+          <span class="code" style="color:#EDEFF2">187 U/S</span><span>at first shot · accurate below</span><span class="code" style="color:#EDEFF2">73</span>
+        </div>
+      </div>
+
+      <div aria-label="Timeline" style="flex:none;border-top:1px solid #1A1D22;background:#0E1013">
+        <div style="height:52px;display:flex;align-items:center;gap:6px;padding:0 12px 0 14px">
+          <button type="button" aria-label="Play" style="width:32px;height:32px;border-radius:16px;border:0;background:#EDEFF2;display:inline-flex;align-items:center;justify-content:center;cursor:pointer"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.5v9l7.5-4.5z" fill="#0C0D10"></path></svg></button>
+          <button class="ico" type="button" aria-label="Previous event"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 2v10M12 2 5 7l7 5z" fill="none" stroke="#A4AAB4" stroke-width="1.5" stroke-linejoin="round"></path></svg></button>
+          <button class="ico" type="button" aria-label="Next event"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M11 2v10M2 2l7 5-7 5z" fill="none" stroke="#A4AAB4" stroke-width="1.5" stroke-linejoin="round"></path></svg></button>
+          <span class="num" style="font-size:30px;font-weight:700;line-height:30px;margin-left:8px">0:41.3</span>
+          <span class="num" style="font-size:16px;color:#7D8490;margin-top:6px">/ 1:55</span>
+          <span class="code" style="font-size:13px;margin-left:10px;padding:3px 7px;border:1px solid #2E333B;border-radius:4px">4<span style="color:#7D8490">v</span>5</span>
+          <div style="flex:1"></div>
+          <span class="code" style="font-size:11px;color:#7D8490;margin-right:6px">SPACE · N · ←→</span>
+          <button class="btn" type="button" style="background:transparent">1×</button>
+          <div role="group" aria-label="View" style="display:flex;padding:2px;border-radius:6px;background:#15181D;border:1px solid #23272E">
+            <button type="button" aria-pressed="true" style="font-family:inherit;font-size:12px;font-weight:600;height:26px;padding:0 12px;border-radius:4px;border:0;background:#262A31;color:#EDEFF2">Radar</button>
+            <button type="button" aria-pressed="false" style="font-family:inherit;font-size:12px;font-weight:600;height:26px;padding:0 12px;border-radius:4px;border:0;background:transparent;color:#A4AAB4">Clip</button>
+          </div>
+          <button class="ico" type="button" aria-label="Fullscreen"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M1.5 5V1.5H5M9 1.5h3.5V5M12.5 9v3.5H9M5 12.5H1.5V9" fill="none" stroke="#A4AAB4" stroke-width="1.5"></path></svg></button>
+        </div>
+
+        <div style="position:relative;padding-bottom:6px">
+          <div style="position:absolute;left:calc(64px + (100% - 64px - 16px) * .32);width:calc((100% - 64px - 16px) * .09);top:0;bottom:22px;background:rgba(255,122,61,.10);border-left:1px solid rgba(255,122,61,.45);border-right:1px solid rgba(255,122,61,.45)"></div>
+          <span class="code" style="position:absolute;left:calc(64px + (100% - 64px - 16px) * .32 + 4px);top:-1px;font-size:10px;color:#FF7A3D">02</span>
+
+          <div class="lane"><span class="lanel">Coach</span>
+            <div style="position:relative;height:26px;margin-right:16px">
+              <span style="position:absolute;left:35.5%;top:7px;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;white-space:nowrap"><svg width="10" height="9" viewBox="0 0 10 9" aria-hidden="true"><path d="M5 0 10 9H0Z" fill="#FF7A3D"></path></svg>Shot while moving <span style="color:#7D8490;font-weight:500">+1</span></span>
+              <span style="position:absolute;left:12%;top:8px"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="4.5" fill="none" stroke="#7EA6FF" stroke-width="1.5"></circle></svg></span>
+            </div>
+          </div>
+          <div class="lane" style="height:40px"><span class="lanel">Fight</span>
+            <svg viewBox="0 0 1000 40" preserveAspectRatio="none" aria-label="Players alive: your team 5 to 0, enemy 5 to 2" role="img" style="width:calc(100% - 16px);height:36px">
+              <path d="M0 2H300V6H362V10H560V14H780V18H930V20H1000" fill="none" stroke="#AEB8C4" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>
+              <path d="M0 2H300V6H362V10H560V14H780V18H930V20H0Z" fill="#AEB8C4" fill-opacity=".10"></path>
+              <path d="M0 38H330V34H600V30H860V28H1000" fill="none" stroke="#FF5A6A" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>
+              <path d="M0 38H330V34H600V30H860V28H1000V20H0Z" fill="#FF5A6A" fill-opacity=".10"></path>
+              <path d="M362 0V40" stroke="#FFFFFF" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+            </svg>
+          </div>
+          <div class="lane"><span class="lanel">Bomb</span><span style="font-size:11px;color:#5B616B;padding-left:4px">Not planted this round</span></div>
+          <div class="lane"><span class="lanel">Utility</span>
+            <div style="position:relative;height:26px;margin-right:16px">
+              <span style="position:absolute;left:18%;top:6px;width:12px;height:12px;border-radius:6px;border:1.5px dashed #AEB8C4;box-sizing:border-box" title="Smoke"></span>
+              <svg style="position:absolute;left:29%;top:6px" width="13" height="13" viewBox="0 0 14 14" role="img" aria-label="Enemy flash"><path d="M7 1v12M1 7h12M2.8 2.8l8.4 8.4M11.2 2.8l-8.4 8.4" stroke="#FF8B96" stroke-width="1.5" stroke-linecap="round"></path></svg>
+              <span style="position:absolute;left:55%;top:7px;width:10px;height:10px;transform:rotate(45deg);background:#FF7A3D;opacity:.55" title="Molotov"></span>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:64px minmax(0,1fr);height:20px;align-items:end">
+            <span></span>
+            <div class="code" style="position:relative;font-size:10px;color:#5B616B;margin-right:16px;height:14px">
+              <span style="position:absolute;left:0">0:00</span><span style="position:absolute;left:26.1%">0:30</span><span style="position:absolute;left:52.2%">1:00</span><span style="position:absolute;left:78.3%">1:30</span>
+            </div>
+          </div>
+          <div style="position:absolute;left:calc(64px + (100% - 64px - 16px) * .359);top:-6px;bottom:22px;width:1px;background:#EDEFF2"></div>
+          <div style="position:absolute;left:calc(64px + (100% - 64px - 16px) * .359 - 5px);top:-8px;width:11px;height:6px;background:#EDEFF2;border-radius:2px"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside aria-label="Coach" style="flex:1 1 360px;max-width:100%;box-sizing:border-box;border-left:1px solid #1A1D22;background:#0E1013;display:flex;flex-direction:column">
+      <div role="tablist" aria-label="Coach panel" style="display:flex;gap:18px;padding:0 20px;border-bottom:1px solid #1A1D22;align-items:flex-end">
+        <span role="tab" aria-selected="true" class="tab" style="color:#EDEFF2;font-weight:600;border-bottom-color:#EDEFF2">Analysis</span>
+        <span role="tab" aria-selected="false" class="tab">Ask</span>
+        <span role="tab" aria-selected="false" class="tab">Round</span>
+        <span role="tab" aria-selected="false" class="tab">Notes</span>
+      </div>
+
+      <div style="flex:1 1 auto;overflow:hidden;padding:18px 20px 8px;display:flex;flex-direction:column;gap:14px">
+        <span style="display:flex;align-items:center;gap:7px;font-size:12px;color:#A4AAB4"><svg width="10" height="9" viewBox="0 0 10 9" aria-hidden="true"><path d="M5 0 10 9H0Z" fill="#FF7A3D"></path></svg>Mistake · moment 2 of 6 · round 12 · <span class="code">0:41</span></span>
+        <h1 style="margin:0;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-0.01em">Shot while moving at Canal</h1>
+        <p style="margin:0;font-size:15px;line-height:24px;color:#C9CDD3">You fired 3 shots at up to 187 u/s while peeking Canal <span class="ev">F07</span>. The AK-47 is only accurate below 73 u/s, so the duel was decided before your crosshair settled <span class="ev">F07</span>. You died 0.4 s after first contact, and no teammate flashed for you before the fight <span class="ev" style="border-color:#EDEFF2">F09</span>.</p>
+
+        <div style="display:flex;flex-direction:column;gap:4px;padding:10px 0;border-top:1px solid #1A1D22;border-bottom:1px solid #1A1D22">
+          <span style="display:flex;align-items:center;gap:8px;font-size:12px;color:#A4AAB4">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6.25" fill="none" stroke="#A4AAB4" stroke-width="1.2"></circle><path d="m4.2 7.2 1.9 1.9 3.8-4" fill="none" stroke="#EDEFF2" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            <span><b style="color:#EDEFF2;font-weight:600">Checked</b> · 4 of 4 claims match F07, F09 and round 12 stats</span>
+            <span style="margin-left:auto;color:#7D8490" aria-hidden="true">›</span>
+          </span>
+          <span class="code" style="font-size:10px;color:#7D8490;padding-left:22px">QWEN3-14B · RUNS LOCALLY · 3 TOOL CALLS · 2.4 S</span>
+        </div>
+
+        <div>
+          <h2 style="margin:0 0 4px;font-size:12px;font-weight:600;color:#7D8490">Evidence</h2>
+          <div class="evr"><span class="ev">F07</span><span style="color:#A4AAB4">Speed at first shot</span><span class="code" style="color:#EDEFF2">187 U/S</span></div>
+          <div class="evr"><span class="ev">F07</span><span style="color:#A4AAB4">Shots before death</span><span class="code" style="color:#EDEFF2">3</span></div>
+          <div class="evr" style="background:#15181D;margin:0 -8px;padding:8px"><span class="ev" style="border-color:#EDEFF2">F09</span><span style="color:#EDEFF2">Team flash before the fight</span><span class="code" style="color:#EDEFF2">NONE</span></div>
+          <div class="evr"><span class="ev">R12</span><span style="color:#A4AAB4">Contact to death</span><span class="code" style="color:#EDEFF2">0.4 S</span></div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <h2 style="margin:0;font-size:12px;font-weight:600;color:#7D8490">Practise next</h2>
+          <p style="margin:0;font-size:14px;line-height:21px;color:#EDEFF2">Stop before you peek: counter-strafe, then shoot.</p>
+          <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#A4AAB4">
+            <span style="width:7px;height:7px;border-radius:4px;background:#FF7A3D"></span><span style="width:7px;height:7px;border-radius:4px;background:#FF7A3D"></span><span style="width:7px;height:7px;border-radius:4px;background:#FF7A3D"></span><span style="width:7px;height:7px;border-radius:4px;border:1px solid #5B616B;box-sizing:border-box"></span><span style="width:7px;height:7px;border-radius:4px;border:1px solid #5B616B;box-sizing:border-box"></span>
+            In 3 of your last 5 matches
+          </span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#7D8490">
+          Was this right?
+          <button class="btn" type="button" style="height:26px;font-size:12px;background:transparent">Yes</button>
+          <button class="btn" type="button" style="height:26px;font-size:12px;background:transparent">Not quite</button>
+        </div>
+      </div>
+
+      <div style="flex:none;border-top:1px solid #1A1D22;padding:12px 20px 16px;display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:12px;color:#7D8490">Knows round 12 at <span class="code">0:41</span>, moment 02 and 21 findings for pawcio_</span>
+        <a href="#" style="font-size:13px;color:#A4AAB4">Why does speed matter if I hit the first shot?</a>
+        <a href="#" style="font-size:13px;color:#A4AAB4">Show a round where I stopped before peeking</a>
+        <div style="display:flex;gap:8px;margin-top:2px">
+          <label for="ask" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Ask the coach</label>
+          <input id="ask" placeholder="Ask about round 12 at 0:41" style="flex:1;min-width:0;height:36px;box-sizing:border-box;border-radius:6px;border:1px solid #3A3F48;background:#15181D;color:#EDEFF2;font-family:inherit;font-size:14px;padding:0 12px">
+          <button class="btn" type="button" style="height:36px">Ask</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+</body>
+</html>

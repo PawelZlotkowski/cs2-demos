@@ -1,0 +1,1094 @@
+{
+  "date": "2026-10-20",
+  "canonical_root": "C:\\Users\\pawel\\Documents\\cs2-demos-studio",
+  "imports": [
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\AGENTIC-IMPLEMENTATION-PLAN.md",
+      "source_sha256": "a4420eeab7dad0650e553e265888533fa45143290b12794745199a4e7ded74ae",
+      "destination": "docs/reference/phase1/AGENTIC-IMPLEMENTATION-PLAN.md",
+      "imported_sha256": "a4420eeab7dad0650e553e265888533fa45143290b12794745199a4e7ded74ae",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\APP-PLAN.md",
+      "source_sha256": "986691d392a3b9b8096143f2a9c0dc0062997ecdc539fce2fab72107a39d4c5c",
+      "destination": "docs/reference/phase1/APP-PLAN.md",
+      "imported_sha256": "986691d392a3b9b8096143f2a9c0dc0062997ecdc539fce2fab72107a39d4c5c",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\APP-REVIEW.md",
+      "source_sha256": "1e838907a937207d0bc093f410ff133255f1659dd72a39ffe24bcef01814be03",
+      "destination": "docs/reference/phase1/APP-REVIEW.md",
+      "imported_sha256": "1e838907a937207d0bc093f410ff133255f1659dd72a39ffe24bcef01814be03",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\CONSOLIDATED-PLAN-DRAFT.md",
+      "source_sha256": "8bf805e40336a3259f98db56a346c3b8075fa202b5a91676a8cabb8d01a0da75",
+      "destination": "docs/reference/phase1/CONSOLIDATED-PLAN-DRAFT.md",
+      "imported_sha256": "4204199e3f2971b8942a6e199e9dcbf324c857a801411854553ade5014dd3dda",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\FINAL-DELIVERY-PLAN.md",
+      "source_sha256": "3021b3e46e8d5d276093e42c2d636081156b2c38f436a40228d96de45935bb37",
+      "destination": "docs/planning/FINAL-DELIVERY-PLAN.md",
+      "imported_sha256": "33c02f42adeb9f79f626b634719b4142ddc2ce184a9d1a8fb34cc979fbbdf06a",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\HOSTING-AND-GPU-PLAN.md",
+      "source_sha256": "61d0ce3c50275308449fdbe7281cc2a0bbf7b1a12dc21e3f604bdb1ee2e50855",
+      "destination": "docs/planning/HOSTING-AND-GPU-PLAN.md",
+      "imported_sha256": "61d0ce3c50275308449fdbe7281cc2a0bbf7b1a12dc21e3f604bdb1ee2e50855",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\PHASE1-RESULTS.md",
+      "source_sha256": "08b8caae60a30eadfd1a9d8a1f6dba32398e5ae67f113df1f04ec64bf337db10",
+      "destination": "docs/reference/phase1/PHASE1-RESULTS.md",
+      "imported_sha256": "08b8caae60a30eadfd1a9d8a1f6dba32398e5ae67f113df1f04ec64bf337db10",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\PROMPTS.md",
+      "source_sha256": "35b8d1b9185fd9d58bb5fcba52b13d2fda6efe0a2dc38f5c34d5634671d2685e",
+      "destination": "docs/reference/phase1/PROMPTS.md",
+      "imported_sha256": "35b8d1b9185fd9d58bb5fcba52b13d2fda6efe0a2dc38f5c34d5634671d2685e",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\PYTHON-DEPENDENCY-AUDIT.md",
+      "source_sha256": "8a769534fe86e39376f2db5dc9f4b9c9a188b9785306f623360cb30dcd47e313",
+      "destination": "docs/reference/phase1/PYTHON-DEPENDENCY-AUDIT.md",
+      "imported_sha256": "8a769534fe86e39376f2db5dc9f4b9c9a188b9785306f623360cb30dcd47e313",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\RECORDING-AND-TRAINING-PLAN.md",
+      "source_sha256": "93f74a5dfb69e6a0dc0f7db32c7f031eda1aaedadb9adf80935cd36e948bc8c5",
+      "destination": "docs/planning/RECORDING-AND-TRAINING-PLAN.md",
+      "imported_sha256": "93f74a5dfb69e6a0dc0f7db32c7f031eda1aaedadb9adf80935cd36e948bc8c5",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\reproduce_findings.py",
+      "source_sha256": "857c8644378b1abd43803a640e45a434d46a7414f45d3af44071ce6a3b50c5a7",
+      "destination": "docs/reference/phase1/reproduce_findings.py",
+      "imported_sha256": "857c8644378b1abd43803a640e45a434d46a7414f45d3af44071ce6a3b50c5a7",
+      "transformation": "byte-for-byte copy"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\RESEARCH.md",
+      "source_sha256": "4f4b6ef12aed074d0d2cdfc3262bf62a3739180413b3138566e32812bdf2c659",
+      "destination": "docs/reference/phase1/RESEARCH.md",
+      "imported_sha256": "4f4b6ef12aed074d0d2cdfc3262bf62a3739180413b3138566e32812bdf2c659",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\skills\\rr-architecture\\SKILL.md",
+      "source_sha256": "ff2b1872c55c52131dc1ad4e29ab4bb50f61fb51bf702b4a8b1449820442bd5a",
+      "destination": "docs/reference/phase1/skills/rr-architecture/SKILL.md",
+      "imported_sha256": "ff2b1872c55c52131dc1ad4e29ab4bb50f61fb51bf702b4a8b1449820442bd5a",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\skills\\rr-coach\\SKILL.md",
+      "source_sha256": "c28d21dfc36a4b210ad25b7e53fe593a8d31a77a713bdc11cdd0ecd885f47333",
+      "destination": "docs/reference/phase1/skills/rr-coach/SKILL.md",
+      "imported_sha256": "c28d21dfc36a4b210ad25b7e53fe593a8d31a77a713bdc11cdd0ecd885f47333",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\skills\\rr-deployment\\SKILL.md",
+      "source_sha256": "e99ddf4b3f158fa3ea24c259e3b9ecfbfb1024410a500475aacce091f354d1a1",
+      "destination": "docs/reference/phase1/skills/rr-deployment/SKILL.md",
+      "imported_sha256": "e99ddf4b3f158fa3ea24c259e3b9ecfbfb1024410a500475aacce091f354d1a1",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\skills\\rr-detector\\SKILL.md",
+      "source_sha256": "fb73501cf55ec40735341b3f8b0f91715727e9ced6bc977249652fcafc735396",
+      "destination": "docs/reference/phase1/skills/rr-detector/SKILL.md",
+      "imported_sha256": "fb73501cf55ec40735341b3f8b0f91715727e9ced6bc977249652fcafc735396",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\skills\\rr-eval\\SKILL.md",
+      "source_sha256": "ea0c449c25a5e11dcbbaeccd4ad19c22ff5f3f75d99ced4aa7b6e52c1cc4cb27",
+      "destination": "docs/reference/phase1/skills/rr-eval/SKILL.md",
+      "imported_sha256": "ea0c449c25a5e11dcbbaeccd4ad19c22ff5f3f75d99ced4aa7b6e52c1cc4cb27",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\skills\\rr-parser\\SKILL.md",
+      "source_sha256": "59caed8b95b7025edd573ec3cd89900991e7d86570f1bea8ce683163083dca22",
+      "destination": "docs/reference/phase1/skills/rr-parser/SKILL.md",
+      "imported_sha256": "59caed8b95b7025edd573ec3cd89900991e7d86570f1bea8ce683163083dca22",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\skills\\rr-recording\\SKILL.md",
+      "source_sha256": "93c19ee475d02fb38c8625ad6dd695afe8035a37cabc3b531f11774a8f355a7b",
+      "destination": "docs/reference/phase1/skills/rr-recording/SKILL.md",
+      "imported_sha256": "93c19ee475d02fb38c8625ad6dd695afe8035a37cabc3b531f11774a8f355a7b",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\skills\\rr-replay-3d\\SKILL.md",
+      "source_sha256": "8ad34d508c9690dca89fca7739986e3572f7f15bebcae652c0b992ba59be4914",
+      "destination": "docs/reference/phase1/skills/rr-replay-3d/SKILL.md",
+      "imported_sha256": "8ad34d508c9690dca89fca7739986e3572f7f15bebcae652c0b992ba59be4914",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\skills\\rr-security\\SKILL.md",
+      "source_sha256": "ec64ff89a5a0259b03977e1ee24e9c3a891d319129807738b386ef76c86a5376",
+      "destination": "docs/reference/phase1/skills/rr-security/SKILL.md",
+      "imported_sha256": "ec64ff89a5a0259b03977e1ee24e9c3a891d319129807738b386ef76c86a5376",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\STUDIO-UI-AND-MOTION-PLAN.md",
+      "source_sha256": "01c42a45b19bcee9e6ddf0f716e4811a9c4d57324b7f73bbfc643ec052b68b7a",
+      "destination": "docs/planning/STUDIO-UI-AND-MOTION-PLAN.md",
+      "imported_sha256": "01c42a45b19bcee9e6ddf0f716e4811a9c4d57324b7f73bbfc643ec052b68b7a",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\THREEJS-RESEARCH.md",
+      "source_sha256": "62a9c53847517e898c036fb7118c6a826d58cc5cded38a6da238e7382eda0f58",
+      "destination": "docs/reference/phase1/THREEJS-RESEARCH.md",
+      "imported_sha256": "62a9c53847517e898c036fb7118c6a826d58cc5cded38a6da238e7382eda0f58",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\review\\VALIDATION.md",
+      "source_sha256": "b3ac0ad4d95fd919a004f36355effc229f769d6325f1148d340ece8a20cc7878",
+      "destination": "docs/reference/phase1/VALIDATION.md",
+      "imported_sha256": "b3ac0ad4d95fd919a004f36355effc229f769d6325f1148d340ece8a20cc7878",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\START-HERE.md",
+      "source_sha256": "4394e71a7cdae4a0e6dc453fccda7c91b3fa9ed4ec0dd4b49a6b1ba23a15091c",
+      "destination": "docs/reference/phase1/SOURCE-START-HERE.md",
+      "imported_sha256": "4394e71a7cdae4a0e6dc453fccda7c91b3fa9ed4ec0dd4b49a6b1ba23a15091c",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\PACKAGE-MANIFEST.json",
+      "source_sha256": "8e58b54090050772fbf432ba8d4da5ac1b9339bb9b07a87493ee18c8c9a0aff9",
+      "destination": "docs/reference/phase1/ORIGINAL-PACKAGE-MANIFEST.json",
+      "imported_sha256": "8e58b54090050772fbf432ba8d4da5ac1b9339bb9b07a87493ee18c8c9a0aff9",
+      "transformation": "byte-for-byte copy"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Documents\\cs2-demos-phase1-source\\cs2-demos\\docker\\README.md",
+      "source_sha256": "8bf8f27ebadc0ca2cf66224367dcf8967b978faa3e50f4e6463a0b55ad100feb",
+      "destination": "docs/reference/phase1/DOCKER-SETUP.md",
+      "imported_sha256": "8bf8f27ebadc0ca2cf66224367dcf8967b978faa3e50f4e6463a0b55ad100feb",
+      "transformation": "relative Markdown links relocated"
+    },
+    {
+      "source": "C:\\Users\\pawel\\Downloads\\project-proposal-Pawel-Zlotkowski (1).docx",
+      "source_sha256": "ea6f0b981e2c56934f9cbd93667dce0204f063554539643a258fba12154dd33c",
+      "destination": "docs/university/project-proposal-Pawel-Zlotkowski-original.docx",
+      "imported_sha256": "ea6f0b981e2c56934f9cbd93667dce0204f063554539643a258fba12154dd33c",
+      "transformation": "byte-for-byte copy"
+    },
+    {
+      "source": "C:\\Users\\pawel\\.codex\\visualizations\\2026\\10\\19\\01a15595-6726-7230-90a4-71c88346d21e\\tactical-lens-studio.html",
+      "source_sha256": "efe3328972f7e4fc7175ec94342427ff9c0628b400444786c469eca13eb913c3",
+      "destination": "prototype/source/tactical-lens-studio.fragment.html",
+      "imported_sha256": "efe3328972f7e4fc7175ec94342427ff9c0628b400444786c469eca13eb913c3",
+      "transformation": "byte-for-byte copy"
+    }
+  ],
+  "patches": [
+    {
+      "path": "integration/phase1/dependencies-and-runtime.patch",
+      "sha256": "24a34e9da62dc152419d092062053daccf6529ad65b71beb64bf753bbe118ed1",
+      "files": [
+        {
+          "path": ".gitignore",
+          "phase1_sha256": "48afa41b01a0efe103114f1ba61362b52cd384d5e407627327ee66b359efac3e",
+          "studio_sha256": "4d52edcaec6bff264d112ce9ef6261837dc3d47674b36717056f7856e1a72638"
+        },
+        {
+          "path": "apps/api/.env.example",
+          "phase1_sha256": "1c64f47ec937cf43cdf1a375ec622e354f6a51413d922f5bc622d8dfd19f0470",
+          "studio_sha256": "5caab43cd5c0d88589793256e9435ea946552cf2e5ee6defb8b416850a2dbaa6"
+        },
+        {
+          "path": "apps/api/pyproject.toml",
+          "phase1_sha256": "7b363eaf4cac4fd5f41d118d8c871d6bddfa4ebc6ca372461423f3caa68d30f7",
+          "studio_sha256": "dc7868a1eab6da46c783d2be70cf844a213f60ed66379ca273a3f0380ef0d15b"
+        },
+        {
+          "path": "apps/api/requirements-dev.lock",
+          "phase1_sha256": "da0efbbfcb82e0c038b19b0032c5f1598195e372a05dfce431ebd6b9874e275b",
+          "studio_sha256": null
+        },
+        {
+          "path": "apps/api/requirements.lock",
+          "phase1_sha256": "0ab7734a1df64d2e418ef5c895790995fb97c9d5c54db6f2c7e56293c1a3ad9c",
+          "studio_sha256": null
+        },
+        {
+          "path": "apps/tracker/eslint.config.mjs",
+          "phase1_sha256": "231c2f8c18455049d0f96b278a3642eb08fc6f1067ae6f6a914a1ee3f5ff717c",
+          "studio_sha256": null
+        },
+        {
+          "path": "apps/tracker/package-lock.json",
+          "phase1_sha256": "a08a2cb50106cbc557f6cc2b10567c8cd98313463e607cff7e95cd71a4950636",
+          "studio_sha256": "e8dc05f258415daaed7387cccd3eee92d93ba59a4532fe9a36adb5ab9303f4d4"
+        },
+        {
+          "path": "apps/tracker/package.json",
+          "phase1_sha256": "298c9e4fb6a61c6c515700159f6af64ca40d816d87139c3ff72b281ec0d57d87",
+          "studio_sha256": "22afe86a891d008d1a81a7ba8218b0e478de188069eee165f35375768571c336"
+        },
+        {
+          "path": "apps/web/.env.example",
+          "phase1_sha256": "303247387047ff0e0754acccdf84067b12fa5021560da862fe63de1e023bf2dd",
+          "studio_sha256": "3ef71a0230f4497aac9ad1c352e66c45f3a26b48dbf3c032db84fd33b97212a7"
+        },
+        {
+          "path": "apps/web/eslint.config.mjs",
+          "phase1_sha256": "bb93b4165e178ca2343f62566dc55f10619e3d38d87f52e549bb1dc6d594cb20",
+          "studio_sha256": "e8c664c7123b9fa2a0b0d457586eb463f045f6e59579e759f9deb7f859573c40"
+        },
+        {
+          "path": "apps/web/next.config.ts",
+          "phase1_sha256": "1ad12e077c5699718fea70711f595f1bdfec6ba3050e6ff299bbb7661fb6873f",
+          "studio_sha256": "5c00ca4b71e06ba94215ed0a96910e3d758e26ab6967d33ec101dd0818ebf2af"
+        },
+        {
+          "path": "apps/web/package-lock.json",
+          "phase1_sha256": "a98526307eadd39778f6f57b62881b3df40d97e8b9a304c7e7d6e81bc5ce1b40",
+          "studio_sha256": "9f031f4460364a434dbf753422579991bc0b3752bb91453e132988d03030ca88"
+        },
+        {
+          "path": "apps/web/package.json",
+          "phase1_sha256": "9aff81785ee9f8f3737d4f6f0a2a4299ff6d803511d20ce230229d56659d36ed",
+          "studio_sha256": "99518bb85f2a2145b6e56961c8dad07539f3314306a06bd67126bf2a4556e0c0"
+        },
+        {
+          "path": "compose.yaml",
+          "phase1_sha256": "537ec5bfac5aeef325073a26bd3572ca5b5d72423ad8522eab70f6553938dac4",
+          "studio_sha256": "534c0b9cf4e4e1c7327aa3bd5eec49353fbac0cf5734acf58c3abdcedbdd620d"
+        },
+        {
+          "path": "docker/Dockerfile.api",
+          "phase1_sha256": "55ebf3c21f62f026b6e076c82ef2f19701c195d45fb25aa3f2586f8570513e88",
+          "studio_sha256": "5a41dc3f0e35ad97baf26f89703d213c14477c3b1ea3d25f47905b42c2ab9158"
+        },
+        {
+          "path": "docker/Dockerfile.web",
+          "phase1_sha256": "fbc1c85ef39e40b92e211e527230d9357b0cc6540b7cd0ed7d7876288c9fd8ed",
+          "studio_sha256": "2709e01cce766a5f68241d7a67e7b279ac83267aaa5082722dfa397ac7dd18ba"
+        }
+      ]
+    },
+    {
+      "path": "integration/phase1/api-reliability.patch",
+      "sha256": "bed7ae3524e4feadad9163ab0624bfa1540ac831eeb1779f2233438247528c74",
+      "files": [
+        {
+          "path": "apps/api/app/api/routes.py",
+          "phase1_sha256": "8e80f8677f1de6e86a5beb6bcba6307906b979fc98c087cdb9e2a68e095eaa2a",
+          "studio_sha256": "ee42935c3bb19c60c9f57d5bd8b0319ae18a8dea641dded46743e3a32cc7e3bc"
+        },
+        {
+          "path": "apps/api/app/coach/agent.py",
+          "phase1_sha256": "f46a8d9cb49e61af3443aae898663342356a66cb3cece6d72d9ba09278046c08",
+          "studio_sha256": "8424cf2ebfb60bdcc0251169a8227ccc60de0ab355f681d8279379b3b9af5d8f"
+        },
+        {
+          "path": "apps/api/app/coach/jobs.py",
+          "phase1_sha256": "94445e23d9ecda182d74a09a5dfd9b4d90420a18a75e82f5c57cb7c68d0619a0",
+          "studio_sha256": "5d27c3b02b1afd3f1f87bd4c05f9203ae92e58fc3ea59d429d6fd003e565de63"
+        },
+        {
+          "path": "apps/api/app/coach/llm_client.py",
+          "phase1_sha256": "e980a42dd73ec42668bd21130afcb957c31531a632931d0f71d8b12a0cf0cd14",
+          "studio_sha256": "bb7b148c9ad52d44d1814f42cfe6d630bdbdf64eacd417e2c07e25880388326d"
+        },
+        {
+          "path": "apps/api/app/coach/tools.py",
+          "phase1_sha256": "db8941c8b48ce7fcd4247754ae4c79128b5968f85324fce93ba554baac348084",
+          "studio_sha256": "34bb23638b39c5a623ba22b5af486229b386fed96e6570709d6e435cb065a680"
+        },
+        {
+          "path": "apps/api/app/coach/verify.py",
+          "phase1_sha256": "198946e08523c3539e6b96eb149b9bc47edf1bc6845907e6026708a9789b85bc",
+          "studio_sha256": "7938907fd9ef56aee14b1b35886e52646c72350ef6ca075541f654f86765d0a1"
+        },
+        {
+          "path": "apps/api/app/core/access.py",
+          "phase1_sha256": "83d8b2513808d860dbaf5a25f1dd51e4a13a10e0bc170e4e49a6c5249db38635",
+          "studio_sha256": null
+        },
+        {
+          "path": "apps/api/app/core/config.py",
+          "phase1_sha256": "88607b9aa795f8471158b17c72cf52f6fd424a496e96bb3f036b7d066002ddcc",
+          "studio_sha256": "091532698dc61dd6145cd2e73cd9f8ce4aed6c308021eb85b02699e34fede321"
+        },
+        {
+          "path": "apps/api/app/main.py",
+          "phase1_sha256": "f2568910ed631bcdf9b961860b24d58e83cc70e33d746c74e099d96fda1247ed",
+          "studio_sha256": "514391280b5a96c1ce409ce16c7502e78d9e6e85f30ea0caa296effce00c7544"
+        },
+        {
+          "path": "apps/api/app/models/contracts.py",
+          "phase1_sha256": "a318747dfd1521e89be0e029627099383625481970a92f3a6c3adb6cd5bebef4",
+          "studio_sha256": "17837d33b6552750082db14f2d871dd3fe96ff1d3b661572e08796abd31065f6"
+        },
+        {
+          "path": "apps/api/app/processing/bounded_executor.py",
+          "phase1_sha256": "2f21c4a17377a4f9da3282c38e8a35b30837c60f04237864bd7eee2a8e8d0f28",
+          "studio_sha256": null
+        },
+        {
+          "path": "apps/api/app/processing/decompress.py",
+          "phase1_sha256": "5df754a9d3205228b9f1019a651f5ed1fb7849bf31e9a5f64a6a67bdb80ece9c",
+          "studio_sha256": "72fde129157db0ba4c32ad4c86fa6f1e8523d646cfba50d854005544ef223c08"
+        },
+        {
+          "path": "apps/api/app/processing/isolated_parse.py",
+          "phase1_sha256": "c74fc4f947252ab2e9b129a93fda27f909e4c2679a4e4854354c23d8788e6561",
+          "studio_sha256": null
+        },
+        {
+          "path": "apps/api/app/processing/moment_clips.py",
+          "phase1_sha256": "afcf5b4ed7da4b2b680231ea2485b6ffb090714a84486bfad739439ad7d8bc19",
+          "studio_sha256": "4134505adeffacccb4e27a2fe2b7fb19700400c8452e1056ee96b6005623c7c1"
+        },
+        {
+          "path": "apps/api/app/processing/normalize.py",
+          "phase1_sha256": "b65bdbef8ac3ac87b49a0a74201614353343f162e0a2ece24b569513787b56ab",
+          "studio_sha256": "c7eb1b085663827420a53e526e87fc921f25f73cd2d35142229b22aca249c3ef"
+        },
+        {
+          "path": "apps/api/app/processing/parse_worker.py",
+          "phase1_sha256": "00c282f97c0176675bb72f0cb2f7b04c2a8a54cd9693efbb8a214f02719847bc",
+          "studio_sha256": null
+        },
+        {
+          "path": "apps/api/app/processing/pipeline.py",
+          "phase1_sha256": "3960404e270ea95457137335d396c5100758cdb86994da47b413d43b66103f66",
+          "studio_sha256": "844f6d86017ae3a935f9eded91f508819885d168b6d018ebf62a875ccb4f39d6"
+        },
+        {
+          "path": "apps/api/app/processing/video_clips.py",
+          "phase1_sha256": "854a4b0ea64661cc05c5830f51792a04a30d45422b32953e9dfa034ac4f0039b",
+          "studio_sha256": "8dea73aba14807dc592171b2a16a3558a4a98028dd5d5e4b388c42eaa0ed3faf"
+        },
+        {
+          "path": "apps/api/app/repositories/analysis.py",
+          "phase1_sha256": "90c79b2070f2f1d47c27f349c18aebd24d964f69efcbe46a5046b6c4bc5fc503",
+          "studio_sha256": "0dcda6a0101615edc3f53bd0a1258d1cf311efaa442f579e91737534f6bc3aa9"
+        },
+        {
+          "path": "apps/api/app/repositories/matches.py",
+          "phase1_sha256": "71bcb94c361d2ca2603ae696941c0d2156f6d20cb7739f1d44c7b9b521a6345d",
+          "studio_sha256": "6a22a619f15249d77b24d2e034ed73f29202b6dc76b197febda7a9628bede7ca"
+        },
+        {
+          "path": "apps/api/tests/__init__.py",
+          "phase1_sha256": "aa2c07378a4ecaff0e76b9a2e8a3ddcdaf9c6c6188e38af38ae903b40a42b730",
+          "studio_sha256": null
+        },
+        {
+          "path": "apps/api/tests/analysis/test_player_selection.py",
+          "phase1_sha256": "cfc9267d49d4e189cd78707f6320d14a8d7b33dbbee2e51ec30494229ca6e8e0",
+          "studio_sha256": "51788db08cab15cfc09978dacc260321dcd34caf6b9976fc21e0e548e7127b94"
+        },
+        {
+          "path": "apps/api/tests/coach/conftest.py",
+          "phase1_sha256": "0faa47b2461ef0b16d866c5d84499899490422b3ba1c5cd10aa526cdb33b7d6e",
+          "studio_sha256": "6237d0c9f9c92e6a9b699c0a6f0664511c5a71e92338c9064421d9a2c48c94c5"
+        },
+        {
+          "path": "apps/api/tests/coach/test_agent.py",
+          "phase1_sha256": "a43a47d255053973622719dae1d7e10bfb347acf066fef760f79016b966a8679",
+          "studio_sha256": "b164cdcd7ce3b63cb609fd41275506061b5f64754898d5a9deb359427b51cbc3"
+        },
+        {
+          "path": "apps/api/tests/coach/test_coach_routes.py",
+          "phase1_sha256": "613faab215926c24fe0d47ba6f84346b60ff2f86e7a1dac195f7be6b29f54881",
+          "studio_sha256": "4fc21b9c457abd318a0f5399471b514cb0803fb98fb4b4533f8dac11d729e970"
+        },
+        {
+          "path": "apps/api/tests/coach/test_jobs.py",
+          "phase1_sha256": "d063fdffaa6a8759fc3cd6ae98714ffc7bec3b32e54dab69d1d309095b804fd8",
+          "studio_sha256": "178720421839fdc74d806bc06e228dee71be355f37a2563657c374739d36e105"
+        },
+        {
+          "path": "apps/api/tests/coach/test_mcp_server.py",
+          "phase1_sha256": "b2e91bdfa043ff59dff7d9b60ebeeaf77f69ae121292001294230c431011e811",
+          "studio_sha256": "98c0eb2efea15b0c3a2bb5978161b9b30d337d8101b20b6c4a7dcef77be90daa"
+        },
+        {
+          "path": "apps/api/tests/coach/test_moment_clips.py",
+          "phase1_sha256": "d79b7d2c25df8bcb8aeb6e36e396deb728f92d6065ad330336e1eb9d58cfa8cb",
+          "studio_sha256": "6a61b79d6d147585ba32cc5f25e3f1ddc7b65e1760d30fa7ac6180eab3945dac"
+        },
+        {
+          "path": "apps/api/tests/coach/test_phase1_guards.py",
+          "phase1_sha256": "6f2d12754651aeedaefba8a6971b319653a2fe357caea35afc6797905b1fa0b1",
+          "studio_sha256": null
+        },
+        {
+          "path": "apps/api/tests/coach/test_review.py",
+          "phase1_sha256": "13405861bd32e94c7cf48fd78fa5437a3b00b0fa3e40d18a968fab76fa10335e",
+          "studio_sha256": "e5aa0af8b61dd8bb5d31b886166ed6d5c4f3bb4283850ecdfb1a7f9106d81563"
+        },
+        {
+          "path": "apps/api/tests/coach/test_tools.py",
+          "phase1_sha256": "2410a6b3eff8179d87884def1f7d425bf2fdd61758f3b7d763c7eb8d5bc1097b",
+          "studio_sha256": "5deeb311c165c953a0b55dc4da2f9ff41c34e086f2ae7b1b6d7ff6b100b06d9b"
+        },
+        {
+          "path": "apps/api/tests/coach/test_verify.py",
+          "phase1_sha256": "72f04c455a77a2ccb37b1dd35c13e75058a2de4d2fd38ef9478ea45ba18294ce",
+          "studio_sha256": "847259625bff48dddf85766af5f0592d5866ebdf3bf05986ed073afad93f7a03"
+        },
+        {
+          "path": "apps/api/tests/test_api.py",
+          "phase1_sha256": "c53645b7f99011bcba039561aa74dbad96c56f26e899d7f222346c2ded992a00",
+          "studio_sha256": "b058d036e70ca29de7b38e4185ebbb9a5832cdecec0e77e15dfe92aed029f3ce"
+        },
+        {
+          "path": "apps/api/tests/test_clips.py",
+          "phase1_sha256": "09c14625b0a0a6e1f7e997525012d23adbd006353da0f24a92f24c49213ebe99",
+          "studio_sha256": "fa67d34294354bb47a2b8d07e71bc63466135c29e0f184bb41efdfe669d7d569"
+        },
+        {
+          "path": "apps/api/tests/test_normalize_scoring.py",
+          "phase1_sha256": "741b1c28eb03f4ddec787dd8e23e853f0fa397a2ccc2d17467c58435a21d31db",
+          "studio_sha256": null
+        },
+        {
+          "path": "apps/api/tests/test_phase1_isolation.py",
+          "phase1_sha256": "eae12c1614c1297fc8c1b4ab18b4f7a1f81073ec215d9980052e005967a2d5fd",
+          "studio_sha256": null
+        },
+        {
+          "path": "apps/api/tests/test_phase1_security.py",
+          "phase1_sha256": "cf549d9af3ff8c61305b4786851993864054bc3a0e8aae368df2fc57d277f8b6",
+          "studio_sha256": null
+        },
+        {
+          "path": "apps/api/tests/test_replay.py",
+          "phase1_sha256": "4f77249f0511d27bbf4992341acfaff371f739be01ed035a5efdbc6daebae961",
+          "studio_sha256": "b240eed137eee24efe0d60706d3aaf08659085bf3e4853cc7cf63c91b76cde56"
+        }
+      ]
+    },
+    {
+      "path": "integration/phase1/mcp-access.patch",
+      "sha256": "7c83285897a574a074785ccff235fc0ac994330c84b66b1b129979d8b943ac17",
+      "files": [
+        {
+          "path": "apps/mcp/README.md",
+          "phase1_sha256": "0a8f48bf9a80e53b925c6b79e288757f8e7f15371565a6ad13c0fd9b219ba5bc",
+          "studio_sha256": "ba89a843d3afed47af93093adb085bc3cb91d9cedb29d2fa7b256f5af27cc3a4"
+        },
+        {
+          "path": "apps/mcp/cs2_demo_mcp/__main__.py",
+          "phase1_sha256": "442a2b88686f6894c88c4d555a2f9244c29a5940bcdc3190a12ed3d250adf3cd",
+          "studio_sha256": "38c50ee256b3d306a64a86731d1a519ffbbec5324417aa56ee86e8dd1e7d748f"
+        },
+        {
+          "path": "apps/mcp/tests/test_access.py",
+          "phase1_sha256": "d700b3caabbfddf714cff0e4207f53998dd9cb66571fe61a876202eda56e9d1f",
+          "studio_sha256": null
+        }
+      ]
+    },
+    {
+      "path": "integration/phase1/replay-correctness.patch",
+      "sha256": "322139bb57a2465c83d007b1f0091b40cad17a9e01a607c3b12a34f1554df643",
+      "files": [
+        {
+          "path": "apps/web/scripts/run-replay-checks.cjs",
+          "phase1_sha256": "1aef3943602be861d1b3aefeca8166776801d24cf708f66c1dfecbe00d0b9746",
+          "studio_sha256": null
+        },
+        {
+          "path": "apps/web/src/components/replay/PovClip.tsx",
+          "phase1_sha256": "53ae1c258ab690101bdda31216aaa1daf78d46d676a57a8a218d6dfd16073a23",
+          "studio_sha256": "281a05eefce00fc7901469705e55eb751bc31022b61d11f2f14eb9b2a180839b"
+        },
+        {
+          "path": "apps/web/src/components/replay/RadarView.tsx",
+          "phase1_sha256": "462726475ef783e92a138b5ba5e6e75e213618d16cc2778a3a452162e01ab208",
+          "studio_sha256": "18910ae0ed551ea8867159b2c72f19ca8cf8db5ae37f1c00fa2d79734b997026"
+        },
+        {
+          "path": "apps/web/src/components/replay/ReplayTimeline.tsx",
+          "phase1_sha256": "e00866084dd57ee027ca79f9314340ae2610998dbc62f8d4be5ea7a9edc80fbc",
+          "studio_sha256": "61e551bd15f0a6d6aeb3ac179ce37236e480923fc5e4d4e27d936b0c16aa201b"
+        },
+        {
+          "path": "apps/web/src/lib/replay/checks.ts",
+          "phase1_sha256": "0b66f21f00082bc9ace05ae4fff39c17ebad886739caabaf4e19f8f7e4d12122",
+          "studio_sha256": "0dcb2e0b74cb8267dd0cbc2c6de12aee9951a39c211d4fed0ffdc329ba197bd4"
+        },
+        {
+          "path": "apps/web/src/lib/replay/interpolate.ts",
+          "phase1_sha256": "243703d72414b6c6b907cc07b5daa900a5733eae7e0d5df55aad8ac982604664",
+          "studio_sha256": "11b54de26aae17a52b53f5459710d09ac66a546d9cf41ef418ea43f06cb09141"
+        },
+        {
+          "path": "apps/web/src/lib/replay/roster.ts",
+          "phase1_sha256": "0b3992c9495ddc579192830aa54ac9047639e58ffb9e4690905c016d481d2866",
+          "studio_sha256": "816aa9a90914e249332a1370d67869b7a696d61e8f0722036ef73b6734318bdf"
+        },
+        {
+          "path": "apps/web/src/lib/replay/usePlaybackClock.ts",
+          "phase1_sha256": "bcdd623b03387e3fea9552a4b65c44c98600fee410faef00a947b8dec96bc9e0",
+          "studio_sha256": "1c67c934b657a16e432eefb14fb26d7be626666c5179b385b08e2992cbf84098"
+        }
+      ]
+    },
+    {
+      "path": "integration/phase1/coach-and-contracts.patch",
+      "sha256": "296dcd59d5c253ee5af4a85bed9052aca7e4d6dfc2db1acb3cd1486ba32db789",
+      "files": [
+        {
+          "path": "apps/web/src/components/coach/CoachExplanation.tsx",
+          "phase1_sha256": "2e4f533910c4645e46e2d350c2459ee9f1979c16515ad20d5809cc3fd962e714",
+          "studio_sha256": "2b52a7449b8d1a6543f0a94aba79df4bc6409fff06a64388186fb67583fe20a5"
+        },
+        {
+          "path": "apps/web/src/components/coach/CoachPanel.tsx",
+          "phase1_sha256": "03bcd77b1706e8860ab37d4b6a26e468e03b2dacf8ed21ca701c9c8beb440352",
+          "studio_sha256": "15596cfbd3e069466b086977f2a2a1d249b526b29e15acd6fd1421a0be735c1b"
+        },
+        {
+          "path": "apps/web/src/components/coach/CoachText.tsx",
+          "phase1_sha256": "4ddd2a3fa4af5bb99e67d7be8e62674e209ad4b19fa459acf824d5219b96963f",
+          "studio_sha256": "f8f255b5e1902ef042768ce73c27a0a8802a982ada496d4ad774e27a107f4de9"
+        },
+        {
+          "path": "apps/web/src/lib/contracts/index.ts",
+          "phase1_sha256": "0502b295cfab66d7d3f07194ae6b32589d7d0006f996b1f10395dfdaed9f6068",
+          "studio_sha256": "496316d3d2a6cfaf3af36aac8f23ea91689a519a9ccf8e75acb3377374f7c74f"
+        }
+      ]
+    }
+  ],
+  "phase1_decisions": [
+    {
+      "path": ".gitignore",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/.env.example",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/api/routes.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/coach/agent.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/coach/jobs.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/coach/llm_client.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/coach/tools.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/coach/verify.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/core/access.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/core/config.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/main.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/models/contracts.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/processing/bounded_executor.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/processing/decompress.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/processing/isolated_parse.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/processing/moment_clips.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/processing/normalize.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/processing/parse_worker.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/processing/pipeline.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/processing/video_clips.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/repositories/analysis.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/app/repositories/matches.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/pyproject.toml",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/requirements-dev.lock",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/requirements.lock",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/__init__.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/analysis/test_player_selection.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/coach/conftest.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/coach/test_agent.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/coach/test_coach_routes.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/coach/test_jobs.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/coach/test_mcp_server.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/coach/test_moment_clips.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/coach/test_phase1_guards.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/coach/test_review.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/coach/test_tools.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/coach/test_verify.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/test_api.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/test_clips.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/test_normalize_scoring.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/test_phase1_isolation.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/test_phase1_security.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/api/tests/test_replay.py",
+      "decision": "patch-reference",
+      "group": "api-reliability",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/mcp/README.md",
+      "decision": "patch-reference",
+      "group": "mcp-access",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/mcp/cs2_demo_mcp/__main__.py",
+      "decision": "patch-reference",
+      "group": "mcp-access",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/mcp/tests/test_access.py",
+      "decision": "patch-reference",
+      "group": "mcp-access",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/tracker/eslint.config.mjs",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/tracker/package-lock.json",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/tracker/package.json",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/.env.example",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/README.md",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "apps/web/eslint.config.mjs",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/next.config.ts",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/package-lock.json",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/package.json",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/scripts/run-replay-checks.cjs",
+      "decision": "patch-reference",
+      "group": "replay-correctness",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/src/app/access/page.tsx",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "apps/web/src/app/layout.tsx",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "apps/web/src/app/page.tsx",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "apps/web/src/app/processing/[id]/page.tsx",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "apps/web/src/app/studio/[matchId]/page.tsx",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "apps/web/src/app/upload/page.tsx",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "apps/web/src/components/NavLinks.tsx",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "apps/web/src/components/NotFound.tsx",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "apps/web/src/components/coach/CoachExplanation.tsx",
+      "decision": "patch-reference",
+      "group": "coach-and-contracts",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/src/components/coach/CoachPanel.tsx",
+      "decision": "patch-reference",
+      "group": "coach-and-contracts",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/src/components/coach/CoachText.tsx",
+      "decision": "patch-reference",
+      "group": "coach-and-contracts",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/src/components/replay/PovClip.tsx",
+      "decision": "patch-reference",
+      "group": "replay-correctness",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/src/components/replay/RadarView.tsx",
+      "decision": "patch-reference",
+      "group": "replay-correctness",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/src/components/replay/ReplayTimeline.tsx",
+      "decision": "patch-reference",
+      "group": "replay-correctness",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/src/components/review/ReviewPanels.tsx",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "apps/web/src/lib/api/client.ts",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "apps/web/src/lib/coach/language.ts",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "apps/web/src/lib/contracts/index.ts",
+      "decision": "patch-reference",
+      "group": "coach-and-contracts",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/src/lib/replay/checks.ts",
+      "decision": "patch-reference",
+      "group": "replay-correctness",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/src/lib/replay/interpolate.ts",
+      "decision": "patch-reference",
+      "group": "replay-correctness",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/src/lib/replay/roster.ts",
+      "decision": "patch-reference",
+      "group": "replay-correctness",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/src/lib/replay/usePlaybackClock.ts",
+      "decision": "patch-reference",
+      "group": "replay-correctness",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "apps/web/src/styles/studio.css",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "apps/web/src/styles/tokens.css",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "compose.yaml",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "data/labels/README.md",
+      "decision": "not-imported",
+      "group": null,
+      "reason": "Retain Studio's current UI, routing, account flow or documentation; Phase 1 version remains in the untouched source folder."
+    },
+    {
+      "path": "docker/Dockerfile.api",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    },
+    {
+      "path": "docker/Dockerfile.web",
+      "decision": "patch-reference",
+      "group": "dependencies-and-runtime",
+      "reason": "Preserve for domain-level integration; not applied to the active app."
+    }
+  ],
+  "application_code_merged": false,
+  "original_folders_deleted": false
+}
