@@ -9,6 +9,7 @@ import sqlite3
 import tempfile
 import time
 import zipfile
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal, get_args
@@ -234,6 +235,7 @@ def admin_matches() -> list[dict[str, Any]]:
 
 
 PROCESSING = {
+    MatchStatus.inspecting, MatchStatus.ready_to_parse,
     MatchStatus.uploaded, MatchStatus.decompressing, MatchStatus.decompressed, MatchStatus.parsing,
     MatchStatus.normalizing, MatchStatus.detecting, MatchStatus.selecting, MatchStatus.recording,
     MatchStatus.explaining,
@@ -428,7 +430,7 @@ def backup_zip() -> tuple[bytes, str]:
     buf = io.BytesIO()
     with tempfile.TemporaryDirectory() as tmp:
         copy = Path(tmp) / BACKUP_DB
-        with sqlite3.connect(repo.analysis.db_path) as src, sqlite3.connect(copy) as dst:
+        with closing(sqlite3.connect(repo.analysis.db_path)) as src, closing(sqlite3.connect(copy)) as dst:
             src.backup(dst)
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.write(copy, BACKUP_DB)
@@ -460,11 +462,11 @@ def restore_zip(raw: bytes) -> dict[str, Any]:
         db = Path(tmp) / BACKUP_DB
         db.write_bytes(zf.read(BACKUP_DB))
         try:
-            with sqlite3.connect(db) as conn:
+            with closing(sqlite3.connect(db)) as conn:
                 conn.execute("SELECT COUNT(*) FROM users").fetchone()
         except sqlite3.Error as exc:
             raise ValueError("The backup's database is unreadable.") from exc
-        with sqlite3.connect(db) as src, sqlite3.connect(repo.analysis.db_path) as dst:
+        with closing(sqlite3.connect(db)) as src, closing(sqlite3.connect(repo.analysis.db_path)) as dst:
             src.backup(dst)
     restored = {"labels": 0, "notes": 0}
     for name in names:

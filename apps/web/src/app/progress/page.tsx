@@ -6,7 +6,7 @@ import { api } from "@/lib/api/client";
 import { useCoachedPlayer } from "@/lib/coach/players";
 import type { ProgressResponse } from "@/lib/contracts";
 
-const MAP_NAME: Record<string, string> = { de_mirage: "Mirage", de_anubis: "Anubis" };
+const MAP_NAME: Record<string, string> = { de_ancient: "Ancient", de_anubis: "Anubis", de_mirage: "Mirage" };
 
 function trend(recent: number | null, before: number | null): string {
   if (recent == null || before == null) return "";

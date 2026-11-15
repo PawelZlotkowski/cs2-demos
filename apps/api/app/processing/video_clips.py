@@ -307,6 +307,8 @@ class VideoWorker:
                     self._csdm_video(dem, clip, out)
                 if not out.exists() or out.stat().st_size == 0:
                     raise RuntimeError("Recording produced an empty file.")
+                if settings.csdm_mode == "csdm":
+                    validate_recorded_media(out)
                 update_clip(match_id, clip.round_id, status=ClipStatus.ready, repository=self.repo)
             except Exception as exc:
                 logger.warning("Clip %s/%s failed: %s", match_id, clip.round_id, exc)
@@ -351,6 +353,7 @@ def csdm_record(dem: Path, start_tick: int, end_tick: int, focus_steamid: str | 
         str(settings.csdm_height),
         "--ffmpeg-video-container",
         "mp4",
+        "--no-show-x-ray",
         "--output",
         str(out_dir),
     ]
@@ -422,3 +425,24 @@ def friendly_error(exc: Exception) -> str:
 
 
 video_worker = VideoWorker()
+
+
+def validate_recorded_media(path: Path) -> None:
+    """Reject empty/header-only files; this does not prove semantic POV alignment."""
+    probe = shutil.which(settings.ffprobe_bin)
+    if not probe and Path(settings.ffprobe_bin).is_file():
+        probe = settings.ffprobe_bin
+    if not probe:
+        candidate = Path.home() / '.csdm/ffmpeg/bin/ffprobe.exe'
+        if candidate.is_file():
+            probe = str(candidate)
+    if not probe:
+        raise RuntimeError('ffprobe is required to validate recordings. Set RR_FFPROBE_BIN.')
+    checked = subprocess.run([probe, '-v', 'error', '-show_streams', '-show_format', '-of', 'json', str(path)], capture_output=True, text=True, timeout=20, check=False)
+    try:
+        body = json.loads(checked.stdout)
+        valid = checked.returncode == 0 and float(body.get('format', {}).get('duration', 0)) > 0 and any(s.get('codec_type') == 'video' and s.get('width', 0) > 0 and s.get('height', 0) > 0 for s in body.get('streams', []))
+    except (ValueError, TypeError):
+        valid = False
+    if not valid:
+        raise RuntimeError('Recording is not a readable video. Check CS2/HLAE and retry.')

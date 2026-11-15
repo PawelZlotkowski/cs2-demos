@@ -6,6 +6,9 @@ export type MatchStatus =
   | "uploaded"
   | "decompressing"
   | "decompressed"
+  | "inspecting"
+  | "awaiting_setup"
+  | "ready_to_parse"
   | "parsing"
   | "normalizing"
   | "awaiting_player"
@@ -45,6 +48,8 @@ export type Glyph =
 export type PatternClass = "one-off" | "recurring" | "improving" | "strength";
 export type StageView = "gameplay" | "radar";
 
+export type ReviewFocus = "overall" | "shooting" | "utility" | "teamwork";
+
 export interface Match {
   id: string;
   map: string;
@@ -59,6 +64,7 @@ export interface Match {
   tickRate?: number | null;
   players?: ReplayPlayer[] | null;
   selectedPlayerId?: string | null;
+  reviewFocus?: ReviewFocus;
 }
 
 export interface ReplayPlayer {
@@ -247,6 +253,7 @@ export type CoachLanguage = "en" | "pl" | "nl";
 
 export interface PlayerSelectRequest {
   playerId: string;
+  focus?: ReviewFocus;
   /** Language the stored explanations are written in (default "en"). */
   language?: CoachLanguage;
 }
@@ -593,7 +600,7 @@ export interface KnowledgeRow {
 }
 
 export interface KnowledgeNoteRequest {
-  map: "de_mirage" | "de_anubis";
+  map: "de_ancient" | "de_anubis" | "de_mirage";
   title: string;
   zones: string[];
   text: string;

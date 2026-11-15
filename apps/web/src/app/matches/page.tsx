@@ -13,6 +13,9 @@ import { errorText } from "@/lib/format";
 const STATUS_LABEL: Partial<Record<string, string>> = {
   complete: "Reviewed",
   awaiting_player: "Pick a player",
+  awaiting_setup: "Set up review",
+  inspecting: "Reading players",
+  ready_to_parse: "Starting review",
   failed: "Failed",
 };
 
@@ -277,7 +280,7 @@ function MatchActions({
             </button>
           )
         ) : null}
-        {!["complete", "awaiting_player", "failed"].includes(row.status) ? (
+        {!["complete", "awaiting_player", "awaiting_setup", "failed"].includes(row.status) ? (
           <span className="meta">Delete is available once processing stops.</span>
         ) : (
           <ConfirmButton

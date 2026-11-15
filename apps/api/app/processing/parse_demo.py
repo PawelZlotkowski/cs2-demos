@@ -73,6 +73,26 @@ class ParsedDemo:
     extras: dict[str, Any] = field(default_factory=dict)
 
 
+def inspect_demo_roster(dem_path: str) -> tuple[str, list[dict[str, str]]]:
+    """Read the header and player info without extracting events or replay ticks."""
+    try:
+        parser = DemoParser(dem_path)
+        header = dict(parser.parse_header())
+        roster = {}
+        for _, row in parser.parse_player_info().iterrows():
+            if pd.isna(row.get("steamid")) or int(row["steamid"]) <= 0:
+                continue
+            pid = str(int(row["steamid"]))
+            roster[pid] = {"id": pid, "name": str(row["name"]), "team": "CT" if row.get("team_number") == 3 else "T"}
+        if not roster:
+            raise ParseError("No selectable players were found in this demo.")
+        return str(header.get("map_name") or "unknown"), list(roster.values())
+    except ParseError:
+        raise
+    except Exception as exc:
+        raise ParseError("Could not read this demo's player list. Try another recording.") from exc
+
+
 def parse_demo_file(dem_path: str, *, tick_rate: int = DEFAULT_TICK_RATE) -> ParsedDemo:
     try:
         parser = DemoParser(dem_path)
@@ -169,6 +189,12 @@ def parse_demo_file(dem_path: str, *, tick_rate: int = DEFAULT_TICK_RATE) -> Par
         raise
     except Exception as exc:
         logger.exception("demoparser2 failed for %s", dem_path)
+        if "MalformedMessage" in str(exc):
+            raise ParseError(
+                "The demo parser could not read a message in this recording (MalformedMessage). "
+                "Try another demo or download this recording again. This can be a damaged file "
+                "or an unsupported demo format; a .dem.zst upload is decompressed automatically."
+            ) from exc
         raise ParseError("Could not parse that CS2 demo.") from exc
 
 

@@ -28,6 +28,7 @@ credentials.json
 *.dem.zst
 
 # Runtime / generated data
+.local/
 apps/api/data/uploads/*
 !apps/api/data/uploads/.gitkeep
 apps/api/data/work/

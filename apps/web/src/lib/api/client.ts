@@ -59,6 +59,7 @@ import type {
   MomentExplanation,
   PatternsResponse,
   ReviewWrapUp,
+  ReviewFocus,
   RoundClip,
   RoundReplay,
   RoundStats,
@@ -162,10 +163,10 @@ export const api = {
     const qs = q.toString();
     return request<EventsPage>(`/matches/${matchId}/events${qs ? `?${qs}` : ""}`);
   },
-  selectPlayer: (matchId: string, playerId: string, language: CoachLanguage = "en") =>
+  selectPlayer: (matchId: string, playerId: string, language: CoachLanguage = "en", focus: ReviewFocus = "overall") =>
     request<StatusResponse>(`/matches/${matchId}/player`, {
       method: "POST",
-      body: JSON.stringify({ playerId, language }),
+      body: JSON.stringify({ playerId, language, focus }),
     }),
   getFindings: (
     matchId: string,

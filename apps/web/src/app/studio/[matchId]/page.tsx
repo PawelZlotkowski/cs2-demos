@@ -1051,6 +1051,7 @@ export default function StudioPage() {
         ? createPortal(
             <div className="sb" aria-label={`${mapLabel}, ${scorePhrase(sbScore.text)}`}>
               <span className="sb-map">{mapLabel}</span>
+              {match.reviewFocus && match.reviewFocus !== "overall" ? <span className="meta" title="Personal review focus">{match.reviewFocus}</span> : null}
               <span className="sb-score" aria-hidden>
                 <b>{sbScore.us}</b>
                 <i>:</i>
@@ -1309,7 +1310,7 @@ export default function StudioPage() {
                     <div className="stage-msg">
                       <p>
                         Radar positions are not available for <strong>{mapLabel}</strong> yet.
-                        Timeline playback still works. Overview metadata exists for Mirage and
+                        Timeline playback still works. Overview metadata exists for Ancient and
                         Anubis.
                       </p>
                     </div>

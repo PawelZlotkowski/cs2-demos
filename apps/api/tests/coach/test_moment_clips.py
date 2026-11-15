@@ -41,6 +41,7 @@ def recording(analysed, tmp_path, monkeypatch):
 
     monkeypatch.setattr(moment_clips, "csdm_analyze", lambda dem: calls.append(("analyze",)))
     monkeypatch.setattr(moment_clips, "csdm_record", fake_record)
+    monkeypatch.setattr(moment_clips, "validate_recorded_media", lambda path: None)
     # Run the background worker inline
     def inline(fn, *a):
         done: Future = Future()
@@ -62,8 +63,9 @@ def test_every_moment_gets_its_window_with_a_margin(analysed):
         c = by_moment[m.id]
         assert c["round"] == m.round
         # The picked window plus 1 s before and 3 s after, so the play is not cut at the edges
-        assert c["t0"] == round(max(0.0, m.t0 - 1.0), 1)
-        assert round(m.t1, 1) < c["t1"] <= round(m.t1 + 3.0, 1)
+        assert c["t0"] == pytest.approx(max(0.0, m.t0 - 1.0))
+        duration = next(r['durationSec'] for r in repo.get(mid)['rounds'] if r['number'] == m.round)
+        assert c["t1"] == pytest.approx(min(m.t1 + 3.0, duration, c['t0'] + 60))
     # Recording is off by default: queued jobs read as skipped with a reason, never as ready
     assert all(c["status"] == "skipped" and c["error"] == moment_clips.DISABLED for c in clips)
 
@@ -134,26 +136,26 @@ def test_missing_demo_fails_honestly(recording, analysed, tmp_path):
     assert all(c["status"] == "failed" and "missing" in c["error"] for c in clips)
 
 
-def test_clips_are_recorded_before_the_analysis_opens(recording, analysed, monkeypatch):
+def test_analysis_opens_while_recordings_are_still_queued(recording, analysed, monkeypatch):
     mid, pid = analysed
     from app.processing import pipeline as pipe_mod
 
-    seen: list[tuple[str, list[str]]] = []
-    real_set_status = repo.set_status
+    pending: list[Future] = []
 
-    def spy(match_id, status, **kw):
-        # What the clips looked like when each stage started
-        states = [c.status.value for c in moment_clips.list_moment_clips(match_id, pid) if c.moment_id]
-        seen.append((status.value, states))
-        return real_set_status(match_id, status, **kw)
+    def defer(fn, *args):
+        future: Future = Future()
+        pending.append(future)
+        return future
 
-    monkeypatch.setattr(repo, "set_status", spy)
+    monkeypatch.setattr(moment_clips._video_executor, "submit", defer)
+    monkeypatch.setattr(moment_clips, "_running", set())
     pipe_mod.pipeline.select_player(mid, pid, run_async=False)
-    order = [s for s, _ in seen]
-    assert order.index("recording") < order.index("complete")
-    at_complete = dict(seen)["complete"]
-    assert at_complete and all(s == "ready" for s in at_complete)
+    assert pending and not pending[0].done()
+    assert repo.get(mid)["status"].value == "complete"
+    clips = moment_clips.list_moment_clips(mid, pid)
+    assert clips and all(c.status.value == "queued" for c in clips)
 
     status = client.get(f"/matches/{mid}/status").json()
     stage = next(s for s in status["stages"] if s["id"] == "recording")
-    assert stage["state"] == "done" and stage["detail"].startswith(f"{len(at_complete)} of {len(at_complete)} clips")
+    assert stage["state"] == "active"
+    assert stage["progress"] == {"done": 0, "total": len(clips)}

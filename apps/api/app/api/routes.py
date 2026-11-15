@@ -74,6 +74,13 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@router.get("/analysis-policy")
+def analysis_policy() -> dict:
+    from app.analysis.policy import policy_description
+
+    return policy_description(settings.analysis_profile)
+
+
 UPLOAD_CHUNK = 1024 * 1024
 DEMO_MAGICS = (b"\x28\xb5\x2f\xfd", b"PBDEMS2\x00")  # zstd frame, CS2 demo
 
@@ -115,12 +122,13 @@ async def upload_match(request: Request, file: UploadFile = File(...)) -> Upload
     finally:
         tmp.unlink(missing_ok=True)
     users().set_owner(record["id"], user["id"])
+    record["requires_setup"] = True
     pipeline.enqueue(record["id"])
     return UploadResponse(
         id=record["id"],
         status=MatchStatus.uploaded,
         filename=filename,
-        message="Upload accepted. Processing has started.",
+        message="Upload accepted. Reading the player list; confirm your review setup before full parsing.",
     )
 
 
@@ -251,7 +259,7 @@ def list_events(
 def select_player(match_id: str, body: PlayerSelectRequest) -> StatusResponse:
     """Choose the player to coach; runs the detectors for them."""
     try:
-        pipeline.select_player(match_id, body.player_id, language=body.language)
+        pipeline.select_player(match_id, body.player_id, language=body.language, focus=body.focus)
     except PlayerSelectionError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
     return pipeline.status_response(match_id)

@@ -31,13 +31,17 @@ class MatchStatus(str, Enum):
     """Replay stages, then the coach stages (AI Coach plan §3).
 
     Radar is usable from ``awaiting_player`` on. After ``detecting`` come
-    ``selecting`` (coach model on), ``recording`` (gameplay recording on: the POV
-    clip of each moment) and ``explaining`` (coach model on), then ``complete``.
+    ``selecting`` and ``explaining`` (coach model on), then ``complete``.
+    Recording runs asynchronously with per-clip status; ``recording`` remains
+    readable for older saved jobs.
     """
 
     uploaded = "uploaded"
     decompressing = "decompressing"
     decompressed = "decompressed"
+    inspecting = "inspecting"
+    awaiting_setup = "awaiting_setup"
+    ready_to_parse = "ready_to_parse"
     parsing = "parsing"
     normalizing = "normalizing"
     awaiting_player = "awaiting_player"
@@ -123,6 +127,9 @@ class ReplayPlayer(CamelModel):
     team: Side
 
 
+ReviewFocus = Literal["overall", "shooting", "utility", "teamwork"]
+
+
 class Match(CamelModel):
     id: str
     map: str
@@ -137,6 +144,7 @@ class Match(CamelModel):
     tick_rate: int | None = Field(None, alias="tickRate")
     players: list[ReplayPlayer] | None = None
     selected_player_id: str | None = Field(None, alias="selectedPlayerId")
+    review_focus: ReviewFocus = Field("overall", alias="reviewFocus")
 
 
 class ProcessingStage(CamelModel):
@@ -526,6 +534,7 @@ CoachLanguage = Literal["en", "pl", "nl"]
 
 class PlayerSelectRequest(CamelModel):
     player_id: str = Field(alias="playerId")
+    focus: ReviewFocus = "overall"
     # Language of the stored explanations (plan §6.4); the UI copy stays English
     language: CoachLanguage = "en"
 
@@ -878,7 +887,7 @@ class KnowledgeFlagRequest(CamelModel):
 
 
 class KnowledgeNoteRequest(CamelModel):
-    map: Literal["de_mirage", "de_anubis"]
+    map: Literal["de_ancient", "de_anubis", "de_mirage"]
     title: str = Field(min_length=3, max_length=120)
     zones: list[str] = Field(default_factory=list)
     text: str = Field(min_length=20, max_length=3000)

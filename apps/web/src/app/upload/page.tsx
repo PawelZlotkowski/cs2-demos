@@ -46,7 +46,7 @@ export default function UploadPage() {
   return (
     <main className="main" id="content">
       <h1>Add a match</h1>
-      <p className="lede">Choose a .dem.zst from FACEIT or a .dem from CS Demo Manager. Mirage and Anubis only for now.</p>
+      <p className="lede">Upload an Ancient or Anubis .dem or .dem.zst. We read the player list first, then you choose one player, a review focus and language before starting full parsing and analysis.</p>
       <div
         className="drop"
         data-over={over || undefined}

@@ -97,7 +97,7 @@ def add_note(req: KnowledgeNoteRequest) -> KnowledgeRow:
 
 # --- own notes in the admin panel (doc 30 AD10) ---
 
-NOTE_MAPS = ("de_mirage", "de_anubis")
+NOTE_MAPS = ("de_ancient", "de_anubis", "de_mirage")
 
 
 def _note_sections(path: Path) -> tuple[str, list[tuple[str, str]]]:

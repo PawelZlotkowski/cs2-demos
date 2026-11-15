@@ -419,7 +419,7 @@ def select_moments(
 def search_knowledge(
     query: Annotated[str, Field(min_length=2, description="What to look up, in English, e.g. 'trading distance'.")],
     map: Annotated[
-        Literal["de_mirage", "de_anubis"] | None, Field(description="Also search this map's notes.")
+        Literal["de_ancient", "de_anubis", "de_mirage"] | None, Field(description="Also search this map's notes.")
     ] = None,
     k: Annotated[int, Field(ge=1, le=6, description="How many passages.")] = 3,
 ) -> dict[str, Any]:
@@ -464,7 +464,7 @@ def request_clip(
 
 # --- across matches (doc 29 R05) -----------------------------------------------
 
-MapName = Literal["de_mirage", "de_anubis"]
+MapName = Literal["de_ancient", "de_anubis", "de_mirage"]
 
 
 def _map_key(name: str | None) -> str:
@@ -578,6 +578,7 @@ def match_overview(match_id: str) -> dict[str, Any]:
         "players": [{"id": pid, "name": name} for pid, name in match.players.items()],
         "rounds": len(match.playable_rounds()),
         "selectedPlayerId": data.repo.analysis.get_player(match_id),
+        "reviewFocus": (record.get("match") or {}).get("reviewFocus", "overall"),
     }
 
 

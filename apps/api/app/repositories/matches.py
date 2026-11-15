@@ -22,6 +22,9 @@ STAGE_LABELS: dict[MatchStatus, str] = {
     MatchStatus.uploaded: "Upload received",
     MatchStatus.decompressing: "Unpack demo",
     MatchStatus.decompressed: "Decompressed",
+    MatchStatus.inspecting: "Read player list",
+    MatchStatus.awaiting_setup: "Set up your review",
+    MatchStatus.ready_to_parse: "Review confirmed",
     MatchStatus.parsing: "Parse demo",
     MatchStatus.normalizing: "Normalise replay",
     MatchStatus.awaiting_player: "Choose a player",
@@ -76,9 +79,12 @@ class MatchRepository:
                 )
                 match = payload.get("match") or {}
                 match["id"] = match_id
-                status = self._restored_status(match_dir, match_id)
+                options = self.review_options(match_id)
+                pending_setup = payload.get("requiresSetup") and not (match_dir / ANALYSIS_FILE).exists()
+                status = (MatchStatus.ready_to_parse if options else MatchStatus.awaiting_setup) if pending_setup else self._restored_status(match_dir, match_id)
                 match["status"] = status.value
                 match["selectedPlayerId"] = self.analysis.get_player(match_id)
+                match["reviewFocus"] = options.get("focus", "overall")
                 record = {
                     "id": match_id,
                     "filename": f"{match_id}.dem.zst",
@@ -96,6 +102,8 @@ class MatchRepository:
                     "match_dir": str(match_dir),
                     "stage_started_at": None,
                     "is_sample": False,
+                    "requires_setup": bool(payload.get("requiresSetup")),
+                    "path": payload.get("uploadPath"),
                 }
                 with self._lock:
                     self._records[match_id] = record
@@ -235,11 +243,39 @@ class MatchRepository:
             self._upsert_row(record)
         return record
 
+    def persist_setup(self, match_id: str, map_name: str, players: list[dict]) -> None:
+        from app.maps.metadata import display_map_name
+
+        with self._lock:
+            record = self._records[match_id]
+            record["match"].update(map=display_map_name(map_name), mapName=map_name, players=players)
+            record["requires_setup"] = True
+            folder = self.matches_dir / match_id
+            folder.mkdir(parents=True, exist_ok=True)
+            payload = {"match": record["match"], "rounds": [], "requiresSetup": True, "uploadPath": record["path"]}
+            (folder / "match.json").write_text(json.dumps(payload), encoding="utf-8")
+            self.set_status(match_id, MatchStatus.awaiting_setup)
+
+    def review_options(self, match_id: str) -> dict:
+        path = self.matches_dir / match_id / "review-options.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+    def set_review_options(self, match_id: str, player_id: str, focus: str, language: str) -> None:
+        with self._lock:
+            folder = self.matches_dir / match_id
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / "review-options.json"
+            temp = path.with_suffix(".tmp")
+            temp.write_text(json.dumps({"playerId": player_id, "focus": focus, "language": language}), encoding="utf-8")
+            os.replace(temp, path)
+            self._records[match_id]["match"]["reviewFocus"] = focus
+
     def persist_replay(self, match_id: str, normalised: dict[str, Any]) -> dict[str, Any] | None:
         out_dir = self.matches_dir / match_id
         rounds_dir = out_dir / "rounds"
         rounds_dir.mkdir(parents=True, exist_ok=True)
         match = normalised["match"]
+        match["reviewFocus"] = self.review_options(match_id).get("focus", "overall")
         rounds = normalised["rounds"]
         events = normalised["events"]
         round_replays = normalised["round_replays"]

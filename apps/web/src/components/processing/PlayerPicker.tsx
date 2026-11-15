@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useRef, type KeyboardEvent } from "react";
 import type { ReplayPlayer } from "@/lib/contracts";
 
-export type PickerPlayer = ReplayPlayer & { kills: number; deaths: number };
+export type PickerPlayer = ReplayPlayer & { kills?: number; deaths?: number };
 
 type Props = {
   players: PickerPlayer[];
   /** Player whose analysis is being started, if any. */
   busyId: string | null;
+  selectedId?: string | null;
   onPick: (playerId: string) => void;
 };
 
@@ -27,13 +28,13 @@ function lastPicked(): string | null {
  * Ten players in two teams, each a plain row: name and K/D. Arrow keys move
  * between rows, Enter or Space picks. No avatars or ranks: the demo has neither.
  */
-export function PlayerPicker({ players, busyId, onPick }: Props) {
+export function PlayerPicker({ players, busyId, selectedId, onPick }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
 
   // Teams by side at mid-match; a team keeps its players across the half, so the grouping holds.
   const teams = useMemo(() => {
     const sides = (["CT", "T"] as const).map((side) =>
-      players.filter((p) => p.team === side).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths),
+      players.filter((p) => p.team === side).sort((a, b) => (b.kills ?? 0) - (a.kills ?? 0) || (a.deaths ?? 0) - (b.deaths ?? 0)),
     );
     return sides.filter((ps) => ps.length).map((ps, i) => ({ name: i === 0 ? "Team A" : "Team B", players: ps }));
   }, [players]);
@@ -79,7 +80,7 @@ export function PlayerPicker({ players, busyId, onPick }: Props) {
         <section key={team.name} className="pick-team" aria-label={team.name}>
           <h2>
             {team.name}
-            <span>K / D</span>
+            <span>{team.players.some((p) => p.kills !== undefined) ? "K / D" : "Choose one player"}</span>
           </h2>
           <ul>
             {team.players.map((p) => (
@@ -90,18 +91,19 @@ export function PlayerPicker({ players, busyId, onPick }: Props) {
                   data-pid={p.id}
                   disabled={busyId !== null}
                   aria-busy={busyId === p.id}
-                  aria-label={`Analyse ${p.name}, ${p.kills} kills, ${p.deaths} deaths`}
+                  aria-pressed={selectedId === p.id}
+                  aria-label={`Select ${p.name}${p.kills !== undefined ? `, ${p.kills} kills, ${p.deaths} deaths` : ""}`}
                   onClick={() => pick(p.id)}
                 >
                   <span className="pick-name">{p.name}</span>
                   {busyId === p.id ? (
                     <span className="pick-note">Starting…</span>
+                  ) : selectedId === p.id ? (
+                    <span className="pick-note">Selected</span>
                   ) : p.id === last ? (
                     <span className="pick-note">Last picked</span>
                   ) : null}
-                  <span className="pick-kd">
-                    {p.kills} / {p.deaths}
-                  </span>
+                  {p.kills !== undefined ? <span className="pick-kd">{p.kills} / {p.deaths}</span> : null}
                 </button>
               </li>
             ))}

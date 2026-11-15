@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -24,6 +25,10 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 300 * 1024 * 1024
     max_decompress_bytes: int = 2 * 1024 * 1024 * 1024
     parse_timeout_seconds: float = 120.0
+    # Local V1 uses only the explicitly reviewed detector subset. Preserve the
+    # legacy profile for existing evaluations; the local launcher selects V1.
+    analysis_profile: Literal["all", "local-v1"] = "all"
+    load_saved_settings: bool = True
 
     # Coach model (AI Coach plan §6.1): self-hosted llama.cpp, OpenAI-compatible.
     # Off by default so the app runs without a GPU; the code ranker and the
@@ -60,7 +65,8 @@ class Settings(BaseSettings):
     embed_model: str = "bge-m3"
     # Gameplay video via CS Demo Manager (Windows host worker)
     csdm_enabled: bool = False
-    csdm_mode: str = "stub"  # stub | csdm
+    csdm_mode: str = "csdm"  # stub is only for explicit test fixtures
+    ffprobe_bin: str = "ffprobe"
     csdm_bin: str = "csdm"
     csdm_focus_steamid: str | None = None
     csdm_width: int = 1280

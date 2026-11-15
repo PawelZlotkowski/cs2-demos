@@ -108,7 +108,7 @@ class AnalysisRepository:
     def save(self, analysis: PlayerAnalysis) -> None:
         mid, pid = analysis.match_id, analysis.player_id
         with self._lock, self._connect() as conn:
-            for table in ("findings", "round_stats", "moments"):
+            for table in ("findings", "round_stats", "moments", "explanations"):
                 conn.execute(f"DELETE FROM {table} WHERE match_id = ? AND player_id = ?", (mid, pid))
             conn.executemany(
                 "INSERT INTO findings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",

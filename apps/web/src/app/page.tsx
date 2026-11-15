@@ -6,8 +6,8 @@ export default function HomePage() {
       <h1>Review your match with a coach</h1>
       <p className="lede">
         Upload a FACEIT <code>.dem.zst</code> or a CS Demo Manager <code>.dem</code> and choose whose game to
-        review. The coach picks five or six moments, good and bad, and explains each one with the radar and a clip
-        from that player&apos;s view.
+        review. Review selected moments with their evidence and radar playback. Local rules flag situations
+        worth checking; an optional model explains them, and recorded clips appear when available.
       </p>
       <p>
         <Link className="btn btn-fill" href="/upload">
@@ -15,7 +15,7 @@ export default function HomePage() {
         </Link>
       </p>
       <p className="meta" style={{ marginTop: 24 }}>
-        Mirage and Anubis only for now. Everything runs on this computer, including the coach model.
+        Ancient and Anubis are the current focus. This local version runs on your computer; the model and recording are optional.
       </p>
     </main>
   );

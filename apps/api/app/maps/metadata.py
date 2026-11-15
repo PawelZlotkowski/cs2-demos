@@ -22,6 +22,11 @@ class MapMeta:
 # (MurkyYT radar_info pos_x=-3230); Anubis from SteamDatabase / MurkyYT
 # de_anubis.txt, verified against match-d03751f42266 spawn clusters.
 MAPS: dict[str, MapMeta] = {
+    "de_ancient": MapMeta(
+        map_name="de_ancient", display_name="Ancient",
+        pos_x=-2953.0, pos_y=2164.0, scale=5.0,
+        radar_image="/maps/de_ancient_radar.png",
+    ),
     "de_mirage": MapMeta(
         map_name="de_mirage",
         display_name="Mirage",

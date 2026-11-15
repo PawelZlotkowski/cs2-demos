@@ -20,7 +20,7 @@ from app.models.contracts import (
 )
 from app.processing.decompress import DecompressError, decompress_demo
 from app.processing.normalize import normalize_parsed
-from app.processing.parse_demo import ParseError, parse_demo_file
+from app.processing.parse_demo import ParseError, inspect_demo_roster, parse_demo_file
 from app.processing.moment_clips import list_moment_clips, moment_recorder, queue_moment_clips
 from app.processing.video_clips import get_or_init_manifest, load_manifest, video_worker
 from app.repositories.matches import STAGE_LABELS, MatchRepository, repo
@@ -31,13 +31,16 @@ REPLAY_PIPELINE: list[MatchStatus] = [
     MatchStatus.uploaded,
     MatchStatus.decompressing,
     MatchStatus.decompressed,
+    MatchStatus.inspecting,
+    MatchStatus.awaiting_setup,
+    MatchStatus.ready_to_parse,
     MatchStatus.parsing,
     MatchStatus.normalizing,
     MatchStatus.awaiting_player,
     MatchStatus.detecting,
     MatchStatus.selecting,
-    MatchStatus.recording,
     MatchStatus.explaining,
+    MatchStatus.recording,
     MatchStatus.complete,
 ]
 
@@ -52,7 +55,7 @@ VISIBLE_STAGES = [
 ]
 # Shown only when the coach model is on (RR_LLM_ENABLED)
 COACH_STAGES = [MatchStatus.selecting, MatchStatus.explaining]
-# Shown when gameplay recording is on (RR_CSDM_ENABLED); runs before the explanations
+# Shown when gameplay recording is on; asynchronous after explanations.
 RECORD_STAGE = MatchStatus.recording
 
 
@@ -71,7 +74,7 @@ _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="demo-parse")
 class ProcessingPipeline:
     def __init__(self, repository: MatchRepository | None = None) -> None:
         self.repo = repository or repo
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._running: set[str] = set()
 
     def enqueue(self, match_id: str) -> None:
@@ -90,6 +93,9 @@ class ProcessingPipeline:
         finally:
             with self._lock:
                 self._running.discard(match_id)
+            # Start may arrive just as the roster job is finishing. Do not lose it.
+            if (self.repo.get(match_id) or {}).get("status") == MatchStatus.ready_to_parse:
+                self.enqueue(match_id)
 
     def process(self, match_id: str) -> None:
         record = self.repo.get(match_id)
@@ -101,6 +107,7 @@ class ProcessingPipeline:
             MatchStatus.decompressed,
             MatchStatus.parsing,
             MatchStatus.normalizing,
+            MatchStatus.ready_to_parse,
         ):
             return
 
@@ -111,14 +118,12 @@ class ProcessingPipeline:
         }
 
         try:
-            self.repo.set_status(match_id, MatchStatus.decompressing)
+            prepared = record["status"] == MatchStatus.ready_to_parse and work_dem.exists()
+            if not prepared:
+                self.repo.set_status(match_id, MatchStatus.decompressing)
             t0 = time.perf_counter()
-            if str(upload_path).lower().endswith(".dem.zst") or upload_path.suffix.lower() == ".zst":
-                written = decompress_demo(
-                    upload_path,
-                    work_dem,
-                    max_output_bytes=settings.max_decompress_bytes,
-                )
+            if prepared:
+                written = work_dem.stat().st_size
             else:
                 written = decompress_demo(
                     upload_path,
@@ -127,7 +132,14 @@ class ProcessingPipeline:
                 )
             perf["decompressSeconds"] = round(time.perf_counter() - t0, 3)
             perf["decompressedBytes"] = written
-            self.repo.set_status(match_id, MatchStatus.decompressed)
+            if not prepared:
+                self.repo.set_status(match_id, MatchStatus.decompressed)
+
+            if record.get("requires_setup") and not self.repo.review_options(match_id):
+                self.repo.set_status(match_id, MatchStatus.inspecting)
+                map_name, players = inspect_demo_roster(str(work_dem))
+                self.repo.persist_setup(match_id, map_name, players)
+                return
 
             self.repo.set_status(match_id, MatchStatus.parsing)
             t1 = time.perf_counter()
@@ -147,11 +159,19 @@ class ProcessingPipeline:
             normalised["perf"] = {**normalised.get("perf", {}), **perf}
 
             self.repo.persist_replay(match_id, normalised)
-            # Radar is ready; the coach waits for the user to choose a player.
-            # Gameplay clips fill in asynchronously (no-op unless CS:DM is enabled).
-            self.repo.set_status(match_id, MatchStatus.awaiting_player)
-            video_worker.enqueue(match_id)
-            self._auto_pick(match_id)
+            options = self.repo.review_options(match_id)
+            if options:
+                if options["playerId"] not in {p["id"] for p in normalised["match"].get("players") or []}:
+                    raise ParseError("The selected player is missing from the parsed roster. Try another recording.")
+                self.repo.set_selected_player(match_id, options["playerId"])
+                self.repo.set_status(match_id, MatchStatus.detecting)
+                video_worker.enqueue(match_id)
+                self._analyse_safe(match_id, options["playerId"], options["language"])
+            else:
+                # Older uploads still offer a player picker once the radar is ready.
+                self.repo.set_status(match_id, MatchStatus.awaiting_player)
+                video_worker.enqueue(match_id)
+                self._auto_pick(match_id)
         except (DecompressError, ParseError) as exc:
             logger.warning("Processing failed for %s: %s", match_id, exc)
             self.repo.set_status(match_id, MatchStatus.failed, error=str(exc))
@@ -186,12 +206,31 @@ class ProcessingPipeline:
     # --- coach analysis (AI Coach plan §3 steps 3–4) ---
 
     def select_player(
-        self, match_id: str, player_id: str, *, language: str = "en", run_async: bool = True
+        self, match_id: str, player_id: str, *, language: str = "en", focus: str = "overall", run_async: bool = True
+    ) -> None:
+        with self._lock:
+            self._select_player(match_id, player_id, language=language, focus=focus, run_async=run_async)
+
+    def _select_player(
+        self, match_id: str, player_id: str, *, language: str = "en", focus: str = "overall", run_async: bool = True
     ) -> None:
         """Store the chosen player and run the detectors for them."""
         record = self.repo.get(match_id)
         if not record:
             raise PlayerSelectionError("Match not found.", 404)
+        if focus not in ("overall", "shooting", "utility", "teamwork"):
+            raise PlayerSelectionError("Unknown review focus.", 400)
+        if record["status"] == MatchStatus.awaiting_setup:
+            if player_id not in {p["id"] for p in record["match"].get("players") or []}:
+                raise PlayerSelectionError("That player is not in this match.", 400)
+            self.repo.set_review_options(match_id, player_id, focus, language)
+            self.repo.set_selected_player(match_id, player_id)
+            self.repo.set_status(match_id, MatchStatus.ready_to_parse)
+            if run_async:
+                self.enqueue(match_id)
+            else:
+                self.process(match_id)
+            return
         if record.get("is_sample") or not self.repo.has_analysis_input(match_id):
             raise PlayerSelectionError(
                 "This match was processed before the coach existed. Upload the demo again to analyse it.",
@@ -203,6 +242,7 @@ class ProcessingPipeline:
         if player_id not in roster:
             raise PlayerSelectionError("That player is not in this match.", 400)
 
+        self.repo.set_review_options(match_id, player_id, focus, language)
         self.repo.set_selected_player(match_id, player_id)
         self.repo.set_status(match_id, MatchStatus.detecting)
         if run_async:
@@ -219,7 +259,8 @@ class ProcessingPipeline:
             t0 = time.perf_counter()
             analysis_json, replays = self.repo.load_analysis_input(match_id)
             match = build_match_data(analysis_json, replays)
-            result = analyse_player(match, player_id)
+            focus = self.repo.review_options(match_id).get("focus", "overall")
+            result = analyse_player(match, player_id, focus=focus)
             self.repo.analysis.save(result)
             logger.info(
                 "Analysed %s for %s: %d findings, %d moments in %.2f s",
@@ -240,26 +281,20 @@ class ProcessingPipeline:
             return
         if settings.llm_enabled:
             self._select_safe(match_id, player_id)
-        # Clips of the final moments (the coach's, or the ranker's when the model is
-        # off or failed) are recorded before the analysis opens.
-        self._record_moments(match_id, player_id)
         if settings.llm_enabled:
             self._explain_safe(match_id, player_id, language)
+        # Recording has its own status. A slow game launch must not hold the
+        # evidence/review page hostage. Finish inference before starting capture.
+        self._record_moments(match_id, player_id)
         self.repo.set_status(match_id, MatchStatus.complete)
 
     def _record_moments(self, match_id: str, player_id: str) -> None:
-        """Record the POV clip of each moment and wait for them (plan §3 step 6).
-
-        A clip that fails keeps its reason for the Studio; the analysis still opens.
-        """
+        """Queue optional clips; failures do not prevent opening the analysis."""
         try:
             queue_moment_clips(match_id, player_id, self.repo)
             if not settings.csdm_enabled:
                 return
-            self.repo.set_status(match_id, MatchStatus.recording)
-            t0 = time.perf_counter()
-            moment_recorder.record_now(match_id, player_id)
-            logger.info("Moment clips for %s in %.1f s", match_id, time.perf_counter() - t0)
+            moment_recorder.enqueue(match_id, player_id)
         except Exception:
             logger.exception("Recording moment clips failed for %s / %s", match_id, player_id)
 
@@ -325,7 +360,7 @@ class ProcessingPipeline:
         # Kick processing if still uploaded
         if (
             not record.get("is_sample")
-            and record["status"] == MatchStatus.uploaded
+            and record["status"] in (MatchStatus.uploaded, MatchStatus.ready_to_parse)
         ):
             self.enqueue(match_id)
         status: MatchStatus = record["status"]
@@ -363,12 +398,13 @@ class ProcessingPipeline:
             ]
 
         visible = list(VISIBLE_STAGES)
+        if record.get("requires_setup"):
+            visible = [MatchStatus.decompressing, MatchStatus.inspecting, MatchStatus.awaiting_setup, MatchStatus.parsing, MatchStatus.normalizing, MatchStatus.detecting]
         if settings.llm_enabled or current in COACH_STAGES:
             visible += COACH_STAGES
         if settings.csdm_enabled or current == RECORD_STAGE:
-            # Recording sits between moment selection and the explanations
-            at = visible.index(MatchStatus.explaining) if MatchStatus.explaining in visible else len(visible)
-            visible.insert(at, RECORD_STAGE)
+            # Capture starts after explanations and can finish after Studio opens.
+            visible.append(RECORD_STAGE)
         if current == MatchStatus.complete and (
             record.get("is_sample") or not self.repo.has_analysis_input(record["id"])
         ):
@@ -402,9 +438,16 @@ class ProcessingPipeline:
                     detail = "Done"
             if state == "active" and st == MatchStatus.awaiting_player:
                 detail = record.get("error") or "Radar is ready. Choose a player to analyse."
+            if state == "active" and st == MatchStatus.awaiting_setup:
+                detail = "Choose one player, a review focus and language. Full parsing starts only after confirmation."
             progress = None
             pid = record["match"].get("selectedPlayerId")
             if st == RECORD_STAGE and state != "pending" and pid:
+                jobs = list_moment_clips(record["id"], pid, self.repo)
+                if any(c.status in (ClipStatus.queued, ClipStatus.recording) for c in jobs):
+                    state = "active"
+                elif any(c.status == ClipStatus.failed for c in jobs):
+                    state = "error"
                 progress, detail = self._recording_progress(record["id"], pid, state)
             stages.append(
                 ProcessingStage(

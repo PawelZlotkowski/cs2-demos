@@ -249,7 +249,7 @@ def rerun_coach(match_id: str, body: RerunRequest | None = None) -> StatusRespon
             raise PlayerSelectionError("The match is still being processed.", 409)
         extras().save_version(match_id, player_id, progress.review_model(match_id, player_id) or "templates", old)
         a.clear_explanations(match_id, player_id)
-        pipeline.select_player(match_id, player_id, language=lang)
+        pipeline.select_player(match_id, player_id, language=lang, focus=repo.review_options(match_id).get("focus", "overall"))
     except PlayerSelectionError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
     return pipeline.status_response(match_id)

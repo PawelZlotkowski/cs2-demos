@@ -247,6 +247,7 @@ class CoachJobs:
         chosen.sort(key=lambda f: (f.round, f.t))
         lines = [
             f"Match on {self._map(match_id)}. Coached player: {self._player_name(match_id, player_id)}.",
+            f"Personal review focus: {self.repo.review_options(match_id).get('focus', 'overall')}. Prioritise this focus; do not invent findings or fill a quota.",
             f"{len(chosen)} of {len(findings)} findings (highest severity first, then kept in round order):",
             "",
             "id | kind | detector | round | t | zone | severity | summary",
@@ -695,6 +696,7 @@ class CoachJobs:
         view: Any = None,
     ) -> str:
         parts = [f"Match on {self._map(match_id)}.", f"Coached player: {self._player_name(match_id, player_id)}."]
+        parts.append(f"Personal review focus: {self.repo.review_options(match_id).get('focus', 'overall')}.")
         if round_no is not None:
             parts.append(f"Round {round_no}" + (f" at [t:{t:.1f}]." if t is not None else "."))
         if moment is not None:

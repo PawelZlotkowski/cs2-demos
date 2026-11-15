@@ -12,6 +12,7 @@ Files live at ``data/matches/{matchId}/clips/moments/{clipJobId}.mp4``.
 from __future__ import annotations
 
 import logging
+import math
 import shutil
 import threading
 from pathlib import Path
@@ -24,6 +25,7 @@ from app.processing.video_clips import (
     csdm_record,
     friendly_error,
     write_placeholder_mp4,
+    validate_recorded_media,
 )
 from app.repositories.matches import MatchRepository, repo
 
@@ -47,14 +49,20 @@ def moment_clip_url(match_id: str, player_id: str, clip_job_id: str) -> str:
 
 def moment_window(moment: SelectedMoment, duration: float | None) -> tuple[float, float]:
     """The window the coach picked (plus optional padding), inside the round, at most 60 s."""
-    t0 = max(0.0, moment.t0 - settings.csdm_moment_pad_before)
+    if not all(math.isfinite(v) for v in (moment.t0, moment.t1)) or moment.t1 <= moment.t0:
+        raise ValueError("Moment has an invalid time window.")
+    if duration is not None and (not math.isfinite(duration) or duration <= 0):
+        raise ValueError("Round duration is invalid.")
+    t0 = max(0.0, moment.t0 - max(0.0, settings.csdm_moment_pad_before))
     t1 = moment.t1 + settings.csdm_moment_pad_after
-    if duration:
+    if duration is not None:
         t1 = min(t1, duration)
     t1 = min(t1, t0 + MAX_CLIP_SECONDS)
+    # Preserve sub-tenth round bounds; rounding upwards could request ticks
+    # outside the round. Reject empty/out-of-range windows instead of inventing time.
     if t1 <= t0:
-        t1 = t0 + 1.0
-    return round(t0, 1), round(t1, 1)
+        raise ValueError("Moment is outside the round.")
+    return t0, t1
 
 
 def _round_row(record: dict, round_no: int) -> dict | None:
@@ -185,6 +193,8 @@ class MomentClipRecorder:
                         shutil.rmtree(tmp, ignore_errors=True)
                 if not out.exists() or out.stat().st_size == 0:
                     raise RuntimeError("Recording produced an empty file.")
+                if settings.csdm_mode == "csdm":
+                    validate_recorded_media(out)
                 analysis.set_clip_status(cid, "ready")
             except Exception as exc:
                 logger.warning("Moment clip %s/%s failed: %s", match_id, cid, exc)

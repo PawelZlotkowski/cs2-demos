@@ -19,6 +19,11 @@ export type MapMeta = {
  * de_mirage: Valve overview via MurkyYT radar_info (pos_x=-3230, pos_y=1713, scale=5.0).
  */
 export const MAPS: Record<string, MapMeta> = {
+  de_ancient: {
+    mapName: "de_ancient", displayName: "Ancient",
+    posX: -2953, posY: 2164, scale: 5, radarSize: 1024,
+    radarImage: "/maps/de_ancient_radar.png",
+  },
   de_mirage: {
     mapName: "de_mirage",
     displayName: "Mirage",

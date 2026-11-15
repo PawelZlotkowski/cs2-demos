@@ -23,7 +23,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Settings the admin changed in the panel win over apps/api/.env (AD07)."""
     from app.admin.services import apply_overrides
 
-    apply_overrides()
+    if settings.load_saved_settings:
+        apply_overrides()
     yield
 
 

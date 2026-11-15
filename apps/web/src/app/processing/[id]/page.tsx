@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api/client";
-import type { Match, ReplayEvent, StatusResponse } from "@/lib/contracts";
+import type { Match, ReplayEvent, ReviewFocus, StatusResponse } from "@/lib/contracts";
 import { NotFound, isNotFound } from "@/components/NotFound";
 import { PlayerPicker, type PickerPlayer } from "@/components/processing/PlayerPicker";
 import { makeRosterLookup } from "@/lib/replay/roster";
@@ -13,6 +13,12 @@ import type { CoachLanguage } from "@/lib/contracts";
 import { askToNotify, notifyPermission, notifyReviewReady } from "@/lib/notify";
 
 const TERMINAL = new Set(["complete", "failed"]);
+const FOCUSES: { id: ReviewFocus; label: string; detail: string }[] = [
+  { id: "overall", label: "Overall", detail: "A balanced review of your shooting, utility and teamwork." },
+  { id: "shooting", label: "Shooting", detail: "Movement while firing, opening duels and successful fights." },
+  { id: "utility", label: "Utility", detail: "Your flashes, grenade damage and utility held at death." },
+  { id: "teamwork", label: "Teamwork", detail: "Your trades, support and flashes. Still a single-player review." },
+];
 
 /** Every kill in the match, paged; the picker only needs actor and victim. */
 async function allKills(matchId: string): Promise<ReplayEvent[]> {
@@ -48,6 +54,8 @@ export default function ProcessingPage() {
   const [error, setError] = useState<string | null>(null);
   const [players, setPlayers] = useState<PickerPlayer[] | null>(null);
   const [picking, setPicking] = useState<string | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [focus, setFocus] = useState<ReviewFocus>("overall");
   const [pollKey, setPollKey] = useState(0);
   const loadedPlayers = useRef(false);
 
@@ -71,7 +79,7 @@ export default function ProcessingPage() {
           return;
         }
         // The Radar is ready here; stop and let the viewer choose whose game to analyse.
-        if (s.status === "awaiting_player") {
+        if (s.status === "awaiting_player" || s.status === "awaiting_setup") {
           setPicking(null);
           return;
         }
@@ -91,10 +99,11 @@ export default function ProcessingPage() {
     };
   }, [id, router, pollKey]);
 
-  const awaiting = status?.status === "awaiting_player";
+  const beforeParsing = status?.status === "awaiting_setup";
+  const awaiting = status?.status === "awaiting_player" || beforeParsing;
 
   useEffect(() => {
-    document.title = `${awaiting ? "Choose a player" : error ? "Processing failed" : "Processing demo"} · Round Reviewer`;
+    document.title = `${awaiting ? "Set up your review" : error ? "Processing failed" : "Processing demo"} · Round Reviewer`;
   }, [awaiting, error]);
 
   useEffect(() => {
@@ -102,14 +111,14 @@ export default function ProcessingPage() {
     loadedPlayers.current = true;
     (async () => {
       try {
-        const [m, kills] = await Promise.all([api.getMatch(id), allKills(id)]);
-        setPlayers(withKillCounts(m, kills));
+        const m = await api.getMatch(id);
+        setPlayers(beforeParsing ? (m.players ?? []) : withKillCounts(m, await allKills(id)));
       } catch (e) {
         loadedPlayers.current = false;
         setError(e instanceof Error ? e.message : "Unable to load the players. Reload the page to try again.");
       }
     })();
-  }, [awaiting, id]);
+  }, [awaiting, beforeParsing, id]);
 
   const [coachLang, setCoachLang] = useCoachLanguage();
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("unsupported");
@@ -120,7 +129,7 @@ export default function ProcessingPage() {
       setPicking(playerId);
       setError(null);
       try {
-        const s = await api.selectPlayer(id, playerId, coachLang);
+        const s = await api.selectPlayer(id, playerId, coachLang === "nl" ? "en" : coachLang, focus);
         setStatus(s);
         setPollKey((k) => k + 1);
       } catch (e) {
@@ -128,7 +137,7 @@ export default function ProcessingPage() {
         setError(e instanceof Error ? e.message : "Unable to start the analysis. Pick the player again to retry.");
       }
     },
-    [id, coachLang],
+    [id, coachLang, focus],
   );
 
   const done = status ? TERMINAL.has(status.status) : Boolean(error);
@@ -149,11 +158,15 @@ export default function ProcessingPage() {
   }
   return (
     <main className="main" id="content">
-      <h1>{awaiting ? "Choose a player" : "Processing"}</h1>
+      <h1>{awaiting ? "Set up your review" : "Preparing your demo"}</h1>
       <p className="lede">
         {awaiting
-          ? "The replay is ready. Pick whose game to analyse; mistakes and good plays are found from that player's side."
-          : "Unpacking and reading the demo. You choose a player as soon as the rounds are ready."}
+          ? beforeParsing
+            ? "The player list is ready. Choose one player and what you want to work on. Full parsing has not started."
+            : "The replay is ready. Choose one player and what you want to work on."
+          : status && ["parsing", "normalizing", "detecting", "selecting", "explaining", "ready_to_parse"].includes(status.status)
+            ? "Preparing the replay and your personal review using the choices you confirmed."
+            : "Unpacking the file and reading its player list. You will choose a player and review focus before full parsing starts."}
       </p>
       {error ? (
         <p className="err" role="alert">
@@ -169,15 +182,26 @@ export default function ProcessingPage() {
       {awaiting ? (
         <>
           {players ? (
-            <PlayerPicker players={players} busyId={picking} onPick={choose} />
+            <PlayerPicker players={players} busyId={picking} selectedId={selectedPlayer} onPick={setSelectedPlayer} />
           ) : (
             <p className="meta">Loading players…</p>
           )}
+          <fieldset className="review-focus" disabled={picking !== null}>
+            <legend>What would you like to focus on?</legend>
+            <div className="review-focus-options">
+              {FOCUSES.map((option) => (
+                <label key={option.id} className="review-focus-option" data-selected={focus === option.id}>
+                  <input type="radio" name="review-focus" value={option.id} checked={focus === option.id} onChange={() => setFocus(option.id)} />
+                  <span><strong>{option.label}</strong><span className="meta">{option.detail}</span></span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <p className="meta lang-row" style={{ marginTop: 16 }}>
             <label>
               Coach language{" "}
-              <select value={coachLang} onChange={(e) => setCoachLang(e.target.value as CoachLanguage)}>
-                {COACH_LANGUAGES.map((l) => (
+              <select disabled={picking !== null} value={coachLang === "nl" ? "en" : coachLang} onChange={(e) => setCoachLang(e.target.value as CoachLanguage)}>
+                {COACH_LANGUAGES.filter((l) => l.id !== "nl").map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.label}
                   </option>
@@ -185,11 +209,15 @@ export default function ProcessingPage() {
               </select>
             </label>
           </p>
-          <p className="meta" style={{ marginTop: 8 }}>
+          <p className="meta">{selectedPlayer ? `Reviewing ${players?.find((p) => p.id === selectedPlayer)?.name ?? "selected player"} · ${FOCUSES.find((f) => f.id === focus)?.label}` : "Select a player above to continue."} You can inspect all rounds; the focus controls which findings and moments the coach selects.</p>
+          <button type="button" className="btn btn-fill" disabled={!selectedPlayer || picking !== null} onClick={() => selectedPlayer && void choose(selectedPlayer)}>
+            {picking ? "Starting review…" : "Start review"}
+          </button>
+          {!beforeParsing ? <p className="meta" style={{ marginTop: 8 }}>
             <Link className="link" href={`/studio/${id}`}>
               Watch the replay without analysis
             </Link>
-          </p>
+          </p> : null}
         </>
       ) : null}
 

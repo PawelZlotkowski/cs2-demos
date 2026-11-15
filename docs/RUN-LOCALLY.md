@@ -1,5 +1,7 @@
 # Run and test locally (Windows, PowerShell)
 
+**25 October 2026:** for the canonical `cs2-demos-studio` workspace, use the [Local V1 runbook](LOCAL-V1-RUNBOOK.md) and root `start-local.ps1`. It preserves existing environment files and uses isolated `.local/` data. The manual clone/setup instructions below are retained as historical reference; a second clone is not needed to test this version.
+
 Every command to run Round Reviewer on the Windows PC and check it, in order. It uses its own
 clone and its own ports, **API 8003 and web 3003**, so it does not clash with the Docker app
 (8000/3000) or the other working copies (8001/3001, 8002).

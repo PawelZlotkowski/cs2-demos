@@ -5,12 +5,12 @@ import { api } from "@/lib/api/client";
 import type { KnowledgeRow, MapZone } from "@/lib/contracts";
 import { MAPS } from "@/lib/replay/maps";
 
-const MAP_IDS = ["de_mirage", "de_anubis"] as const;
+const MAP_IDS = ["de_ancient", "de_anubis"] as const;
 type MapId = (typeof MAP_IDS)[number];
 
 /** Coach page, Knowledge: what the retriever searches, by callout (doc 29 §2.3, R12). */
 export function KnowledgeTab({ admin }: { admin: boolean }) {
-  const [map, setMap] = useState<MapId>("de_mirage");
+  const [map, setMap] = useState<MapId>("de_ancient");
   const [zones, setZones] = useState<MapZone[]>([]);
   const [zone, setZone] = useState<string | null>(null);
   const [q, setQ] = useState("");
