@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from pathlib import Path
 
 from app.analysis.match_data import build_match_data
@@ -19,8 +18,9 @@ from app.models.contracts import (
     StatusResponse,
 )
 from app.processing.decompress import DecompressError, decompress_demo
-from app.processing.normalize import normalize_parsed
-from app.processing.parse_demo import ParseError, parse_demo_file
+from app.processing.parse_demo import ParseError
+from app.processing.isolated_parse import parse_and_normalize_isolated
+from app.processing.bounded_executor import BoundedExecutor, QueueFullError
 from app.processing.moment_clips import list_moment_clips, moment_recorder, queue_moment_clips
 from app.processing.video_clips import get_or_init_manifest, load_manifest, video_worker
 from app.repositories.matches import STAGE_LABELS, MatchRepository, repo
@@ -63,7 +63,7 @@ class PlayerSelectionError(Exception):
         super().__init__(message)
         self.status_code = status_code
 
-_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="demo-parse")
+_executor = BoundedExecutor(max_workers=2, limit=lambda: settings.max_pending_jobs, name="demo-parse")
 
 
 class ProcessingPipeline:
@@ -77,7 +77,12 @@ class ProcessingPipeline:
             if match_id in self._running:
                 return
             self._running.add(match_id)
-        _executor.submit(self._run_safe, match_id)
+        try:
+            _executor.submit(self._run_safe, match_id)
+        except QueueFullError:
+            with self._lock:
+                self._running.discard(match_id)
+            raise
 
     def _run_safe(self, match_id: str) -> None:
         try:
@@ -129,19 +134,11 @@ class ProcessingPipeline:
 
             self.repo.set_status(match_id, MatchStatus.parsing)
             t1 = time.perf_counter()
-            # Local pool avoids deadlock with the outer processing executor
-            with ThreadPoolExecutor(max_workers=1) as parse_pool:
-                future = parse_pool.submit(parse_demo_file, str(work_dem))
-                try:
-                    parsed = future.result(timeout=settings.parse_timeout_seconds)
-                except FuturesTimeout as exc:
-                    raise ParseError("Parsing timed out. Try a shorter demo.") from exc
-            perf["parseSeconds"] = round(time.perf_counter() - t1, 3)
-
+            # Parsing and normalization run together in an owned, killable process.
+            normalised = parse_and_normalize_isolated(work_dem, match_id)
+            perf.update(normalised.pop("workerPerf", {}))
+            perf["workerSeconds"] = round(time.perf_counter() - t1, 3)
             self.repo.set_status(match_id, MatchStatus.normalizing)
-            t2 = time.perf_counter()
-            normalised = normalize_parsed(match_id, parsed)
-            perf["normalizeSeconds"] = round(time.perf_counter() - t2, 3)
             normalised["perf"] = {**normalised.get("perf", {}), **perf}
 
             self.repo.persist_replay(match_id, normalised)
@@ -160,6 +157,8 @@ class ProcessingPipeline:
                 error="Could not process that demo. Check the server log for details.",
             )
             raise exc
+        finally:
+            self.repo.release_upload_storage(match_id)
 
     # --- coach analysis (AI Coach plan §3 steps 3–4) ---
 
@@ -181,10 +180,14 @@ class ProcessingPipeline:
         if player_id not in roster:
             raise PlayerSelectionError("That player is not in this match.", 400)
 
-        self.repo.set_selected_player(match_id, player_id)
-        self.repo.set_status(match_id, MatchStatus.detecting)
+        if not self.repo.claim_player_analysis(match_id, player_id):
+            raise PlayerSelectionError("This match already has an active analysis. Try again after it finishes.", 409)
         if run_async:
-            _executor.submit(self._analyse_safe, match_id, player_id, language)
+            try:
+                _executor.submit(self._analyse_safe, match_id, player_id, language)
+            except QueueFullError as exc:
+                self.repo.set_status(match_id, MatchStatus.awaiting_player, error=str(exc))
+                raise PlayerSelectionError(str(exc), 503) from exc
         else:
             self._analyse_safe(match_id, player_id, language)
 
@@ -277,8 +280,9 @@ class ProcessingPipeline:
         clips = [c for c in list_moment_clips(match_id, player_id, self.repo) if c.moment_id]
         ready = sum(1 for c in clips if c.status == ClipStatus.ready)
         failed = sum(1 for c in clips if c.status == ClipStatus.failed)
+        skipped = sum(1 for c in clips if c.status == ClipStatus.skipped)
         if state == "active":
-            return {"done": ready + failed, "total": len(clips)}, "Recording the player's view of each moment in CS2"
+            return {"done": ready + failed + skipped, "total": len(clips)}, "Recording the player's view of each moment in CS2"
         if not clips:
             return None, "No moments to record"
         detail = f"{ready} of {len(clips)} clips recorded"

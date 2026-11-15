@@ -14,7 +14,7 @@ from app.main import app
 from app.processing import pipeline as pipe_mod
 from app.repositories.matches import repo
 
-client = TestClient(app)
+client = TestClient(app, base_url="http://localhost:8000", client=("127.0.0.1", 50000))
 
 
 def base(mid, pid) -> str:
@@ -47,8 +47,10 @@ def test_round_explanation(analysed):
     assert client.post(f"{base(mid, pid)}/rounds/30/explain", json={}).status_code == 404
 
 
-def test_ask_streams_steps_then_the_verified_answer(analysed, tmp_path, monkeypatch):
+def test_ask_streams_steps_then_citation_checked_interpretation(analysed, tmp_path, monkeypatch):
     mid, pid = analysed
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "coach_freeform_enabled", True)
     good = next(f.id for f in repo.analysis.findings(mid, pid) if f.kind == "good")
     llm = MockLLMClient(
         [
@@ -64,7 +66,8 @@ def test_ask_streams_steps_then_the_verified_answer(analysed, tmp_path, monkeypa
     assert [e for e, _ in events] == ["step", "answer"]
     assert events[0][1]["tool"] == "get_finding"
     answer = events[1][1]
-    assert answer["verified"] is True and answer["citations"] == [good]
+    assert answer["verified"] is False and answer["citations"] == [good]
+    assert answer["citationChecksPassed"] is True and answer["validation"] == "citations_checked"
 
 
 def test_ask_without_model_answers_from_templates(analysed):

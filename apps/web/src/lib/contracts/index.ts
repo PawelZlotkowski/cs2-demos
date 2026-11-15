@@ -51,7 +51,7 @@ export interface Match {
   score: string;
   when: string;
   rounds: number;
-  won: (0 | 1)[];
+  won: (0 | 1 | null)[];
   status: MatchStatus;
   clipDuration: number;
   error?: string | null;
@@ -80,6 +80,7 @@ export type ClipStatus = "queued" | "recording" | "ready" | "failed" | "skipped"
 export interface RoundClip {
   roundId: string;
   status: ClipStatus;
+  provenance?: "real" | "synthetic" | null;
   url?: string | null;
   startTick: number;
   endTick: number;
@@ -261,6 +262,7 @@ export interface MomentExplanation {
   findingIds: string[];
   /** "agent": model text that passed the verifier; "template": finding templates. */
   source: "agent" | "template";
+  validation?: "deterministic" | "citations_checked" | null;
   verifierErrors: string[];
   model?: string | null;
   promptVersion?: string | null;
@@ -276,7 +278,7 @@ export interface PracticeDrill {
   source: string;
 }
 
-/** End of the review: verified wrap-up text ("wrapup") and one drill per mistake type. */
+/** End of the review: evidence-linked text ("wrapup") and one drill per mistake type. */
 export interface ReviewWrapUp {
   explanation: MomentExplanation;
   drills: PracticeDrill[];
@@ -301,7 +303,8 @@ export type AskEvent =
   | { event: "step"; data: { tool: string; ms: number; error: string | null } }
   | {
       event: "answer";
-      data: { answer: string; citations: string[]; source: "agent" | "template"; verified: boolean };
+      data: { answer: string; citations: string[]; source: "agent" | "template"; verified: boolean;
+        citationChecksPassed?: boolean; validation?: "deterministic" | "citations_checked" };
     }
   | { event: "error"; data: { detail: string } };
 
@@ -322,6 +325,7 @@ export interface MomentClip {
   t1: number;
   momentId?: string | null;
   status: ClipStatus;
+  provenance?: "real" | "synthetic" | null;
   url?: string | null;
   error?: string | null;
 }

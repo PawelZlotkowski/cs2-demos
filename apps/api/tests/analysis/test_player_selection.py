@@ -26,7 +26,7 @@ def parsed_match(tmp_path, monkeypatch):
     normalised["perf"] = {}
     repo.persist_replay(mid, normalised)
     repo.set_status(mid, pipe_mod.MatchStatus.awaiting_player)
-    return TestClient(app), mid
+    return TestClient(app, base_url="http://localhost:8000", client=("127.0.0.1", 50000)), mid
 
 
 def test_radar_loads_before_player_selection(parsed_match):

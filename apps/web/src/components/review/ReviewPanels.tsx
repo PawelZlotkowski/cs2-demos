@@ -29,7 +29,7 @@ function useReview<T>(fetcher: () => Promise<T>, deps: unknown[]): Load<T> {
 }
 
 function sourceNote(e: MomentExplanation): string {
-  if (e.source === "agent") return `Written by ${e.model ?? "the coach model"} and checked against the findings.`;
+  if (e.source === "agent") return `Model interpretation by ${e.model ?? "the coach model"}. Evidence references were checked.`;
   if (e.verifierErrors.some((x) => /no moments/i.test(x))) return "";
   if (e.verifierErrors.length) return "Written from the findings, because the coach model's text did not pass the checks.";
   return "Written from the findings. The coach model is off.";

@@ -26,6 +26,7 @@ def test_summary_without_model_counts_moments_in_every_language(analysed, tmp_pa
     jobs = CoachJobs(repo, traces=TraceWriter(tmp_path / "traces"))
     en = asyncio.run(jobs.review(mid, pid, "summary", "en"))
     assert en.source == "template" and en.target == "summary" and en.citations
+    assert en.validation == "deterministic"
     assert en.text.startswith(f"The coach picked {len(moments)} moments")
     assert "momenty" in fallback_summary(moments, findings, "pl") or "momentów" in fallback_summary(moments, findings, "pl")
     assert "momenten" in fallback_summary(moments, findings, "nl")
@@ -89,7 +90,7 @@ def test_wrapup_can_cite_a_drill_it_looked_up(analysed, tmp_path):
 
 def test_review_endpoints(analysed):
     mid, pid = analysed
-    client = TestClient(app)
+    client = TestClient(app, base_url="http://localhost:8000", client=("127.0.0.1", 50000))
     s = client.get(f"/matches/{mid}/players/{pid}/review/summary?lang=nl")
     assert s.status_code == 200 and s.json()["target"] == "summary" and s.json()["lang"] == "nl"
     w = client.get(f"/matches/{mid}/players/{pid}/review/wrapup")

@@ -27,7 +27,8 @@ from typing import Any
 import anyio
 
 from app.coach.backends import ToolBackend, ToolSpec, bind, openai_tools
-from app.coach.llm_client import LLM, ChatResult
+from app.coach.llm_client import LLM, LLMClient, ChatResult
+from app.core.config import settings
 
 FINAL_NUDGE = "You have used all tool steps. Answer now with what you have, following the rules."
 
@@ -60,11 +61,32 @@ class AgentRun:
     usage: dict[str, int] = field(default_factory=dict)
 
 
+@dataclass
+class AgentBudget:
+    """Cumulative limits shared by model calls and repair runs in one job."""
+
+    tool_calls: int = 0
+    tool_bytes: int = 0
+    output_tokens: int = 0
+
+
 class CoachAgent:
-    def __init__(self, llm: LLM, tools: ToolBackend, *, max_steps: int = 6) -> None:
+    def __init__(
+        self,
+        llm: LLM,
+        tools: ToolBackend,
+        *,
+        max_steps: int = 6,
+        max_tool_calls: int | None = None,
+        max_tool_bytes: int | None = None,
+        max_output_tokens: int | None = None,
+    ) -> None:
         self.llm = llm
         self.tools = tools
         self.max_steps = max_steps
+        self.max_tool_calls = max_tool_calls or settings.coach_max_tool_calls
+        self.max_tool_bytes = max_tool_bytes or settings.coach_max_tool_bytes
+        self.max_output_tokens = max_output_tokens or settings.coach_max_output_tokens
         self._specs: list[ToolSpec] | None = None
 
     async def specs(self) -> list[ToolSpec]:
@@ -72,8 +94,17 @@ class CoachAgent:
             self._specs = await self.tools.list_tools()
         return self._specs
 
-    async def _chat(self, messages: list[dict[str, Any]], **kwargs: Any) -> ChatResult:
-        return await anyio.to_thread.run_sync(lambda: self.llm.chat(messages, **kwargs))
+    async def _chat(
+        self, messages: list[dict[str, Any]], *, deadline: float, max_tokens: int, **kwargs: Any
+    ) -> ChatResult:
+        remaining = _remaining(deadline)
+        call_kwargs = {**kwargs, "max_tokens": max_tokens}
+        if isinstance(self.llm, LLMClient):
+            call_kwargs["timeout_s"] = remaining
+        with anyio.fail_after(remaining):
+            return await anyio.to_thread.run_sync(
+                lambda: self.llm.chat(messages, **call_kwargs), abandon_on_cancel=True
+            )
 
     async def run(
         self,
@@ -86,10 +117,15 @@ class CoachAgent:
         allow_tools: set[str] | None = None,
         max_steps: int | None = None,
         on_step: StepCallback | None = None,
+        deadline: float | None = None,
+        budget: AgentBudget | None = None,
     ) -> AgentRun:
         """Run the tool loop from ``messages`` (system + user, or a longer history for a repair)."""
         t_start = time.perf_counter()
-        specs = {s.name: s for s in await self.specs()}
+        deadline = deadline or (time.monotonic() + settings.coach_job_timeout_seconds)
+        budget = budget or AgentBudget()
+        calls_at_start, bytes_at_start, tokens_at_start = budget.tool_calls, budget.tool_bytes, budget.output_tokens
+        specs = {s.name: s for s in await _within_deadline(self.specs(), deadline)}
         schema = openai_tools(list(specs.values()), bound, allow_tools)
         allowed = {t["function"]["name"] for t in schema}
         messages = [dict(m) for m in messages]
@@ -103,8 +139,28 @@ class CoachAgent:
         )
         steps_left = self.max_steps if max_steps is None else max_steps
         while True:
-            use_tools = schema if steps_left > 0 and schema else None
-            result = await self._chat(messages, tools=use_tools, thinking=thinking)
+            reserve = min(256, self.max_output_tokens // 4)
+            call_token_cap = self.max_output_tokens - budget.output_tokens
+            use_tools = (
+                schema
+                if steps_left > 0
+                and schema
+                and budget.tool_calls < self.max_tool_calls
+                and call_token_cap > reserve
+                else None
+            )
+            if use_tools is not None:
+                call_token_cap -= reserve
+            if call_token_cap <= 0:
+                run.finish = "max_output_tokens"
+                break
+            result = await self._chat(
+                messages, deadline=deadline, max_tokens=call_token_cap, tools=use_tools, thinking=thinking
+            )
+            budget.output_tokens += _completion_tokens(result)
+            if budget.output_tokens > self.max_output_tokens:
+                run.finish = "max_output_tokens"
+                break
             run.llm_calls += 1
             _add_usage(run.usage, result.usage)
             if result.reasoning:
@@ -116,13 +172,23 @@ class CoachAgent:
             for call in result.tool_calls:
                 t0 = time.perf_counter()
                 error = None
-                if call.name not in allowed:
-                    out = json.dumps({"error": f"Unknown tool {call.name!r}. Use one of: {', '.join(sorted(allowed))}."})
-                elif "__invalid_json__" in call.arguments:
-                    out = json.dumps({"error": "Arguments were not valid JSON."})
+                if budget.tool_calls >= self.max_tool_calls:
+                    out = json.dumps({"error": "Total tool-call budget reached. Answer with what you have."})
+                    error = "Total tool-call budget reached."
                 else:
-                    args = bind(specs[call.name].parameters, call.arguments, bound)
-                    out = await self.tools.call(call.name, args)
+                    budget.tool_calls += 1
+                    if call.name not in allowed:
+                        out = json.dumps({"error": f"Unknown tool {call.name!r}. Use one of: {', '.join(sorted(allowed))}."})
+                    elif "__invalid_json__" in call.arguments:
+                        out = json.dumps({"error": "Arguments were not valid JSON."})
+                    else:
+                        args = bind(specs[call.name].parameters, call.arguments, bound)
+                        out = await _within_deadline(self.tools.call(call.name, args), deadline)
+                remaining_bytes = self.max_tool_bytes - budget.tool_bytes
+                if len(out.encode("utf-8")) > remaining_bytes:
+                    marker = b"Tool result omitted: total result-byte budget reached."
+                    out = marker[: max(0, remaining_bytes)].decode("ascii")
+                budget.tool_bytes += len(out.encode("utf-8"))
                 if out.startswith('{"error"'):
                     error = json.loads(out).get("error") if _is_json(out) else out
                 step = ToolStep(
@@ -137,14 +203,40 @@ class CoachAgent:
                 if on_step is not None:
                     maybe = on_step(asdict(step))
                     if maybe is not None:
-                        await maybe
+                        await _within_deadline(maybe, deadline)
             steps_left -= 1
             if steps_left <= 0:
                 run.finish = "max_steps"
                 messages.append({"role": "user", "content": FINAL_NUDGE})
         run.messages = messages
         run.latency_s = round(time.perf_counter() - t_start, 3)
+        run.usage["tool_result_bytes"] = budget.tool_bytes - bytes_at_start
+        run.usage["completion_tokens_estimated"] = budget.output_tokens - tokens_at_start
+        run.usage["tool_calls"] = budget.tool_calls - calls_at_start
         return run
+
+
+def _remaining(deadline: float) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("Coach job deadline exceeded.")
+    return remaining
+
+
+async def _within_deadline(awaitable: Awaitable[Any], deadline: float) -> Any:
+    with anyio.fail_after(_remaining(deadline)):
+        return await awaitable
+
+
+def _completion_tokens(result: ChatResult) -> int:
+    reported = result.usage.get("completion_tokens")
+    if isinstance(reported, int) and reported >= 0:
+        return reported
+    # Deterministic conservative fallback for injected/offline model adapters
+    # that omit usage; include tool-call JSON because it is generated output.
+    output = result.assistant_message()
+    chars = len(json.dumps(output, ensure_ascii=False)) + len(result.reasoning or "")
+    return (chars + 2) // 3
 
 
 def _is_json(text: str) -> bool:

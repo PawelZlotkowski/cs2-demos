@@ -172,7 +172,8 @@ class LLMClient:
                 "min_p": settings.llm_min_p,
             }
         )
-        self._http = httpx.Client(timeout=timeout_s or settings.llm_timeout_seconds, transport=transport)
+        default_timeout = min(settings.llm_timeout_seconds, settings.coach_job_timeout_seconds)
+        self._http = httpx.Client(timeout=timeout_s or default_timeout, transport=transport)
 
     def close(self) -> None:
         self._http.close()
@@ -216,6 +217,7 @@ class LLMClient:
         thinking: bool = False,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        timeout_s: float | None = None,
     ) -> ChatResult:
         payload = self._payload(
             messages,
@@ -227,7 +229,8 @@ class LLMClient:
         )
         t0 = time.perf_counter()
         try:
-            r = self._http.post(f"{self.base_url}/chat/completions", json=payload)
+            request_options = {"timeout": timeout_s} if timeout_s is not None else {}
+            r = self._http.post(f"{self.base_url}/chat/completions", json=payload, **request_options)
         except httpx.HTTPError as exc:
             raise LLMError(f"Model server unreachable at {self.base_url}: {exc}") from exc
         if r.status_code != 200:

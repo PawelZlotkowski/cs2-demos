@@ -1,12 +1,16 @@
 import asyncio
 import json
+import contextlib
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Request, Response
+import anyio
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.core.config import settings
 from app.core.validation import UPLOAD_REJECT_MESSAGE, is_allowed_demo_filename
+from app.core.access import SESSION_COOKIE
+from app.processing.bounded_executor import QueueFullError
 from app.models.contracts import (
     REPLAY_READY_STATUSES,
     AskRequest,
@@ -69,29 +73,59 @@ def health() -> dict[str, str]:
 
 
 @router.post("/matches/upload", response_model=UploadResponse)
-async def upload_match(file: UploadFile = File(...)) -> UploadResponse:
+async def upload_match(request: Request, file: UploadFile = File(...)) -> UploadResponse:
     filename = file.filename or ""
     if not is_allowed_demo_filename(filename):
         raise HTTPException(status_code=400, detail=UPLOAD_REJECT_MESSAGE)
-    raw = await file.read()
-    if not raw:
-        raise HTTPException(status_code=400, detail="Empty file. Choose a demo file to upload.")
-    if len(raw) > settings.max_upload_bytes:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File is too large. Maximum upload size is {settings.max_upload_bytes // (1024 * 1024)} MB.",
-        )
+    match_id, destination = repo.allocate_upload(filename)
+    accepted = False
     try:
-        record = repo.create_upload(filename, raw)
+        repo.reserve_upload_storage(match_id)
+        size = 0
+        async with await anyio.open_file(destination, "xb") as stream:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > settings.max_upload_bytes:
+                    raise HTTPException(status_code=413, detail="Upload exceeds the size limit.")
+                await stream.write(chunk)
+        if not size:
+            raise HTTPException(status_code=400, detail="Empty file. Choose a demo file to upload.")
+        record = repo.register_upload(filename, destination, match_id, owner_id=request.state.owner_id)
+        try:
+            pipeline.enqueue(record["id"])
+        except QueueFullError as exc:
+            repo.remove_unprocessed_upload(match_id)
+            raise HTTPException(status_code=503, detail=str(exc), headers={"Retry-After": "5"}) from exc
+        accepted = True
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    pipeline.enqueue(record["id"])
+        raise HTTPException(status_code=507, detail=str(exc)) from exc
+    finally:
+        await file.close()
+        if not accepted:
+            destination.unlink(missing_ok=True)
+            repo.release_upload_storage(match_id)
     return UploadResponse(
         id=record["id"],
         status=MatchStatus.uploaded,
         filename=filename,
         message="Upload accepted. Processing has started.",
     )
+
+
+@router.post("/auth/session")
+def open_session(request: Request, response: Response) -> dict[str, str]:
+    token = request.headers.get("authorization", "")
+    if settings.access_mode == "authenticated":
+        if not token.lower().startswith("bearer "):
+            raise HTTPException(status_code=401, detail="A bearer token is required to open a session.")
+        response.set_cookie(SESSION_COOKIE, token[7:], httponly=True, secure=True, samesite="strict", max_age=8 * 3600)
+    return {"owner": request.state.owner_id}
+
+
+@router.delete("/auth/session")
+def close_session(response: Response) -> dict[str, bool]:
+    response.delete_cookie(SESSION_COOKIE, secure=True, httponly=True, samesite="strict")
+    return {"ok": True}
 
 
 @router.get("/matches/{match_id}", response_model=Match)
@@ -106,7 +140,10 @@ def get_match(match_id: str) -> Match:
 def get_status(match_id: str) -> StatusResponse:
     if not repo.get(match_id):
         raise HTTPException(status_code=404, detail="Match not found.")
-    return pipeline.status_response(match_id)
+    try:
+        return pipeline.status_response(match_id)
+    except QueueFullError as exc:
+        raise HTTPException(status_code=503, detail=str(exc), headers={"Retry-After": "5"}) from exc
 
 
 @router.get("/matches/{match_id}/clips", response_model=ClipManifest)
@@ -128,6 +165,9 @@ def stream_round_clip(match_id: str, round_id: str) -> FileResponse:
     record = repo.get(match_id)
     if not record:
         raise HTTPException(status_code=404, detail="Match not found.")
+    clip = find_clip(match_id, round_id)
+    if not clip or clip.status.value != "ready" or clip.provenance == "synthetic":
+        raise HTTPException(status_code=404, detail="Gameplay clip is not ready.")
     path: Path = clip_file(match_id, round_id)
     if not path.exists() or path.stat().st_size == 0:
         raise HTTPException(status_code=404, detail="Clip file not found.")
@@ -135,7 +175,7 @@ def stream_round_clip(match_id: str, round_id: str) -> FileResponse:
         path,
         media_type="video/mp4",
         filename=f"{round_id}.mp4",
-        headers={"Accept-Ranges": "bytes", "Cache-Control": "public, max-age=3600"},
+        headers={"Accept-Ranges": "bytes", "Cache-Control": "private, no-store"},
     )
 
 
@@ -261,6 +301,14 @@ def list_player_moments(match_id: str, player_id: str) -> list[SelectedMoment]:
 # --- Coach agent (AI Coach plan §6.2, tasks T25–T27) ---
 
 
+def _usable_explanation(stored: MomentExplanation | None) -> MomentExplanation | None:
+    # Turning off experimental prose also disables a previously cached model
+    # answer. Rebuild it from the same findings under the current policy.
+    if stored and stored.source == "agent" and not settings.coach_freeform_enabled:
+        return None
+    return stored
+
+
 @router.get(
     "/matches/{match_id}/players/{player_id}/moments/{moment_id}/explanation",
     response_model=MomentExplanation,
@@ -272,7 +320,7 @@ def get_moment_explanation(
     from app.coach.jobs import run_sync
 
     _require_analysis(match_id, player_id)
-    stored = repo.analysis.explanation(match_id, player_id, moment_id, lang)
+    stored = _usable_explanation(repo.analysis.explanation(match_id, player_id, moment_id, lang))
     if stored:
         return stored
     if not any(m.id == moment_id for m in repo.analysis.moments(match_id, player_id)):
@@ -299,9 +347,13 @@ def explain_round(
     in_round = repo.analysis.findings(match_id, player_id, round_no=round_no)
     if in_round:
         lead = max(in_round, key=lambda f: f.severity)
-        repo.analysis.queue_clip(match_id, player_id, round_no, round(max(0.0, lead.t - 5), 1), round(lead.t + 3, 1))
-        moment_recorder.enqueue(match_id, player_id)
-    stored = None if refresh else repo.analysis.explanation(match_id, player_id, target, lang)
+        record = repo.get(match_id) or {}
+        duration = next((float(r["durationSec"]) for r in record.get("rounds", []) if r["number"] == round_no), 0)
+        t0, t1 = round(max(0.0, lead.t - 5), 1), min(round(lead.t + 3, 1), duration)
+        if 0 <= t0 < t1:
+            repo.analysis.queue_clip(match_id, player_id, round_no, t0, t1)
+            moment_recorder.enqueue(match_id, player_id)
+    stored = None if refresh else _usable_explanation(repo.analysis.explanation(match_id, player_id, target, lang))
     return stored or run_sync(pipeline_module.coach_jobs(repo).explain(match_id, player_id, target, lang))
 
 
@@ -311,7 +363,7 @@ def get_review_summary(match_id: str, player_id: str, lang: CoachLanguage = "en"
     from app.coach.jobs import run_sync
 
     _require_analysis(match_id, player_id)
-    stored = repo.analysis.explanation(match_id, player_id, "summary", lang)
+    stored = _usable_explanation(repo.analysis.explanation(match_id, player_id, "summary", lang))
     return stored or run_sync(pipeline_module.coach_jobs(repo).review(match_id, player_id, "summary", lang))
 
 
@@ -322,7 +374,7 @@ def get_review_wrapup(match_id: str, player_id: str, lang: CoachLanguage = "en")
     from app.coach.review import practice_drills
 
     _require_analysis(match_id, player_id)
-    stored = repo.analysis.explanation(match_id, player_id, "wrapup", lang)
+    stored = _usable_explanation(repo.analysis.explanation(match_id, player_id, "wrapup", lang))
     text = stored or run_sync(pipeline_module.coach_jobs(repo).review(match_id, player_id, "wrapup", lang))
     a = repo.analysis
     return ReviewWrapUp(
@@ -352,6 +404,7 @@ def stream_player_clip(match_id: str, player_id: str, clip_id: str) -> FileRespo
         moment_clip_file(match_id, clip_id),
         media_type="video/mp4",
         filename=f"{match_id}-{clip_id}.mp4",
+        headers={"Cache-Control": "private, no-store"},
     )
 
 
@@ -405,7 +458,9 @@ async def ask_coach(match_id: str, player_id: str, body: AskRequest) -> Streamin
                         "answer": outcome.answer,
                         "citations": outcome.citations,
                         "source": outcome.source,
-                        "verified": outcome.source == "agent",
+                        "verified": False,
+                        "citationChecksPassed": outcome.source == "agent",
+                        "validation": "citations_checked" if outcome.source == "agent" else "deterministic",
                     },
                 )
             )
@@ -423,7 +478,10 @@ async def ask_coach(match_id: str, player_id: str, body: AskRequest) -> Streamin
             while (item := await queue.get()) is not None:
                 yield item
         finally:
-            await task
+            if not task.done():
+                task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 

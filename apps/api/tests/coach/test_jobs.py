@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
+import time
 
+import httpx
 import pytest
 
 from app.coach.agent import TraceWriter
 from app.coach.backends import InProcessTools, MCPTools
-from app.coach.jobs import CoachJobs, parse_json_object
-from app.coach.llm_client import ChatResult, LLMError, MockLLMClient, call
+from app.coach.jobs import CoachJobs, _COACH_ADMISSION, parse_json_object, run_sync
+from app.coach.llm_client import ChatResult, LLMClient, LLMError, MockLLMClient, call
 from app.coach.mcp_server import build_server
 from app.core.config import settings
 from app.models.contracts import AskRequest, MatchStatus
@@ -105,6 +108,73 @@ def test_selection_survives_a_dead_server(analysed, tmp_path):
     assert out.source == "ranker" and "unreachable" in out.errors[0]
 
 
+def test_selection_uses_ranker_when_process_model_capacity_is_full(analysed, tmp_path):
+    mid, pid = analysed
+    jobs, llm = jobs_with([picks_json(mid, pid)], tmp_path)
+    assert _COACH_ADMISSION.acquire()
+    try:
+        out = asyncio.run(jobs.select_moments(mid, pid))
+    finally:
+        _COACH_ADMISSION.release()
+    assert out.source == "ranker" and "busy" in out.errors[0]
+    assert llm.requests == []
+
+
+def test_sync_selection_returns_promptly_when_model_call_exceeds_deadline(analysed, tmp_path, monkeypatch):
+    mid, pid = analysed
+    started = threading.Event()
+
+    class SlowLLM:
+        model = "slow"
+
+        def chat(self, _messages, **_kwargs):
+            started.set()
+            time.sleep(0.8)
+            return ChatResult(content=picks_json(mid, pid))
+
+    monkeypatch.setattr(settings, "coach_job_timeout_seconds", 0.1)
+    jobs = CoachJobs(repo, llm=SlowLLM(), tools_factory=InProcessTools, traces=TraceWriter(tmp_path / "traces"))
+    start = time.monotonic()
+    outcome = run_sync(jobs.select_moments(mid, pid))
+    elapsed = time.monotonic() - start
+
+    assert started.is_set()
+    assert elapsed < 0.5
+    assert outcome.source == "ranker" and any("deadline" in error.lower() for error in outcome.errors)
+    # Cancellation must not leak the process-wide admission slot.
+    assert _COACH_ADMISSION.acquire()
+    _COACH_ADMISSION.release()
+
+
+def test_default_policy_keeps_selection_but_templates_freeform_explanation(analysed, monkeypatch):
+    mid, pid = analysed
+    calls = 0
+
+    def respond(_request):
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": picks_json(mid, pid)}, "finish_reason": "stop"}],
+                "usage": {"completion_tokens": 80},
+            },
+        )
+
+    client = LLMClient(transport=httpx.MockTransport(respond))
+    monkeypatch.setattr(settings, "llm_enabled", True)
+    monkeypatch.setitem(settings.__dict__, "coach_freeform_enabled", False)
+    try:
+        jobs = CoachJobs(repo, llm=client, tools_factory=InProcessTools)
+        selected = asyncio.run(jobs.select_moments(mid, pid))
+        explained = asyncio.run(jobs.explain(mid, pid, "m1", "en", store=False))
+        assert selected.source == "agent"
+        assert explained.source == "template" and explained.validation == "deterministic"
+        assert calls == 1
+    finally:
+        client.close()
+
+
 def test_parse_json_object():
     assert parse_json_object('```json\n{"a": 1}\n```') == {"a": 1}
     assert parse_json_object('Sure: {"a": {"b": 2}} done') == {"a": {"b": 2}}
@@ -123,6 +193,7 @@ def test_explain_moment_with_tools(analysed, tmp_path):
     )
     expl = asyncio.run(jobs.explain(mid, pid, "m1", "en"))
     assert expl.source == "agent" and expl.verifier_errors == []
+    assert expl.validation == "citations_checked"
     assert i["dry_peek"] in expl.finding_ids and expl.prompt_version == "explain_moment.v3"
     assert repo.analysis.explanation(mid, pid, "m1", "en") == expl
     assert llm.requests[0]["thinking"] is False
@@ -136,6 +207,7 @@ def test_explain_repairs_then_falls_back_to_templates(analysed, tmp_path):
     jobs, llm = jobs_with([bad, bad], tmp_path)
     expl = asyncio.run(jobs.explain(mid, pid, "m1", "pl"))
     assert expl.source == "template"
+    assert expl.validation == "deterministic"
     assert any("40" in e for e in expl.verifier_errors)
     assert "Śmierć" in expl.text or "strzałów" in expl.text  # Polish templates
     assert "failed these checks" in llm.requests[1]["messages"][-1]["content"]
@@ -169,6 +241,7 @@ def test_ask_reports_steps_and_verifies(analysed, tmp_path):
         jobs.ask(mid, pid, AskRequest(question="What went well in round 2?", round=2, language="en"), on_step=steps.append)
     )
     assert out.source == "agent" and out.answer == answer
+    assert out.validation == "citations_checked"
     assert [s["tool"] for s in steps] == ["list_findings"]
 
 
@@ -177,6 +250,7 @@ def test_ask_falls_back_with_findings_in_view(analysed, tmp_path):
     jobs, _ = jobs_with(["Made up 99 kills.", "Still 99."], tmp_path)
     out = asyncio.run(jobs.ask(mid, pid, AskRequest(question="Why?", momentId="m1", language="en")))
     assert out.source == "template" and out.citations
+    assert out.validation == "deterministic"
 
 
 # --- pipeline with the coach on ---

@@ -31,6 +31,7 @@ import { usePlaybackClock, type PlaybackRate } from "@/lib/replay/usePlaybackClo
 import { interpolateAt, samplesHaveRadarCoords } from "@/lib/replay/interpolate";
 import { getMapMeta } from "@/lib/replay/maps";
 import { formatClock } from "@/lib/replay/time";
+import { scorePerspectivePhrase } from "@/lib/replay/checks";
 import {
   activeUtility,
   aspectBox,
@@ -73,15 +74,6 @@ const RATES: PlaybackRate[] = [1, 2, 4, 0.5];
 const SWAP_SURFACES = [".stage .pov", '.stage .surface[data-mode="radar"]'];
 const LANE_BASE = 22;
 const LIVE_SEC = 2.5;
-
-function scorePhrase(score: string): string {
-  const m = String(score).match(/(\d+)\s*[–-]\s*(\d+)/);
-  if (!m) return score;
-  const a = Number(m[1]);
-  const b = Number(m[2]);
-  if (a === b) return `drew ${a} to ${b}`;
-  return `${a > b ? "won" : "lost"} ${a} to ${b}`;
-}
 
 type PlayerAnalysisView = {
   playerId: string;
@@ -321,7 +313,7 @@ export default function StudioPage() {
     [replay],
   );
   const players = useMemo(
-    () => (replay && hasRadar ? interpolateAt(replay.samples, clock.t, replay.map) : []),
+    () => (replay && hasRadar ? interpolateAt(replay.samples, clock.t, replay.map, replay.events) : []),
     [replay, clock.t, hasRadar],
   );
   const tracks = useMemo(
@@ -943,16 +935,15 @@ export default function StudioPage() {
 
   // ---- Review overview (design plan item 2): numbers only from RoundStats ----
   const statRows = analysis ? [...analysis.stats].sort((a, b) => a.round - b.round) : [];
-  const wonByRound = new Map(statRows.filter((r) => r.won != null).map((r) => [r.round, Boolean(r.won)]));
-  const roundsWon = [...wonByRound.values()].filter(Boolean).length;
-  const roundsLost = wonByRound.size - roundsWon;
+  const wonByRound = new Map(statRows.filter((r) => r.won != null).map((r) => [r.round, r.won === true]));
+  const matchScorePhrase = match
+    ? scorePerspectivePhrase(match.score, analysis ? statRows : undefined)
+    : "Initial CT lineup score unavailable";
   const kills = statRows.reduce((n, r) => n + r.kills, 0);
   const deaths = statRows.reduce((n, r) => n + r.deaths, 0);
   const damage = statRows.reduce((n, r) => n + r.damage, 0);
   const overviewFacts = [
-    wonByRound.size
-      ? `${roundsWon === roundsLost ? "Drew" : roundsWon > roundsLost ? "Won" : "Lost"} ${roundsWon} to ${roundsLost}`
-      : null,
+    analysis ? matchScorePhrase : null,
     match?.when ?? null,
     statRows[0]?.side ? `Started ${statRows[0].side}` : null,
     statRows.length ? `K/D ${kills}/${deaths}` : null,
@@ -973,7 +964,7 @@ export default function StudioPage() {
       {barSlot && match
         ? createPortal(
             <>
-              <b>{mapLabel}</b>, {scorePhrase(match.score)}, {match.when}
+              <b>{mapLabel}</b>, {matchScorePhrase}, {match.when}
             </>,
             barSlot,
           )

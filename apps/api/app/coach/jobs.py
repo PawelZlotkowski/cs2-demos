@@ -7,8 +7,8 @@ Every job ends in something the verifier accepted or in a code fallback:
 - explanation (moment or on-demand round): tool loop → ``verify_text`` →
   one repair → else the finding templates in the requested language.
 - Ask: same as explanation with 1–3 sentences; progress is reported per tool
-  step, and the answer is sent only once verified (never a claim that is
-  withdrawn afterwards).
+  step, and the answer is sent after limited citation checks. These checks
+  do not establish semantic truth; generated prose is experimental opt-in.
 
 The jobs are async (the MCP client is async); ``run_sync`` runs one from a
 worker thread or a sync endpoint.
@@ -17,16 +17,21 @@ worker thread or a sync endpoint.
 from __future__ import annotations
 
 import asyncio
+import atexit
 import json
 import logging
 import re
+import threading
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any, TypeVar
 
+import anyio
+
 from app.analysis.ranker import MIN_EACH, MIN_MOMENTS, TARGET, rank_moments
-from app.coach.agent import AgentRun, CoachAgent, StepCallback, TraceWriter, run_record
+from app.coach.agent import AgentBudget, AgentRun, CoachAgent, StepCallback, TraceWriter, run_record
 from app.coach.backends import InProcessTools, MCPTools
 from app.coach.llm_client import LLM, LLMClient, LLMError, json_schema_format
 from app.coach.prompts import load_prompt
@@ -51,6 +56,30 @@ from app.core.config import settings
 from app.models.contracts import AskRequest, Finding, MomentExplanation, SelectedMoment
 
 logger = logging.getLogger(__name__)
+_DEFAULT_LLM_CLIENT: LLMClient | None = None
+_DEFAULT_LLM_LOCK = threading.Lock()
+
+
+class _CoachAdmission:
+    """Process-local, nonblocking model-job cap shared across event loops."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._active = 0
+
+    def acquire(self) -> bool:
+        with self._lock:
+            if self._active >= settings.coach_max_concurrency:
+                return False
+            self._active += 1
+            return True
+
+    def release(self) -> None:
+        with self._lock:
+            self._active = max(0, self._active - 1)
+
+
+_COACH_ADMISSION = _CoachAdmission()
 
 T = TypeVar("T")
 
@@ -98,6 +127,7 @@ class AskOutcome:
     citations: list[str]
     source: str  # agent | template
     errors: list[str] = field(default_factory=list)
+    validation: str = "citations_checked"
 
 
 class CoachJobs:
@@ -110,15 +140,30 @@ class CoachJobs:
         max_steps: int | None = None,
     ) -> None:
         self.repo = repo
-        self.llm = llm or LLMClient()
+        self.llm = llm if llm is not None else _default_llm_client()
         self.tools_factory = tools_factory or default_tools_factory
         self.traces = traces if traces is not None else TraceWriter(settings.resolved_traces_dir())
         self.max_steps = max_steps or settings.coach_max_steps
 
     @asynccontextmanager
-    async def _agent(self) -> AsyncIterator[CoachAgent]:
-        async with self.tools_factory() as tools:
-            yield CoachAgent(self.llm, tools, max_steps=self.max_steps)
+    async def _agent(self, deadline: float | None = None) -> AsyncIterator[CoachAgent]:
+        if not _COACH_ADMISSION.acquire():
+            raise LLMError("Coach model is busy; a deterministic fallback will be used.")
+        try:
+            async with self._agent_tools(deadline) as agent:
+                yield agent
+        finally:
+            _COACH_ADMISSION.release()
+
+    @asynccontextmanager
+    async def _agent_tools(self, deadline: float | None = None) -> AsyncIterator[CoachAgent]:
+        if deadline is None:
+            async with self.tools_factory() as tools:
+                yield CoachAgent(self.llm, tools, max_steps=self.max_steps)
+            return
+        async with asyncio.timeout(_deadline_remaining(deadline)):
+            async with self.tools_factory() as tools:
+                yield CoachAgent(self.llm, tools, max_steps=self.max_steps)
 
     def _trace(self, record: dict[str, Any]) -> None:
         try:
@@ -188,44 +233,86 @@ class CoachJobs:
             "attempts": [],
         }
         errors: list[str] = []
+        deadline = time.monotonic() + settings.coach_job_timeout_seconds
+        output_tokens_used = 0
+        tool_calls_used = 0
+        tool_bytes_used = 0
+        admitted = False
         try:
-            async with self.tools_factory() as tools:
-                record["toolsBackend"] = tools.kind
-                for attempt in range(2):
-                    result = await asyncio.to_thread(
-                        lambda: self.llm.chat(
-                            messages,
-                            response_format=json_schema_format("moments", schema),
-                            thinking=True,
+            if not _COACH_ADMISSION.acquire():
+                raise LLMError("Coach model is busy; the deterministic ranker will be used.")
+            admitted = True
+            async with asyncio.timeout(_deadline_remaining(deadline)):
+                async with self.tools_factory() as tools:
+                    record["toolsBackend"] = tools.kind
+                    for attempt in range(2):
+                        token_cap = settings.coach_max_output_tokens - output_tokens_used
+                        if token_cap <= 0:
+                            raise LLMError("Coach output-token budget reached.")
+                        remaining = _deadline_remaining(deadline)
+                        call_kwargs: dict[str, Any] = {
+                            "response_format": json_schema_format("moments", schema),
+                            "thinking": True,
+                            "max_tokens": token_cap,
+                        }
+                        if isinstance(self.llm, LLMClient):
+                            call_kwargs["timeout_s"] = remaining
+                        result = await _within_deadline(
+                            anyio.to_thread.run_sync(
+                                lambda: self.llm.chat(messages, **call_kwargs),
+                                abandon_on_cancel=True,
+                            ),
+                            deadline,
                         )
-                    )
-                    messages.append(result.assistant_message())
-                    picks = parse_json_object(result.content)
-                    if picks is None or not isinstance(picks.get("moments"), list):
-                        errors = ["Answer with a JSON object {\"moments\": [...]}."]
-                    else:
-                        stored = json.loads(
-                            await tools.call(
-                                "select_moments",
-                                {"match_id": match_id, "player_id": player_id, "moments": picks["moments"]},
+                        output_tokens_used += _completion_tokens(result)
+                        if output_tokens_used > settings.coach_max_output_tokens:
+                            raise LLMError("Coach output-token budget reached.")
+                        messages.append(result.assistant_message())
+                        picks = parse_json_object(result.content)
+                        if picks is None or not isinstance(picks.get("moments"), list):
+                            errors = ["Answer with a JSON object {\"moments\": [...]}."]
+                        else:
+                            if tool_calls_used >= settings.coach_max_tool_calls:
+                                raise LLMError("Coach tool-call budget reached.")
+                            tool_calls_used += 1
+                            tool_result = await _within_deadline(
+                                tools.call(
+                                    "select_moments",
+                                    {"match_id": match_id, "player_id": player_id, "moments": picks["moments"]},
+                                ),
+                                deadline,
                             )
+                            remaining_bytes = settings.coach_max_tool_bytes - tool_bytes_used
+                            if len(tool_result.encode("utf-8")) > remaining_bytes:
+                                tool_result = "{}" if remaining_bytes >= 2 else ""
+                                errors = ["Moment validation result exceeded the remaining tool-byte budget."]
+                            else:
+                                stored = json.loads(tool_result)
+                                errors = stored.get("errors") or ([stored["error"]] if "error" in stored else [])
+                            tool_bytes_used += len(tool_result.encode("utf-8"))
+                        record["attempts"].append(
+                            {
+                                "output": result.content,
+                                "reasoningChars": len(result.reasoning or ""),
+                                "errors": errors,
+                                "latencyS": round(result.latency_s, 3),
+                                "usage": result.usage,
+                            }
                         )
-                        errors = stored.get("errors") or ([stored["error"]] if "error" in stored else [])
-                    record["attempts"].append(
-                        {"output": result.content, "reasoningChars": len(result.reasoning or ""), "errors": errors,
-                         "latencyS": round(result.latency_s, 3), "usage": result.usage}
-                    )
-                    if not errors:
-                        moments = a.moments(match_id, player_id)
-                        record.update(source="agent", ok=True)
-                        self._trace(record)
-                        return SelectionOutcome(moments, "agent")
-                    if attempt == 0:
-                        messages.append({"role": "user", "content": repair_message(errors, json_only=True)})
-        except LLMError as exc:
-            errors = [str(exc)]
+                        if not errors:
+                            moments = a.moments(match_id, player_id)
+                            record.update(source="agent", ok=True, validation="moment_constraints_checked")
+                            self._trace(record)
+                            return SelectionOutcome(moments, "agent")
+                        if attempt == 0:
+                            messages.append({"role": "user", "content": repair_message(errors, json_only=True)})
+        except (LLMError, TimeoutError) as exc:
+            errors = [str(exc) or "Coach job deadline exceeded."]
             logger.warning("Moment selection fell back to the ranker: %s", exc)
-        record.update(source="ranker", ok=False, errors=errors)
+        finally:
+            if admitted:
+                _COACH_ADMISSION.release()
+        record.update(source="ranker", ok=False, validation="deterministic", errors=errors)
         self._trace(record)
         return SelectionOutcome(a.moments(match_id, player_id), "ranker", errors)
 
@@ -255,6 +342,10 @@ class CoachJobs:
                     for s in stats
                 )
             )
+        durations = self._round_durations(match_id)
+        if durations:
+            lines += ["", "Round window limits (seconds from round start; do not exceed):"]
+            lines.append(", ".join(f"round {number}: 0-{duration:.1f}" for number, duration in sorted(durations.items())))
         return "\n".join(lines)
 
     # --- T26 explanations ------------------------------------------------------
@@ -294,6 +385,7 @@ class CoachJobs:
             expl = MomentExplanation(
                 target=target, lang=lang, text=text, citations=citations_in(text),
                 finding_ids=[f.id for f in findings], source="template",
+                validation="deterministic",
                 verifier_errors=[] if findings else ["No findings in this round."],
             )
             if store:
@@ -336,6 +428,7 @@ class CoachJobs:
             citations=outcome.citations,
             finding_ids=[c for c in outcome.citations if c.startswith("F")] or [f.id for f in findings],
             source=outcome.source,  # type: ignore[arg-type]
+            validation="citations_checked" if outcome.source == "agent" else "deterministic",
             verifier_errors=outcome.errors,
             model=getattr(self.llm, "model", None),
             prompt_version=prompt.version,
@@ -370,6 +463,7 @@ class CoachJobs:
             expl = MomentExplanation(
                 target=part, lang=lang, text=text, citations=citations_in(text),
                 finding_ids=[f.id for f in findings], source="template",
+                validation="deterministic",
                 verifier_errors=[] if findings else ["No moments to review."],
             )
             if store:
@@ -417,6 +511,7 @@ class CoachJobs:
             citations=outcome.citations,
             finding_ids=[c for c in outcome.citations if c.startswith("F")] or [f.id for f in findings],
             source=outcome.source,  # type: ignore[arg-type]
+            validation="citations_checked" if outcome.source == "agent" else "deterministic",
             verifier_errors=outcome.errors,
             model=getattr(self.llm, "model", None),
             prompt_version=prompt.version,
@@ -468,7 +563,7 @@ class CoachJobs:
 
         if not self.llm_enabled():
             text = fallback()
-            return AskOutcome(text, citations_in(text), "template", ["Coach model disabled."])
+            return AskOutcome(text, citations_in(text), "template", ["Coach model disabled."], "deterministic")
 
         context = self._context_line(match_id, player_id, round_no, t=req.t, moment=moment, view=req.view)
         lines = [context]
@@ -514,8 +609,10 @@ class CoachJobs:
         messages: list[dict[str, Any]] = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         runs: list[AgentRun] = []
         errors: list[str] = []
+        deadline = time.monotonic() + settings.coach_job_timeout_seconds
+        budget = AgentBudget()
         try:
-            async with self._agent() as agent:
+            async with self._agent(deadline) as agent:
                 for attempt in range(2):
                     run = await agent.run(
                         job=job,
@@ -526,6 +623,8 @@ class CoachJobs:
                         allow_tools=EXPLAIN_TOOLS,
                         max_steps=None if attempt == 0 else 2,
                         on_step=on_step,
+                        deadline=deadline,
+                        budget=budget,
                     )
                     runs.append(run)
                     # Passages the model looked up may be cited as [K..]
@@ -538,16 +637,35 @@ class CoachJobs:
                     )
                     errors = check.errors
                     if check.ok:
-                        verdict = {"ok": True, "errors": [], "autocited": text != run.text.strip()}
+                        verdict = {
+                            "ok": True,
+                            "validation": "citations_checked",
+                            "factuality": "not_established",
+                            "errors": [],
+                            "autocited": text != run.text.strip(),
+                        }
                         self._trace({**record, **_runs_record(runs), "verifier": verdict, "source": "agent"})
-                        return AskOutcome(text, check.citations, "agent")
+                        return AskOutcome(text, check.citations, "agent", validation="citations_checked")
                     messages = run.messages + [{"role": "user", "content": repair_message(errors)}]
-        except LLMError as exc:
+        except (LLMError, TimeoutError) as exc:
             errors = [str(exc)]
             logger.warning("%s fell back to templates: %s", job, exc)
         text = fallback()
-        self._trace({**record, **_runs_record(runs), "verifier": {"ok": False, "errors": errors}, "source": "template", "fallback": text})
-        return AskOutcome(text, citations_in(text), "template", errors)
+        self._trace(
+            {
+                **record,
+                **_runs_record(runs),
+                "verifier": {
+                    "ok": False,
+                    "validation": "deterministic",
+                    "factuality": "template_from_findings",
+                    "errors": errors,
+                },
+                "source": "template",
+                "fallback": text,
+            }
+        )
+        return AskOutcome(text, citations_in(text), "template", errors, "deterministic")
 
     def _context_line(
         self,
@@ -569,7 +687,12 @@ class CoachJobs:
         return " ".join(parts)
 
     def llm_enabled(self) -> bool:
-        return settings.llm_enabled or not isinstance(self.llm, LLMClient)
+        # Free-form text is experimental until typed-claim validation exists.
+        # Tests and explicit adapters can opt in through the same setting;
+        # merely injecting a fake LLM never bypasses the production policy.
+        return bool(getattr(settings, "coach_freeform_enabled", False)) and (
+            settings.llm_enabled or not isinstance(self.llm, LLMClient)
+        )
 
 
 # --- module helpers --------------------------------------------------------------
@@ -579,6 +702,23 @@ def default_tools_factory() -> Any:
     if settings.coach_tools == "inprocess":
         return InProcessTools()
     return MCPTools.from_settings(settings.mcp_url, settings.mcp_command)
+
+
+def _default_llm_client() -> LLMClient:
+    global _DEFAULT_LLM_CLIENT
+    if _DEFAULT_LLM_CLIENT is None:
+        with _DEFAULT_LLM_LOCK:
+            if _DEFAULT_LLM_CLIENT is None:
+                _DEFAULT_LLM_CLIENT = LLMClient()
+    return _DEFAULT_LLM_CLIENT
+
+
+def _close_default_llm_client() -> None:
+    if _DEFAULT_LLM_CLIENT is not None:
+        _DEFAULT_LLM_CLIENT.close()
+
+
+atexit.register(_close_default_llm_client)
 
 
 def knowledge_in(messages: list[dict[str, Any]]) -> dict[str, str]:
@@ -672,3 +812,23 @@ def _runs_record(runs: list[AgentRun]) -> dict[str, Any]:
         "latencyS": round(sum(r.latency_s for r in runs), 3),
         "runs": [run_record(r) for r in runs],
     }
+
+
+def _deadline_remaining(deadline: float) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("Coach job deadline exceeded.")
+    return remaining
+
+
+async def _within_deadline(awaitable: Awaitable[T], deadline: float) -> T:
+    async with asyncio.timeout(_deadline_remaining(deadline)):
+        return await awaitable
+
+
+def _completion_tokens(result: Any) -> int:
+    reported = (result.usage or {}).get("completion_tokens")
+    if isinstance(reported, int) and reported >= 0:
+        return reported
+    serialized = json.dumps(result.assistant_message(), ensure_ascii=False)
+    return (len(serialized) + len(result.reasoning or "") + 2) // 3

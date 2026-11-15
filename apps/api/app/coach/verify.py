@@ -1,7 +1,7 @@
-"""Verifier for everything the model writes (AI Coach plan §6.3).
+"""Citation, format and bounded consistency checks for model output (plan §6.3).
 
-Code decides what happened; this module checks that the model's text only
-says what the code found:
+These checks do not establish that free-form model prose is factually true.
+They validate references, numbers, language and a few explicit contradictions:
 
 - citations: every ``[F..]``, ``[m..]``, ``[K..]`` token exists for this match
   and player; ``[t:..]`` lies inside the round.
@@ -14,7 +14,8 @@ says what the code found:
 
 Moment picks get their own check (``verify_moments``). On failure the jobs
 make one repair attempt with the error list, then fall back to templates
-(``fallback_text``).
+(``fallback_text``). Passing generated text should be labelled
+``citations_checked`` in the UI, not as verified fact.
 """
 
 from __future__ import annotations
@@ -156,9 +157,30 @@ def verify_text(
     if detected is not None and detected != lang:
         errors.append(f"Write in {LANGUAGE_NAMES[lang]}; the answer reads as {LANGUAGE_NAMES[detected]}.")
 
+    errors.extend(_outcome_contradictions(text, ctx, finding_ids, lang))
+
     # De-duplicate, keep order
     errors = list(dict.fromkeys(errors))
     return TextCheck(not errors, errors, cites, finding_ids)
+
+
+_EN_WON_DUEL = re.compile(r"\byou\s+(?:won|win|wins)\s+(?:the\s+)?(?:duel|fight|1v1)\b", re.I)
+
+
+def _outcome_contradictions(text: str, ctx: VerifyContext, finding_ids: list[str], lang: str) -> list[str]:
+    """Reject a narrow, data-backed claim that the player won a duel without a kill.
+
+    This guard only uses English explicit duel outcomes and same-round stats. It
+    is a contradiction check, not a general semantic validator.
+    """
+    if lang != "en" or not _EN_WON_DUEL.search(CITATION_RE.sub(" ", text)):
+        return []
+    rounds = {ctx.findings[fid].round for fid in finding_ids if fid in ctx.findings}
+    for rnd in rounds:
+        stats = ctx.round_stats.get(rnd)
+        if stats and stats.kills == 0 and stats.deaths > 0:
+            return [f"The cited round records no player kills and a death, which conflicts with claiming the player won a duel in round {rnd}."]
+    return []
 
 
 def autocite(text: str, ctx: VerifyContext, candidates: list[str]) -> str:
@@ -284,7 +306,11 @@ class MomentCheck:
     moments: list[SelectedMoment]
 
 
-def verify_moments(picks: list[dict[str, Any]], findings: list[Finding]) -> MomentCheck:
+def verify_moments(
+    picks: list[dict[str, Any]],
+    findings: list[Finding],
+    round_durations: dict[int, float] | None = None,
+) -> MomentCheck:
     by_id = {f.id: f for f in findings}
     errors: list[str] = []
     moments: list[SelectedMoment] = []
@@ -326,6 +352,10 @@ def verify_moments(picks: list[dict[str, Any]], findings: list[Finding]) -> Mome
             continue
         if not (0 <= t0 < t1) or t1 - t0 > MAX_WINDOW_S:
             errors.append(f"{label}: window must satisfy 0 <= t0 < t1 and last at most {MAX_WINDOW_S:.0f} s.")
+            continue
+        duration = (round_durations or {}).get(rnd)
+        if duration is not None and t1 > duration:
+            errors.append(f"{label}: window ends at {t1:.2f} s, after round {rnd} ends at {duration:.2f} s.")
             continue
         outside = [f.id for f in cited if not (t0 - 0.5 <= f.t <= t1 + 0.5)]
         if outside:

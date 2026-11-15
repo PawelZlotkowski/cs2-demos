@@ -13,7 +13,7 @@ type Props = {
   lanes?: readonly Lane[];
   rounds: RoundSummary[];
   /** Per-round result from the match (1 = won), for the match strip. */
-  won: (0 | 1)[];
+  won: (0 | 1 | null)[];
   /** Round number -> glyph of its coaching moment, drawn above the match strip. */
   momentRounds?: ReadonlyMap<number, "mistake" | "strength">;
   roundId: string | null;

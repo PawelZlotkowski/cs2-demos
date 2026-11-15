@@ -129,7 +129,7 @@ class Match(CamelModel):
     score: str
     when: str
     rounds: int
-    won: list[Literal[0, 1]]
+    won: list[Literal[0, 1] | None]
     status: MatchStatus = MatchStatus.complete
     clip_duration: float = Field(20.0, alias="clipDuration")
     error: str | None = None
@@ -174,6 +174,7 @@ class ClipStatus(str, Enum):
 class RoundClip(CamelModel):
     round_id: str = Field(alias="roundId")
     status: ClipStatus
+    provenance: Literal["real", "synthetic"] | None = None
     url: str | None = None
     start_tick: int = Field(alias="startTick")
     end_tick: int = Field(alias="endTick")
@@ -205,6 +206,7 @@ class MomentClip(CamelModel):
     t1: float
     moment_id: str | None = Field(None, alias="momentId")
     status: ClipStatus
+    provenance: Literal["real", "synthetic"] | None = None
     url: str | None = None
     error: str | None = None
 
@@ -544,6 +546,8 @@ class MomentExplanation(CamelModel):
     citations: list[str] = Field(default_factory=list)
     finding_ids: list[str] = Field(default_factory=list, alias="findingIds")
     source: Literal["agent", "template"]
+    # Reference/format checks are not semantic proof of model-written prose.
+    validation: Literal["deterministic", "citations_checked"] | None = None
     verifier_errors: list[str] = Field(default_factory=list, alias="verifierErrors")
     model: str | None = None
     prompt_version: str | None = Field(None, alias="promptVersion")

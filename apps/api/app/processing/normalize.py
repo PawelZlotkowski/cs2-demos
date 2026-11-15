@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 
-from app.analysis.extract import extract_analysis, steam_id
+from app.analysis.extract import _sides_by_round, extract_analysis, steam_id
 from app.maps.metadata import display_map_name, get_map_meta, world_to_radar
 from app.processing.parse_demo import ParsedDemo
 from app.processing.time_utils import tick_to_seconds
@@ -95,16 +95,18 @@ def normalize_parsed(match_id: str, parsed: ParsedDemo) -> dict[str, Any]:
             }
         )
 
-    ct_score = sum(1 for r in rounds_meta if r["winner"] == "CT")
-    t_score = sum(1 for r in rounds_meta if r["winner"] == "T")
-    # won[] relative to CT for display; UI can flip with focus later
-    won = [1 if r["winner"] == "CT" else 0 for r in rounds_meta]
+    score_by_round = _stable_team_results(parsed, rounds_meta)
+    # Keep the original ordering: the team that started on CT, then the team
+    # that started on T. Side labels themselves can change at halftime/overtime.
+    team_a_score = sum(1 for result in score_by_round if result == "CT")
+    team_b_score = sum(1 for result in score_by_round if result == "T")
+    won = [1 if result == "CT" else 0 if result == "T" else None for result in score_by_round]
 
     match = {
         "id": match_id,
         "map": display_map_name(map_raw),
         "mapName": map_raw,
-        "score": f"{ct_score}–{t_score}",
+        "score": f"{team_a_score}–{team_b_score}" if score_by_round and all(r is not None for r in score_by_round) else "–",
         "when": "just now",
         "rounds": len(rounds_meta),
         "won": won,
@@ -114,7 +116,6 @@ def normalize_parsed(match_id: str, parsed: ParsedDemo) -> dict[str, Any]:
         "players": roster,
         "error": None,
     }
-
     return {
         "match": match,
         "rounds": rounds_meta,
@@ -127,6 +128,48 @@ def normalize_parsed(match_id: str, parsed: ParsedDemo) -> dict[str, Any]:
             "eventCount": sum(len(r["events"]) for r in round_replays.values()),
         },
     }
+
+
+def _stable_team_results(parsed: ParsedDemo, rounds_meta: list[dict[str, Any]]) -> list[str | None]:
+    """Translate side winners into the teams that started on CT and T.
+
+    Player side observations at each round start identify roster membership.
+    Unknown or contradictory affiliations are left unresolved instead of
+    treating the current side name as a stable team identity.
+    """
+    sides_by_round = _sides_by_round(parsed, rounds_meta)
+    if not rounds_meta:
+        return []
+
+    first_sides = sides_by_round.get(int(rounds_meta[0]["number"]), {})
+    if not first_sides:
+        return [None] * len(rounds_meta)
+    initial_team_by_player = dict(first_sides)
+
+    results: list[str | None] = []
+    for meta in rounds_meta:
+        winner = meta.get("winner")
+        if winner not in ("T", "CT"):
+            results.append(None)
+            continue
+        side_counts: dict[str, dict[str, int]] = {"T": {"T": 0, "CT": 0}, "CT": {"T": 0, "CT": 0}}
+        for player_id, side in sides_by_round.get(int(meta["number"]), {}).items():
+            team = initial_team_by_player.get(player_id)
+            if side in side_counts and team in ("T", "CT"):
+                side_counts[side][team] += 1
+
+        # Associate each current side with a stable team only when its observed
+        # roster has a strict majority. Require reciprocal, unambiguous mapping.
+        side_to_team: dict[str, str] = {}
+        for side, counts in side_counts.items():
+            total = counts["T"] + counts["CT"]
+            if total and counts["T"] != counts["CT"]:
+                side_to_team[side] = "T" if counts["T"] > counts["CT"] else "CT"
+        if len(side_to_team) != 2 or side_to_team["T"] == side_to_team["CT"]:
+            results.append(None)
+            continue
+        results.append(side_to_team[winner])
+    return results
 
 
 def _normalize_winner(raw: Any) -> str | None:

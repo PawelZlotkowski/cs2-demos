@@ -7,13 +7,14 @@ import logging
 import os
 import shutil
 import subprocess
+import tempfile
 import threading
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
 from app.models.contracts import ClipManifest, ClipStatus, RoundClip
+from app.processing.bounded_executor import BoundedExecutor, QueueFullError
 from app.repositories.matches import MatchRepository, repo
 
 logger = logging.getLogger(__name__)
@@ -75,7 +76,41 @@ def load_manifest(match_id: str, repository: MatchRepository | None = None) -> C
     if not path.exists():
         return None
     data = json.loads(path.read_text(encoding="utf-8-sig"))
-    return ClipManifest.model_validate(data)
+    manifest = ClipManifest.model_validate(data)
+    changed = False
+    clips: list[RoundClip] = []
+    for clip in manifest.clips:
+        if clip.status == ClipStatus.ready and clip.provenance != "real":
+            clip = clip.model_copy(
+                update={
+                    "status": ClipStatus.failed,
+                    "url": None,
+                    "error": "This older clip has no verified capture provenance; re-record it before playback.",
+                }
+            )
+            changed = True
+        elif clip.status == ClipStatus.ready and (
+            not clip_file(match_id, clip.round_id, repository).is_file()
+            or clip_file(match_id, clip.round_id, repository).stat().st_size == 0
+        ):
+            clip = clip.model_copy(
+                update={
+                    "status": ClipStatus.failed,
+                    "url": None,
+                    "error": "The validated clip file is missing; re-record it before playback.",
+                }
+            )
+            changed = True
+        clips.append(clip)
+    if changed:
+        manifest = manifest.model_copy(
+            update={
+                "clips": clips,
+                "done": sum(c.status in (ClipStatus.ready, ClipStatus.failed, ClipStatus.skipped) for c in clips),
+            }
+        )
+        save_manifest(manifest, repository)
+    return manifest
 
 
 def save_manifest(manifest: ClipManifest, repository: MatchRepository | None = None) -> None:
@@ -117,6 +152,8 @@ def init_manifest_for_match(match_id: str, repository: MatchRepository | None = 
         raise KeyError(match_id)
     focus = choose_focus_steamid(record)
     is_sample = bool(record.get("is_sample"))
+    existing_manifest = load_manifest(match_id, repository)
+    existing_by_round = {clip.round_id: clip for clip in existing_manifest.clips} if existing_manifest else {}
     rounds = list(record.get("rounds") or [])
     if settings.csdm_max_rounds and settings.csdm_max_rounds > 0:
         rounds = rounds[: settings.csdm_max_rounds]
@@ -124,26 +161,47 @@ def init_manifest_for_match(match_id: str, repository: MatchRepository | None = 
     for r in rounds:
         rid = r["id"]
         path = clip_file(match_id, rid, repository)
-        if path.exists() and path.stat().st_size > 0:
+        existing_clip = existing_by_round.get(rid)
+        if (
+            existing_clip
+            and existing_clip.status == ClipStatus.ready
+            and existing_clip.provenance == "real"
+            and path.is_file()
+            and path.stat().st_size > 0
+        ):
             status = ClipStatus.ready
             url = public_clip_url(match_id, rid)
             err = None
+            provenance = "real"
+        elif path.exists() and path.stat().st_size > 0:
+            # A file's presence or successful probe cannot prove who created it.
+            # Only a real marker written after this worker validated a capture
+            # can make an existing file playable.
+            status = ClipStatus.failed
+            url = None
+            err = (existing_clip.error if existing_clip and existing_clip.error else
+                   "Existing clip has no verified capture provenance; re-record it before playback.")
+            provenance = existing_clip.provenance if existing_clip else None
         elif is_sample:
             status = ClipStatus.skipped
             url = None
             err = "Sample match has no gameplay video."
+            provenance = None
         elif not settings.csdm_enabled:
             status = ClipStatus.skipped
             url = None
             err = "Clips are off on this computer, so the radar is shown instead."
+            provenance = None
         elif not settings.csdm_round_clips:
             status = ClipStatus.skipped
             url = None
             err = "Whole-round recording is off; the coach records clips of its moments instead."
+            provenance = None
         else:
             status = ClipStatus.queued
             url = None
             err = None
+            provenance = None
         clips.append(
             RoundClip(
                 roundId=rid,
@@ -153,6 +211,7 @@ def init_manifest_for_match(match_id: str, repository: MatchRepository | None = 
                 endTick=int(r["endTick"]),
                 durationSec=float(r["durationSec"]),
                 focusSteamid=focus,
+                provenance=provenance,
                 error=err,
             )
         )
@@ -186,6 +245,7 @@ def update_clip(
     *,
     status: ClipStatus,
     error: str | None = None,
+    provenance: str | None = None,
     repository: MatchRepository | None = None,
 ) -> ClipManifest:
     repository = repository or repo
@@ -204,6 +264,7 @@ def update_clip(
                     "status": status,
                     "url": url,
                     "error": error,
+                    "provenance": provenance,
                 }
             )
         )
@@ -226,7 +287,11 @@ def find_clip(match_id: str, round_id: str, repository: MatchRepository | None =
     return next((c for c in manifest.clips if c.round_id == round_id), None)
 
 
-_video_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="csdm-video")
+_video_executor = BoundedExecutor(
+    max_workers=1,
+    limit=lambda: settings.max_pending_jobs,
+    name="csdm-video",
+)
 _video_lock = threading.Lock()
 _video_running: set[str] = set()
 
@@ -247,7 +312,28 @@ class VideoWorker:
             if match_id in _video_running:
                 return
             _video_running.add(match_id)
-        _video_executor.submit(self._run_safe, match_id)
+        try:
+            # Persist queued round jobs before admission so a full shared queue
+            # never loses work; a later retry can pick them up.
+            init_manifest_for_match(match_id, self.repo)
+        except KeyError:
+            with _video_lock:
+                _video_running.discard(match_id)
+            return
+        except BaseException:
+            with _video_lock:
+                _video_running.discard(match_id)
+            raise
+        try:
+            _video_executor.submit(self._run_safe, match_id)
+        except QueueFullError:
+            with _video_lock:
+                _video_running.discard(match_id)
+            logger.warning("Video recording queue is busy; leaving %s queued for retry", match_id)
+        except BaseException:
+            with _video_lock:
+                _video_running.discard(match_id)
+            raise
 
     def _run_safe(self, match_id: str) -> None:
         try:
@@ -302,12 +388,31 @@ class VideoWorker:
             try:
                 out = clip_file(match_id, clip.round_id, self.repo)
                 if settings.csdm_mode == "stub":
-                    write_placeholder_mp4(out)
+                    update_clip(
+                        match_id,
+                        clip.round_id,
+                        status=ClipStatus.skipped,
+                        error="Synthetic stub output; no gameplay was recorded.",
+                        provenance="synthetic",
+                        repository=self.repo,
+                    )
+                    continue
                 else:
-                    self._csdm_video(dem, clip, out)
-                if not out.exists() or out.stat().st_size == 0:
-                    raise RuntimeError("Recording produced an empty file.")
-                update_clip(match_id, clip.round_id, status=ClipStatus.ready, repository=self.repo)
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    tick_rate = int((record.get("match") or {}).get("tickRate") or 64)
+                    duration = max(0.0, (clip.end_tick - clip.start_tick) / tick_rate)
+                    with tempfile.TemporaryDirectory(prefix=f"{clip.round_id}-attempt-", dir=out.parent) as attempt:
+                        staged = Path(attempt) / out.name
+                        self._csdm_video(dem, clip, staged)
+                        validate_recording(staged, expected_duration_sec=duration)
+                        os.replace(staged, out)
+                update_clip(
+                    match_id,
+                    clip.round_id,
+                    status=ClipStatus.ready,
+                    provenance="real",
+                    repository=self.repo,
+                )
             except Exception as exc:
                 logger.warning("Clip %s/%s failed: %s", match_id, clip.round_id, exc)
                 update_clip(
@@ -333,6 +438,10 @@ def csdm_record(dem: Path, start_tick: int, end_tick: int, focus_steamid: str | 
     """Record ticks ``start_tick``..``end_tick`` from ``focus_steamid``'s view into ``out``."""
     out_dir = out.parent
     out_dir.mkdir(parents=True, exist_ok=True)
+    if start_tick < 0 or end_tick <= start_tick:
+        raise RuntimeError("Recording tick window is invalid.")
+    if any(out_dir.iterdir()):
+        raise RuntimeError("Recording attempt directory must be empty.")
     cmd = [
         resolve_csdm_bin(),
         "video",
@@ -357,19 +466,72 @@ def csdm_record(dem: Path, start_tick: int, end_tick: int, focus_steamid: str | 
     if focus_steamid:
         cmd.extend(["--focus-player", focus_steamid])
     run_csdm(cmd, timeout=settings.csdm_timeout_seconds)
-    # CS:DM may name the file differently; normalize to the expected name
-    if out.exists():
-        return
-    candidates = sorted(out_dir.glob("*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
-    for cand in candidates:
-        if cand.resolve() == out.resolve():
-            return
-        # Prefer a file whose name contains the clip id; else take the newest.
-        if out.stem in cand.stem or cand == candidates[0]:
-            if cand.resolve() != out.resolve():
-                shutil.move(str(cand), str(out))
-            return
-    raise RuntimeError("CS Demo Manager did not produce an MP4 in the output folder.")
+    # The attempt folder is new and empty, so every candidate here was created by this call.
+    candidates = [p for p in out_dir.iterdir() if p.is_file() and p.suffix.lower() == ".mp4"]
+    if len(candidates) != 1:
+        raise RuntimeError("CS Demo Manager did not produce exactly one new MP4 in the attempt folder.")
+    candidate = candidates[0]
+    if candidate.resolve() != out.resolve():
+        os.replace(candidate, out)
+    validate_recording(out)
+
+
+def resolve_ffprobe_bin() -> str:
+    configured = (getattr(settings, "ffprobe_bin", None) or os.environ.get("FFPROBE_PATH") or "ffprobe").strip()
+    return shutil.which(configured) or configured
+
+
+def validate_recording(
+    path: Path,
+    *,
+    expected_duration_sec: float | None = None,
+    runner: Any = subprocess.run,
+) -> dict[str, Any]:
+    """Require a newly-created, probeable video stream of plausible duration."""
+    if not path.is_file() or path.stat().st_size == 0:
+        raise RuntimeError("Recording did not produce a media file.")
+    cmd = [
+        resolve_ffprobe_bin(), "-v", "error", "-show_streams", "-show_format",
+        "-of", "json", str(path),
+    ]
+    try:
+        result = runner(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=float(getattr(settings, "ffprobe_timeout_seconds", 15.0)),
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("ffprobe was not found; configure FFPROBE_PATH or install FFmpeg.") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("Media validation with ffprobe timed out.") from exc
+    if result.returncode != 0:
+        detail = (result.stderr or "").strip()
+        raise RuntimeError(f"ffprobe rejected the recording: {detail or 'invalid media'}")
+    try:
+        data = json.loads(result.stdout or "{}")
+        streams = data["streams"]
+        video = next(s for s in streams if s.get("codec_type") == "video")
+        duration = float(video.get("duration") or data.get("format", {}).get("duration"))
+        width, height = int(video.get("width", 0)), int(video.get("height", 0))
+        rate = video.get("avg_frame_rate") or video.get("r_frame_rate")
+        numerator, denominator = (float(part) for part in rate.split("/", 1)) if rate else (0.0, 1.0)
+        fps = numerator / denominator if denominator else 0.0
+    except (KeyError, TypeError, ValueError, StopIteration) as exc:
+        raise RuntimeError("ffprobe found no valid video stream or duration.") from exc
+    if duration <= 0 or width <= 0 or height <= 0 or fps <= 0:
+        raise RuntimeError("ffprobe found an invalid video duration, frame rate, or dimensions.")
+    if expected_duration_sec is not None:
+        tolerance = max(
+            float(getattr(settings, "clip_duration_tolerance_seconds", 1.0)),
+            2.0 / max(1, int(settings.csdm_fps)),
+        )
+        if duration < expected_duration_sec - tolerance:
+            raise RuntimeError(
+                f"Recording is too short ({duration:.2f}s; expected about {expected_duration_sec:.2f}s)."
+            )
+    return {"durationSec": duration, "width": width, "height": height, "fps": fps}
 
 
 def run_csdm(cmd: list[str], timeout: float) -> None:
@@ -416,7 +578,7 @@ def friendly_error(exc: Exception) -> str:
         return "Steam login or CS2 is required to record gameplay."
     if "timed out" in low:
         return "Gameplay recording timed out."
-    if "did not produce an mp4" in low:
+    if "did not produce" in low and "mp4" in low:
         return "Recording finished without an MP4 — check Steam/CS2/HLAE and retry."
     return msg[:280] if msg else "Gameplay recording failed."
 

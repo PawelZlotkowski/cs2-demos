@@ -12,18 +12,20 @@ Files live at ``data/matches/{matchId}/clips/moments/{clipJobId}.mp4``.
 from __future__ import annotations
 
 import logging
-import shutil
+import os
+import tempfile
 import threading
 from pathlib import Path
 
 from app.core.config import settings
 from app.models.contracts import ClipStatus, MomentClip, SelectedMoment
+from app.processing.bounded_executor import QueueFullError
 from app.processing.video_clips import (
     _video_executor,
     csdm_analyze,
     csdm_record,
     friendly_error,
-    write_placeholder_mp4,
+    validate_recording,
 )
 from app.repositories.matches import MatchRepository, repo
 
@@ -47,12 +49,14 @@ def moment_clip_url(match_id: str, player_id: str, clip_job_id: str) -> str:
 
 def moment_window(moment: SelectedMoment, duration: float | None) -> tuple[float, float]:
     """The window the coach picked (plus optional padding), inside the round, at most 60 s."""
+    upper = max(0.0, float(duration)) if duration is not None else None
     t0 = max(0.0, moment.t0 - settings.csdm_moment_pad_before)
     t1 = moment.t1 + settings.csdm_moment_pad_after
-    if duration:
-        t1 = min(t1, duration)
+    if upper is not None:
+        t0 = min(t0, upper)
+        t1 = min(t1, upper)
     t1 = min(t1, t0 + MAX_CLIP_SECONDS)
-    if t1 <= t0:
+    if t1 <= t0 and upper is None:
         t1 = t0 + 1.0
     return round(t0, 1), round(t1, 1)
 
@@ -85,9 +89,19 @@ def list_moment_clips(match_id: str, player_id: str, repository: MatchRepository
         error = job.get("error")
         if status == ClipStatus.queued and not settings.csdm_enabled:
             status, error = ClipStatus.skipped, DISABLED
-        ready = status == ClipStatus.ready and moment_clip_file(match_id, job["clipJobId"], repository).exists()
-        if status == ClipStatus.ready and not ready:
-            status, error = ClipStatus.failed, "The clip file is missing; record it again."
+        provenance = job.get("provenance")
+        path = moment_clip_file(match_id, job["clipJobId"], repository)
+        ready = status == ClipStatus.ready and provenance == "real" and path.is_file() and path.stat().st_size > 0
+        if status == ClipStatus.ready and provenance != "real":
+            status = ClipStatus.failed
+            error = "This older clip has no verified capture provenance; re-record it before playback."
+            repository.analysis.set_clip_status(job["clipJobId"], "failed", error)
+            provenance = None
+        elif status == ClipStatus.ready and not ready:
+            status, error, provenance = ClipStatus.failed, "The validated clip file is missing; re-record it.", None
+            repository.analysis.set_clip_status(job["clipJobId"], "failed", error)
+        if error and error.startswith("Synthetic stub"):
+            provenance = "synthetic"
         out.append(
             MomentClip(
                 id=job["clipJobId"],
@@ -97,6 +111,7 @@ def list_moment_clips(match_id: str, player_id: str, repository: MatchRepository
                 t1=job["t1"],
                 momentId=job.get("momentId"),
                 status=status,
+                provenance=provenance,
                 url=moment_clip_url(match_id, player_id, job["clipJobId"]) if ready else None,
                 error=error,
             )
@@ -117,7 +132,16 @@ class MomentClipRecorder:
             if key in _running:
                 return
             _running.add(key)
-        _video_executor.submit(self._run_safe, match_id, player_id)
+        try:
+            _video_executor.submit(self._run_safe, match_id, player_id)
+        except QueueFullError:
+            with _lock:
+                _running.discard(key)
+            logger.warning("Moment recording queue is busy; leaving %s / %s queued for retry", match_id, player_id)
+        except BaseException:
+            with _lock:
+                _running.discard(key)
+            raise
 
     def record_now(self, match_id: str, player_id: str) -> None:
         """Record the player's queued jobs and wait (the pipeline's ``recording`` stage).
@@ -129,13 +153,21 @@ class MomentClipRecorder:
         key = (match_id, player_id)
         with _lock:
             _running.add(key)
-        _video_executor.submit(self._run_safe, match_id, player_id).result()
+        try:
+            future = _video_executor.submit(self._run_safe, match_id, player_id, True)
+        except BaseException:
+            with _lock:
+                _running.discard(key)
+            raise
+        future.result()
 
-    def _run_safe(self, match_id: str, player_id: str) -> None:
+    def _run_safe(self, match_id: str, player_id: str, propagate_errors: bool = False) -> None:
         try:
             self.process(match_id, player_id)
         except Exception:
             logger.exception("Moment clip recorder failed for %s / %s", match_id, player_id)
+            if propagate_errors:
+                raise
         finally:
             with _lock:
                 _running.discard((match_id, player_id))
@@ -170,22 +202,27 @@ class MomentClipRecorder:
                 row = _round_row(record, job["round"])
                 if not row:
                     raise RuntimeError(f"Round {job['round']} is not in this match.")
-                start = int(row["startTick"]) + int(job["t0"] * tick_rate)
-                end = int(row["startTick"]) + int(job["t1"] * tick_rate)
+                round_duration = float(row.get("durationSec") or 0.0)
+                t0 = max(0.0, min(float(job["t0"]), round_duration))
+                t1 = max(0.0, min(float(job["t1"]), round_duration))
+                if t1 <= t0:
+                    raise RuntimeError("Clip window is outside the round boundaries.")
+                start = int(row["startTick"]) + int(t0 * tick_rate)
+                end = min(int(row["endTick"]), int(row["startTick"]) + int(t1 * tick_rate))
+                expected_duration = (end - start) / max(1, tick_rate)
                 if settings.csdm_mode == "stub":
-                    write_placeholder_mp4(out)
+                    analysis.set_clip_status(
+                        cid, "skipped", "Synthetic stub output; no gameplay was recorded.", provenance="synthetic"
+                    )
+                    continue
                 else:
-                    # Own folder per job, so CS:DM's output name cannot clash with another clip
-                    tmp = out.parent / f"{cid}.tmp"
-                    shutil.rmtree(tmp, ignore_errors=True)
-                    try:
-                        csdm_record(dem, start, end, player_id, tmp / out.name)
-                        shutil.move(str(tmp / out.name), str(out))
-                    finally:
-                        shutil.rmtree(tmp, ignore_errors=True)
-                if not out.exists() or out.stat().st_size == 0:
-                    raise RuntimeError("Recording produced an empty file.")
-                analysis.set_clip_status(cid, "ready")
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    with tempfile.TemporaryDirectory(prefix=f"{cid}-attempt-", dir=out.parent) as attempt:
+                        staged = Path(attempt) / out.name
+                        csdm_record(dem, start, end, player_id, staged)
+                        validate_recording(staged, expected_duration_sec=expected_duration)
+                        os.replace(staged, out)
+                analysis.set_clip_status(cid, "ready", provenance="real")
             except Exception as exc:
                 logger.warning("Moment clip %s/%s failed: %s", match_id, cid, exc)
                 analysis.set_clip_status(cid, "failed", friendly_error(exc))

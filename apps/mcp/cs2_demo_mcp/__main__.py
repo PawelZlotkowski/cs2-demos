@@ -10,8 +10,23 @@ so matches uploaded through the web app are visible to any MCP client.
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import logging
 import sys
+
+
+def _is_allowed_http_host(host: str) -> bool:
+    """Allow only literal loopback addresses or the localhost name.
+
+    Do not resolve arbitrary names here: DNS rebinding or a proxy header must
+    never turn an externally reachable bind into a trusted local MCP server.
+    """
+    if host.casefold() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -23,6 +38,21 @@ def main(argv: list[str] | None = None) -> None:
 
     # stdout carries the protocol on stdio; logs go to stderr
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
+
+    if args.transport == "http":
+        # HTTP MCP exposes the same repository-backed tools as the API but has
+        # no per-owner authentication. Keep it local until that boundary is
+        # implemented; stdio remains the trusted local-operator transport.
+        from app.core.config import settings
+
+        if settings.access_mode == "authenticated":
+            parser.error(
+                "HTTP MCP is unavailable with RR_ACCESS_MODE=authenticated; "
+                "per-owner MCP authentication is not implemented. Use stdio "
+                "or keep HTTP in local mode on loopback."
+            )
+        if not _is_allowed_http_host(args.host):
+            parser.error("HTTP MCP may bind only to localhost or a literal loopback IP address.")
 
     from app.coach.mcp_server import build_server
 

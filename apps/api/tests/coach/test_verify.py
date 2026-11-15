@@ -72,6 +72,15 @@ def test_fact_without_citation_fails():
     assert not r.ok and any("without a citation" in e for e in r.errors)
 
 
+def test_explicit_duel_win_conflicting_with_zero_kills_and_death_fails():
+    r = check("You won the duel through smoke [F12].")
+    assert not r.ok and any("conflicts with claiming" in e for e in r.errors)
+
+
+def test_outcome_guard_does_not_reject_a_round_win_claim():
+    assert check("Your team won the round after your death [F12].").ok
+
+
 def test_knowledge_ids_must_come_from_a_tool():
     assert not check("Palace is a common spot to be isolated [F12][K7].").ok
 
@@ -180,6 +189,12 @@ def test_valid_picks():
     assert r.ok, r.errors
     assert [m.id for m in r.moments] == ["m1", "m2", "m3", "m4", "m5"]
     assert all(m.source == "agent" for m in r.moments)
+
+
+def test_moment_windows_must_end_before_their_round_does():
+    picks = [pick("F1"), pick("F3"), pick("F4", "good"), pick("F5", "good"), pick("F6")]
+    result = verify_moments(picks, FINDINGS, {1: 12.0, 2: 30.0, 3: 35.0, 4: 30.0, 5: 45.0, 6: 60.0})
+    assert not result.ok and any("after round 1 ends" in e for e in result.errors)
 
 
 def test_picks_need_count_and_mix():

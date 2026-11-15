@@ -1,4 +1,4 @@
-import type { ReplaySample, SamplePlayerState } from "@/lib/contracts";
+import type { ReplayEvent, ReplaySample, SamplePlayerState } from "@/lib/contracts";
 import { getMapMeta, worldToRadar } from "./maps";
 
 function lerp(a: number, b: number, u: number): number {
@@ -7,7 +7,7 @@ function lerp(a: number, b: number, u: number): number {
 
 /** Shortest-path yaw interpolation in degrees (−180…180). */
 export function lerpYaw(a: number, b: number, u: number): number {
-  let delta = ((b - a + 540) % 360) - 180;
+  const delta = ((b - a + 540) % 360) - 180;
   return a + delta * u;
 }
 
@@ -45,8 +45,12 @@ export function interpolateAt(
   samples: ReplaySample[],
   t: number,
   mapName?: string | null,
+  events: ReplayEvent[] = [],
 ): InterpolatedPlayer[] {
   if (!samples.length) return [];
+
+  const isDeadAt = (playerId: string): boolean =>
+    events.some((event) => event.type === "kill" && event.victimId === playerId && event.t <= t);
 
   const mapPlayer = (p: SamplePlayerState): InterpolatedPlayer | null => {
     const radar = resolveRadar(p, mapName);
@@ -55,11 +59,15 @@ export function interpolateAt(
   };
 
   if (t <= samples[0].t) {
-    return samples[0].players.map(mapPlayer).filter((p): p is InterpolatedPlayer => p != null);
+    return samples[0].players
+      .map((p) => mapPlayer(isDeadAt(p.id) ? { ...p, health: 0, alive: false } : p))
+      .filter((p): p is InterpolatedPlayer => p != null);
   }
   const last = samples[samples.length - 1];
   if (t >= last.t) {
-    return last.players.map(mapPlayer).filter((p): p is InterpolatedPlayer => p != null);
+    return last.players
+      .map((p) => mapPlayer(isDeadAt(p.id) ? { ...p, health: 0, alive: false } : p))
+      .filter((p): p is InterpolatedPlayer => p != null);
   }
 
   let i = 0;
@@ -76,14 +84,18 @@ export function interpolateAt(
     const ra = resolveRadar(pa, mapName);
     const rb = resolveRadar(pb, mapName);
     if (!ra || !rb) continue;
+    const discrete = t >= b.t ? pb : pa;
+    const dead = isDeadAt(pa.id);
     out.push({
       id: pa.id,
       x: lerp(pa.x, pb.x, u),
       y: lerp(pa.y, pb.y, u),
       z: lerp(pa.z, pb.z, u),
       yaw: lerpYaw(pa.yaw, pb.yaw, u),
-      health: Math.round(lerp(pa.health, pb.health, u)),
-      alive: u < 0.5 ? pa.alive : pb.alive,
+      // HP and life state are discrete. Hold the last observed sample until
+      // the next sample; a kill event can place death at its exact event time.
+      health: dead ? 0 : discrete.health,
+      alive: dead ? false : discrete.alive,
       rx: lerp(ra.rx, rb.rx, u),
       ry: lerp(ra.ry, rb.ry, u),
     });

@@ -34,6 +34,7 @@ const API_URL =
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
+    credentials: "include",
     ...init,
     headers: {
       ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
@@ -55,6 +56,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   baseUrl: API_URL,
+  openSession: (token: string) => request<{ owner: string }>("/auth/session", {
+    method: "POST", headers: { Authorization: `Bearer ${token}` },
+  }),
+  closeSession: () => request<{ ok: boolean }>("/auth/session", { method: "DELETE" }),
   health: () => request<{ status: string }>("/health"),
   /** XHR rather than fetch, because fetch cannot report upload progress. */
   upload: (file: File, onProgress?: (sent: number, total: number) => void) =>
@@ -63,6 +68,7 @@ export const api = {
       form.append("file", file);
       const xhr = new XMLHttpRequest();
       xhr.open("POST", `${API_URL}/matches/upload`);
+      xhr.withCredentials = true;
       xhr.responseType = "json";
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) onProgress?.(e.loaded, e.total);
@@ -151,7 +157,7 @@ export const api = {
   /** Clip URLs from the API are paths; the browser needs the API origin. */
   mediaUrl: (path: string) => `${API_URL}${path}`,
   getKnowledge: (id: string) => request<KnowledgePassage>(`/knowledge/${id}`),
-  /** Ask over server-sent events: `step` per tool call, then one verified `answer`. */
+  /** Tool steps, then one interpretation with explicit validation provenance. */
   ask: async (
     matchId: string,
     playerId: string,
@@ -160,6 +166,7 @@ export const api = {
     signal?: AbortSignal,
   ): Promise<void> => {
     const res = await fetch(`${API_URL}/matches/${matchId}/players/${playerId}/ask`, {
+      credentials: "include",
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
       body: JSON.stringify(body),

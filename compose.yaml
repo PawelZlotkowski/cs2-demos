@@ -12,14 +12,19 @@ services:
       context: ./apps/api
       dockerfile: ../../docker/Dockerfile.api
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - api-data:/app/data
     environment:
       RR_DATA_DIR: /app/data
       RR_FIXTURE_PATH: /app/fixtures/sample-match.json
       RR_MOCK_STAGE_SECONDS: "0.5"
-      # CS:DM cannot run in Linux containers. Keep disabled here; run a Windows
+      # This private compose subnet and the API hostname are trusted only for
+      # local Docker ingress. Published ports remain loopback-bound.
+      RR_LOCAL_TRUSTED_NETWORKS: '["172.30.0.0/24"]'
+      RR_LOCAL_TRUSTED_HOSTS: '["api"]'
+      # The configured HLAE/game recorder uses the Windows host. Keep it disabled
+      # in the ordinary API container; run a Windows
       # host API/worker with RR_CSDM_ENABLED=1 and a shared data/matches volume.
       RR_CSDM_ENABLED: "0"
     healthcheck:
@@ -37,7 +42,7 @@ services:
         # Browser calls the API via the published host port (not the compose service name).
         NEXT_PUBLIC_API_URL: http://localhost:8000
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
       # Server-side fetch (if used) reaches the API on the compose network.
@@ -52,10 +57,10 @@ services:
     image: postgres:17
     container_name: csdm-postgres
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${RR_CSDM_DB_PASSWORD:?Set RR_CSDM_DB_PASSWORD in your shell before starting the csdm profile}
       POSTGRES_DB: csdm
     volumes:
       - csdm-pgdata:/var/lib/postgresql/data
@@ -68,3 +73,9 @@ services:
 volumes:
   api-data:
   csdm-pgdata:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

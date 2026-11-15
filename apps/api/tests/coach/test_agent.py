@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 
 import pytest
 
@@ -113,3 +114,103 @@ def test_step_callback_and_trace(analysed, tmp_path):
     line = json.loads(path.read_text().splitlines()[0])
     assert line["promptVersion"] == "answer_question.v1" and line["model"] == "mock"
     assert line["steps"][0]["tool"] == "list_rounds" and line["reasoningChars"] == 3
+
+
+def test_total_tool_call_and_result_byte_budgets(analysed):
+    mid, pid = analysed
+
+    class CountingTools(InProcessTools):
+        calls = 0
+
+        async def call(self, name, arguments):
+            self.calls += 1
+            if name == "list_rounds":
+                return "x" * 200
+            return await super().call(name, arguments)
+
+    tools = CountingTools()
+    llm = MockLLMClient(
+        [
+            ChatResult(
+                content="",
+                tool_calls=[
+                    call("list_rounds", {}),
+                    call("list_rounds", {}, "second"),
+                ],
+            ),
+            "done",
+        ]
+    )
+
+    async def main():
+        async with tools:
+            agent = CoachAgent(llm, tools, max_tool_calls=1, max_tool_bytes=32)
+            return await agent.run(
+                job="ask",
+                prompt_version="test",
+                messages=[{"role": "user", "content": "Question"}],
+                bound={"match_id": mid, "player_id": pid},
+            )
+
+    run = asyncio.run(main())
+    returned = [m["content"] for m in run.messages if m["role"] == "tool"]
+    assert tools.calls == 1
+    assert len(run.steps) == 2
+    assert sum(len(value.encode("utf-8")) for value in returned) <= 32
+    assert run.usage["tool_result_bytes"] <= 32
+
+
+def test_total_output_token_budget_is_shared_across_model_calls(analysed):
+    mid, pid = analysed
+    llm = MockLLMClient(
+        [
+            ChatResult(
+                content="",
+                tool_calls=[call("list_rounds", {})],
+                usage={"completion_tokens": 60},
+            ),
+            ChatResult(content="done", usage={"completion_tokens": 20}),
+        ]
+    )
+
+    async def main():
+        async with InProcessTools() as tools:
+            agent = CoachAgent(llm, tools, max_output_tokens=80)
+            return await agent.run(
+                job="ask",
+                prompt_version="test",
+                messages=[{"role": "user", "content": "Question"}],
+                bound={"match_id": mid, "player_id": pid},
+            )
+
+    run = asyncio.run(main())
+
+    assert [request["max_tokens"] for request in llm.requests] == [60, 20]
+    assert run.text == "done" and run.usage["completion_tokens_estimated"] == 80
+
+
+def test_agent_deadline_cancels_wait_without_waiting_for_sync_model(analysed):
+    mid, pid = analysed
+
+    class SlowLLM:
+        model = "slow"
+
+        def chat(self, messages, **kwargs):
+            time.sleep(0.5)
+            return ChatResult(content="late")
+
+    async def main():
+        async with InProcessTools() as tools:
+            agent = CoachAgent(SlowLLM(), tools)
+            return await agent.run(
+                job="ask",
+                prompt_version="test",
+                messages=[{"role": "user", "content": "Question"}],
+                bound={"match_id": mid, "player_id": pid},
+                deadline=time.monotonic() + 0.03,
+            )
+
+    started = time.monotonic()
+    with pytest.raises(TimeoutError):
+        asyncio.run(main())
+    assert time.monotonic() - started < 0.2

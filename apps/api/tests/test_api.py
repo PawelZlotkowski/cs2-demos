@@ -15,7 +15,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(repo, "matches_dir", tmp_path / "matches")
     repo.upload_dir.mkdir(parents=True, exist_ok=True)
     repo.matches_dir.mkdir(parents=True, exist_ok=True)
-    return TestClient(app)
+    return TestClient(app, base_url="http://localhost:8000", client=("127.0.0.1", 50000))
 
 
 def test_health(client: TestClient):

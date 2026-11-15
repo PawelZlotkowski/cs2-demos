@@ -78,7 +78,7 @@ export function CoachPanel({
   }, []);
 
   // Reveal answers word by word (prototype stream()); instant with reduced motion.
-  // Only verified text reaches this point: the server never streams unchecked tokens.
+  // The server finishes reference/format checks before sending model interpretations.
   const streaming = turns.some((x) => !x.pending && x.shown < x.a.length);
   useEffect(() => {
     if (!streaming) return;
@@ -179,7 +179,9 @@ export function CoachPanel({
               )}
             </div>
             {!x.pending && x.source === "template" ? (
-              <div className="aa-note">Written from the findings: the coach model is off or its answer did not pass the checks.</div>
+              <div className="aa-note">Written directly from detected findings.</div>
+            ) : !x.pending && x.source === "agent" ? (
+              <div className="aa-note">Model interpretation with checked evidence references.</div>
             ) : null}
           </div>
         ))}

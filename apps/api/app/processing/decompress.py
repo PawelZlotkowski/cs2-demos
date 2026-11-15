@@ -34,14 +34,22 @@ def decompress_demo(
         size = src.stat().st_size
         if size > max_output_bytes:
             raise DecompressError("Demo file is too large to process.")
-        dest.write_bytes(src.read_bytes())
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with src.open("rb") as source, dest.open("wb") as target:
+                while chunk := source.read(1024 * 1024):
+                    target.write(chunk)
+        except OSError as exc:
+            dest.unlink(missing_ok=True)
+            raise DecompressError("Could not copy the demo for processing.") from exc
         _validate_dem_magic(dest)
         return size
 
     if not is_zstd(src):
         raise DecompressError("That file is not valid zstd-compressed demo data.")
 
-    dctx = zstd.ZstdDecompressor()
+    # Bound the decoder's history window as well as its eventual output size.
+    dctx = zstd.ZstdDecompressor(max_window_size=128 * 1024)
     written = 0
     dest.parent.mkdir(parents=True, exist_ok=True)
     try:

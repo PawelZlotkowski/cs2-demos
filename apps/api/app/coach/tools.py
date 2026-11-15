@@ -358,6 +358,12 @@ def get_player_history(
     if detector is not None and detector not in DETECTORS:
         raise ToolError(f"Unknown detector {detector!r}. Known: {', '.join(DETECTORS)}.")
     history = data.repo.analysis.player_history(player_id, exclude_match_id=match_id)
+    record = data.repo.get(match_id) if match_id else None
+    if match_id and not record:
+        raise ToolError("Unknown current match.")
+    owner_id = (record or {}).get("owner_id", "local")
+    allowed = data.repo.owned_ids(owner_id)
+    history = [h for h in history if h["matchId"] in allowed]
     total_rounds = sum(h["rounds"] for h in history)
     detectors = [detector] if detector else sorted({d for h in history for d in h["counts"]})
     rates = {}
@@ -396,7 +402,15 @@ def select_moments(
     from app.coach.verify import verify_moments
 
     findings = data.findings(match_id, player_id)
-    result = verify_moments([m.model_dump() if isinstance(m, BaseModel) else m for m in moments], findings)
+    record = data.repo.get(match_id) or {}
+    durations = {
+        int(row["number"]): float(row["durationSec"])
+        for row in record.get("rounds") or []
+        if row.get("number") is not None and row.get("durationSec") is not None
+    }
+    result = verify_moments(
+        [m.model_dump() if isinstance(m, BaseModel) else m for m in moments], findings, durations
+    )
     if not result.ok:
         return {"ok": False, "errors": result.errors}
     stored = [m.model_copy(update={"source": "agent"}) for m in result.moments]
@@ -439,7 +453,9 @@ def request_clip(
     if t1 <= t0 or t1 - t0 > 60:
         raise ToolError("Use 0 <= t0 < t1 with a window of at most 60 s.")
     match = data.match(match_id)
-    _round(match, round)
+    rd = _round(match, round)
+    if t0 < 0 or t1 > rd.duration:
+        raise ToolError(f"The clip must fit inside round {round} (0-{rd.duration:.1f} s).")
     from app.core.config import settings
     from app.processing.moment_clips import moment_recorder
 

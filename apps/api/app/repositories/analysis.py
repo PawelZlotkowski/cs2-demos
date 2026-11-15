@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS clip_jobs (
 );
 """
 # Columns added after the first databases were created (added on open)
-CLIP_JOB_COLUMNS = {"moment_id": "TEXT", "error": "TEXT"}
+CLIP_JOB_COLUMNS = {"moment_id": "TEXT", "error": "TEXT", "provenance": "TEXT"}
 
 
 class AnalysisRepository:
@@ -225,13 +225,22 @@ class AnalysisRepository:
     def clip_jobs(self, match_id: str, player_id: str) -> list[dict]:
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT id, round, t0, t1, status, moment_id, error FROM clip_jobs "
+                "SELECT id, round, t0, t1, status, moment_id, error, provenance FROM clip_jobs "
                 "WHERE match_id = ? AND player_id = ? ORDER BY id",
                 (match_id, player_id),
             ).fetchall()
         return [
-            {"clipJobId": f"c{i}", "round": r, "t0": t0, "t1": t1, "status": st, "momentId": mom, "error": err}
-            for i, r, t0, t1, st, mom, err in rows
+            {
+                "clipJobId": f"c{i}",
+                "round": r,
+                "t0": t0,
+                "t1": t1,
+                "status": st,
+                "momentId": mom,
+                "error": err,
+                "provenance": provenance,
+            }
+            for i, r, t0, t1, st, mom, err, provenance in rows
         ]
 
     def unlink_moment_clips(self, match_id: str, player_id: str) -> None:
@@ -241,11 +250,17 @@ class AnalysisRepository:
                 "UPDATE clip_jobs SET moment_id = NULL WHERE match_id = ? AND player_id = ?", (match_id, player_id)
             )
 
-    def set_clip_status(self, clip_job_id: str, status: str, error: str | None = None) -> None:
+    def set_clip_status(
+        self,
+        clip_job_id: str,
+        status: str,
+        error: str | None = None,
+        provenance: str | None = None,
+    ) -> None:
         with self._lock, self._connect() as conn:
             conn.execute(
-                "UPDATE clip_jobs SET status = ?, error = ? WHERE id = ?",
-                (status, error, int(clip_job_id.lstrip("c"))),
+                "UPDATE clip_jobs SET status = ?, error = ?, provenance = ? WHERE id = ?",
+                (status, error, provenance, int(clip_job_id.lstrip("c"))),
             )
 
     # --- player history across matches ---

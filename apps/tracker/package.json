@@ -6,13 +6,14 @@
     "sync-tasks": "node scripts/sync-tasks.mjs",
     "predev": "node scripts/sync-tasks.mjs",
     "dev": "next dev --port 3100",
+    "lint": "eslint .",
     "prebuild": "node scripts/sync-tasks.mjs",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "^15.5.0",
+    "next": "~15.5.27",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
@@ -20,6 +21,14 @@
     "@types/node": "^22.15.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "@eslint/eslintrc": "^3.3.1",
+    "eslint": "^9.25.0",
+    "eslint-config-next": "~15.5.27",
     "typescript": "^5.8.0"
+  },
+  "overrides": {
+    "postcss": "^8.5.23",
+    "sharp": "^0.35.5",
+    "source-map-js": "^1.2.2"
   }
 }

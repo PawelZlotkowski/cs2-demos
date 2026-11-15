@@ -11,6 +11,9 @@ export function NavLinks() {
       <Link href="/" aria-current={pathname === "/" ? "page" : undefined}>
         Home
       </Link>
+      <Link href="/access" aria-current={pathname === "/access" ? "page" : undefined}>
+        Access
+      </Link>
       {/* Studio needs a match; it only appears once one is open. */}
       {inStudio ? (
         <Link href={pathname} aria-current="page">

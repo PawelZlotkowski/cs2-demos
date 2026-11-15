@@ -28,6 +28,9 @@ def analysed(tmp_path, monkeypatch):
     repo.matches_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(pipe_mod._executor, "submit", lambda fn, *a: fn(*a))
     monkeypatch.setattr(settings, "llm_enabled", False)
+    # Scripted coach tests explicitly opt in to generated prose. Production
+    # remains on deterministic templates unless RR_COACH_FREEFORM_ENABLED is set.
+    monkeypatch.setitem(settings.__dict__, "coach_freeform_enabled", True)
     monkeypatch.setattr(settings, "traces_dir", tmp_path / "traces")
     record = repo.create_upload("synthetic.dem", b"PBDEMS2\x00")
     mid = record["id"]

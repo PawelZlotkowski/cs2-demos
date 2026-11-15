@@ -22,7 +22,7 @@ type State =
   | { kind: "done"; data: MomentExplanation }
   | { kind: "error"; message: string };
 
-/** Coach explanation in the Analysis tab (plan §6.3, T43). Only verified or template text reaches it. */
+/** Coach text with explicit distinction between detector templates and model interpretation. */
 export function CoachExplanation({ matchId, playerId, momentId, round, language, onLanguage, ...cites }: Props) {
   const [state, setState] = useState<State>({ kind: "idle" });
   const [roundAsked, setRoundAsked] = useState(false);
@@ -89,7 +89,7 @@ export function CoachExplanation({ matchId, playerId, momentId, round, language,
 }
 
 function sourceNote(e: MomentExplanation): string {
-  if (e.source === "agent") return `Written by ${e.model ?? "the coach model"} and checked against the findings.`;
+  if (e.source === "agent") return "Model interpretation. Evidence references were checked; the wording may need review.";
   if (e.verifierErrors.some((x) => /no findings/i.test(x))) return "No findings to explain here.";
   if (e.verifierErrors.length)
     return "Written from the findings, because the coach model's text did not pass the checks.";
