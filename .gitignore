@@ -69,3 +69,8 @@ ml/finetune/outputs/
 
 # Model comparison runs (player ids and coach texts)
 eval/results/
+
+# Private: kept on the local machine only (the repository is public)
+docs/university/*.docx
+docs/university/*.pdf
+prototype/fixtures/match-room.json
