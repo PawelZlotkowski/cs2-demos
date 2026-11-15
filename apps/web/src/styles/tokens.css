@@ -427,3 +427,101 @@ h1 {
     transform: none;
   }
 }
+
+/* ---- Player picker (processing page, plan §9) ---- */
+
+.picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px 24px;
+  margin: 0 0 8px;
+}
+
+.pick-team {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.pick-team legend {
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--text-3);
+  padding: 0 0 6px;
+}
+
+.pick-head,
+.pick-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 32px 32px;
+  gap: 0 10px;
+  align-items: center;
+}
+
+.pick-head {
+  font-size: var(--fs-11);
+  color: var(--text-3);
+  padding: 0 8px 4px;
+}
+
+.pick-head span:first-child {
+  grid-column: 2;
+}
+
+.pick-head span:not(:first-child),
+.pick-n {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pick-row {
+  min-height: 40px;
+  padding: 0 8px;
+  border-top: 1px solid var(--border-soft);
+  font-size: var(--fs-14);
+  color: var(--text-2);
+  cursor: pointer;
+  border-radius: var(--r-ctl);
+  transition: background-color 120ms ease;
+}
+
+.pick-row input {
+  margin: 0;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--text);
+}
+
+.pick-row:has(input:checked) {
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.pick-row:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pick-row:hover {
+    background: var(--border-soft);
+  }
+}
+
+.pick-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pick-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}

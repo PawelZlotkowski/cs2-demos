@@ -5,6 +5,15 @@ import type { RoundSummary } from "@/lib/contracts";
 import { LANE_NAMES, LANE_ORDER, reasonLabel, type Lane, type LaneMark } from "@/lib/replay/roster";
 import { formatClock } from "@/lib/replay/time";
 
+/** A finding on the Coach lane: orange mistake, blue good play, ink context. */
+export type CoachMark = {
+  id: string;
+  t: number;
+  glyph: string;
+  title: string;
+  summary: string;
+};
+
 type Props = {
   duration: number;
   t: number;
@@ -18,6 +27,11 @@ type Props = {
   onSelectRound: (id: string) => void;
   onSeek: (t: number, eventId?: string) => void;
   onScrub: (active: boolean) => void;
+  coach?: CoachMark[];
+  selectedFindingId?: string | null;
+  /** Moment window on the round clock, shaded behind the lanes. */
+  window?: [number, number] | null;
+  onFinding?: (id: string) => void;
 };
 
 type Tip = { x: number; y: number; label: string; detail?: string };
@@ -36,6 +50,10 @@ export function ReplayTimeline({
   onSelectRound,
   onSeek,
   onScrub,
+  coach = [],
+  selectedFindingId = null,
+  window: span = null,
+  onFinding,
 }: Props) {
   const max = Math.max(duration, 0.001);
   const hitRef = useRef<HTMLDivElement>(null);
@@ -83,6 +101,18 @@ export function ReplayTimeline({
     }
     return out;
   }, [lanes, marks, max, trackW]);
+
+  // Findings at (nearly) the same time share one labelled marker.
+  const coachGroups = useMemo(() => {
+    const sorted = [...coach].sort((a, b) => a.t - b.t);
+    const out: CoachMark[][] = [];
+    for (const m of sorted) {
+      const g = out[out.length - 1];
+      if (g && ((m.t - g[0].t) / max) * trackW < 90) g.push(m);
+      else out.push([m]);
+    }
+    return out;
+  }, [coach, max, trackW]);
 
   const ticks = useMemo(() => {
     const step = duration > 90 ? 15 : duration > 40 ? 10 : 5;
@@ -132,6 +162,39 @@ export function ReplayTimeline({
       </div>
 
       <div className="lanes">
+        {coach.length ? (
+          <>
+            <div className="lane-n l-coach">Coach</div>
+            <div className="lane-t l-coach">
+              {coachGroups.map((g) => {
+                const lead = g[0];
+                const sel = g.some((m) => m.id === selectedFindingId);
+                const live = t >= lead.t - 2 && t - g[g.length - 1].t < 2.5;
+                const label = g.map((m) => m.title).join(", ");
+                return (
+                  <button
+                    key={lead.id}
+                    type="button"
+                    className={`mk mk-ins${live ? " live" : ""}${sel ? " sel" : ""}${
+                      lead.t / max > 0.7 ? " end" : ""
+                    }`}
+                    style={{ left: pct(lead.t) }}
+                    aria-label={`${label}, ${formatClock(lead.t)}`}
+                    onClick={() => onFinding?.(lead.id)}
+                    onMouseEnter={(e) => showTip(e.currentTarget, label, lead.summary)}
+                    onMouseLeave={hideTip}
+                    onFocus={(e) => showTip(e.currentTarget, label, lead.summary)}
+                    onBlur={hideTip}
+                  >
+                    <i className={`g g-${lead.glyph}`} aria-hidden />
+                    <span>{lead.title}</span>
+                    {g.length > 1 ? <span className="more-n">+{g.length - 1}</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
         {lanes.map((lane) => (
           <LaneRow key={lane} lane={lane}>
             {items
@@ -234,6 +297,13 @@ export function ReplayTimeline({
             e.stopPropagation();
           }}
         />
+        {span ? (
+          <div
+            className="span"
+            aria-hidden
+            style={{ "--a": span[0] / max, "--b": Math.min(span[1], max) / max } as CSSProperties}
+          />
+        ) : null}
         <div className="playhead" style={{ "--p": t / max } as CSSProperties} />
         <div className="ghost" ref={ghostRef} />
       </div>
