@@ -1,0 +1,31 @@
+name: round-labeler
+services:
+  labeler:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.labeler
+      target: runtime
+    # Use the same native parser wheels on x86 hosts and ARM Docker Desktop
+    # (which runs this image through amd64 emulation).
+    platform: linux/amd64
+    ports:
+      - "127.0.0.1:${LABELER_PORT:-8765}:8765"
+    volumes:
+      - labels:/data
+    environment:
+      RR_ANNOTATION_WORKER_MB: "4096"
+      RR_ANNOTATION_TIMEOUT_SECONDS: "900"
+      RR_ANNOTATION_MAX_UPLOAD_MB: "2048"
+      RR_ANNOTATION_MAX_DEMO_MB: "2048"
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 20s
+    mem_limit: 6g
+    cpus: 2.0
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+volumes:
+  labels:

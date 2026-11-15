@@ -207,6 +207,11 @@ def cmd_score(args: argparse.Namespace) -> None:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m eval.label_tool", description=__doc__.split("\n")[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("serve", help="open the local browser labeller (raw demos, roster, save/resume)")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8765)
+    p.add_argument("--data-dir", default=str(ROOT / ".local" / "annotation"))
+    p.set_defaults(func=cmd_serve)
     p = sub.add_parser("label", help="label findings of a processed match")
     p.add_argument("--match-dir", required=True)
     p.add_argument("--player", required=True, help="SteamID64 of the coached player")
@@ -223,6 +228,19 @@ def main(argv: list[str] | None = None) -> None:
     p.set_defaults(func=cmd_score)
     args = parser.parse_args(argv)
     args.func(args)
+
+
+def cmd_serve(args: argparse.Namespace) -> None:
+    import os
+    import uvicorn
+
+    if not 1024 <= args.port <= 65535:
+        raise SystemExit("Choose a port between 1024 and 65535.")
+    if args.host not in ("127.0.0.1", "localhost", "0.0.0.0"):
+        raise SystemExit("Use localhost, 127.0.0.1, or 0.0.0.0 inside a container with a loopback published port.")
+    os.environ["RR_ANNOTATION_DIR"] = str(Path(args.data_dir).resolve())
+    print(f"Round labels: http://127.0.0.1:{args.port} | data: {os.environ['RR_ANNOTATION_DIR']}", flush=True)
+    uvicorn.run("app.annotation.server:create_app", factory=True, host=args.host, port=args.port, workers=1)
 
 
 if __name__ == "__main__":
