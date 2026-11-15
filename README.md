@@ -1,104 +1,64 @@
 # Round Reviewer
 
-A self-hosted coach for Counter-Strike 2. Upload a match demo, pick a player, and review the handful of moments that matter most on a radar replay, with an AI coach that explains what went wrong and what went right.
+**Use this folder for ongoing work:** `C:\Users\pawel\Documents\cs2-demos-studio`.
 
-## Status (27 September 2026)
+A browser Studio for reviewing CS2 demos with radar replay, selected moments, recorded clips and an evidence-based coach. Pawel and Aleksander are building it for their university project: first defence **17 November 2026**, final invited-user product and submission **6 December 2026**.
 
-### What works
+**20 October status:** the selected material from the four project folders is organised here. Studio remains the application baseline. Phase 1 improvements are preserved as integration patches; they have **not** been merged into the running application. **Design is paused.** Tactical Lens is saved as a reference, not implemented or approved as the final design.
 
-- **Replay:** upload a FACEIT `.dem.zst` or a CS Demo Manager `.dem`, parse it with demoparser2, and scrub every round on the radar (Mirage and Anubis).
-- **Analysis:** you pick a player after parsing. Ten detectors turn the demo into findings with evidence, and the per-round stats and a code ranker pick five or six moments.
-- **Coach:** the `cs2-demo` MCP server exposes the coach tools to an agent loop. A verifier checks every claim and number against a finding, and English, Polish and Dutch templates stand in when the model is off. It runs live on the RTX 5080 with Qwen3-14B on llama.cpp.
-- **Knowledge (RAG):** Mirage, Anubis and fundamentals notes plus Liquipedia pages, searched with FTS5 and optional dense vectors. Answers cite passages as `[K..]`.
-- **Studio:** opens on a match overview (key facts, a round strip and the coach's summary), then walks through the moments with "Moment N of M" and ends on a wrap-up with one drill per mistake type. Around it: a moment rail, the radar or a POV clip, a timeline with a Coach lane, the Analysis and Ask tabs, light and dark themes, and a bottom sheet on phones.
-- **POV clips:** CS Demo Manager records the picked player's view for each moment before the analysis opens. This needs Windows with CS2 and CS Demo Manager.
-- **Task board:** [cs2-coach-tracker.vercel.app](https://cs2-coach-tracker.vercel.app), seeded from [docs/coach/TASKS.md](docs/coach/TASKS.md).
+## Start here
 
-### Waiting on you
+1. [Current delivery plan](docs/planning/FINAL-DELIVERY-PLAN.md) — scope, priorities, dates, owners and acceptance criteria.
+2. [Consolidation record](docs/consolidation/README.md) — what was kept, excluded and still needs integration.
+3. [Phase 1 integration checklist](integration/phase1/README.md) — safeguards to reconcile with existing accounts and contracts.
+4. [Local V1 runbook](docs/LOCAL-V1-RUNBOOK.md) — start on this PC, parser rules, recording checks and the immediate tasks for both students.
 
-| Decision or action | Recommendation | Where |
-|---|---|---|
-| Try Gemma 4 12B against Qwen3-14B on the 5080 | Yes, keep Qwen3-14B as the baseline | [Model options](https://github.com/PawelZlotkowski/cs2-demos/blob/claude/project-thread-0nc60h/docs/coach/MODEL-OPTIONS.md) (not merged yet) |
-| Accounts plan (Steam sign-in plus password, private PC only, manual upload) | Merge | [PR #12](https://github.com/PawelZlotkowski/cs2-demos/pull/12) |
-| Old draft PRs | Close [#3](https://github.com/PawelZlotkowski/cs2-demos/pull/3) and [#4](https://github.com/PawelZlotkowski/cs2-demos/pull/4); all of their commits are already in `main` (#3) or come with this README's PR (#4) | GitHub |
-| Partner's name in the proposal | Add it | [docs/coach/PROPOSAL.md](docs/coach/PROPOSAL.md) |
+## Where to work
 
-### What to focus on, in order
-
-1. **Proposal, due 4 October 2026.** Finish [PROPOSAL.md](docs/coach/PROPOSAL.md) with your partner's name.
-2. **Label rounds** (T17, then T60 to T62). This tunes the detectors and produces the evaluation numbers the report needs. Use `python -m eval.label_tool`; the format is in [data/labels/README.md](data/labels/README.md).
-3. **In-game check** of the map notes in `data/knowledge/` and the callout zones in `apps/api/app/maps/zones/` (both are first drafts).
-4. **Before the intermediary defence on 17 November 2026:** the rest of the [design polish plan](docs/handoff/26-DESIGN-POLISH-PLAN.md) (the UI check and items 1 to 3 are done; next is item 4, showing the agent's work), then sign-in and the match library from the accounts plan (A00 to A14), then the defence deck (T64).
-5. **Last:** the QLoRA fine-tune (T50 to T53), once the model is chosen, then the evaluation runs and the report for 6 December 2026 (T61, T63, T65).
-
-### Known gaps
-
-- Real CS Demo Manager recording has only been tried on your PC. The cloud sessions can only use stub clips.
-- The detector thresholds and zones are first guesses until the labelled rounds are in.
-- Polish answers are weaker than English and Dutch.
-- There is no match list on Home yet, and the sample fixture match has no radar data.
-
-## Quick start (Docker)
-
-With Docker Desktop running, from the repo root:
-
-```bash
-docker compose up --build
-```
-
-| Service | URL |
+| Folder | Contents |
 |---|---|
-| Web (Analysis Studio) | http://localhost:3000 |
-| API | http://localhost:8000 (`/health`, `/docs`) |
+| `apps/web/` | Next.js browser Studio, accounts and admin UI |
+| `apps/api/` | FastAPI, parsing, analysis, coach, RAG, accounts and storage |
+| `apps/mcp/` | MCP entry point using the application's tools |
+| `apps/tracker/` | Existing task board; older T/A task IDs are not the current delivery backlog |
+| `eval/`, `ml/` | Evaluation, labelling and fine-tuning utilities |
+| `data/knowledge/`, `data/labels/` | Knowledge sources, label formats and fixtures |
+| `docker/`, `compose.yaml` | Existing development containers |
+| `docs/planning/` | Current delivery, hosting, recording/training and UI plans |
+| `docs/university/` | The original supplied Word proposal |
+| `docs/consolidation/` | Source revisions, hashes, import manifest and verification |
+| `docs/reference/phase1/` | Historical audits, validation reports, research and skill drafts |
+| `docs/replay/`, `docs/coach/`, `docs/handoff/` | Existing technical documentation; current planning overrides older decisions |
+| `integration/phase1/` | Five reviewable patch sets; reference material, not a second runnable app |
+| `prototype/` | Saved Tactical Lens study and original Studio reference; design paused |
+| `tools/` | Development and consolidation utilities |
 
-## Quick start (local)
+## Current product boundaries
 
-```bash
-# API
-cd apps/api
-pip install -e ".[dev]"
-uvicorn app.main:app --reload --port 8000
+- Browser Studio; no floating desktop or native-app shell.
+- Ancient and Anubis; English and Polish. Map scope changed by Pawel on 25 October. Legacy Mirage fixtures remain for regression checks.
+- Cloud API and parsing shared by both students; local inference and Windows recording on Pawel's RTX 5080 PC.
+- Invited users by 6 December; unrestricted public access later.
+- About $30 total for optional rented-GPU experiments, separate from CPU hosting.
 
-# Web (separate terminal)
-cd apps/web
-npm install
-npm run dev
-```
+## Run locally
 
-Tests: `cd apps/api && pytest`. Web checks: `cd apps/web && npm run typecheck && npm run build`.
+From this folder in PowerShell, run `./start-local.ps1 -Check`, then `./start-local.ps1`. Open `http://127.0.0.1:3003`. This uses the installed Python/Node dependencies and stores local data in ignored `.local/`. The optional model and CS2 recording are off until explicitly enabled; see the [runbook](docs/LOCAL-V1-RUNBOOK.md).
 
-The full Windows guide, with the coach model, POV clips, tests and evaluation tools, is [docs/RUN-LOCALLY.md](docs/RUN-LOCALLY.md).
+## Existing Docker baseline
 
-## Repository layout
+With Docker Desktop running, use `docker compose up --build` from this folder. Web: `http://localhost:3000`. API: `http://localhost:8000`.
 
-```
-apps/
-  api/          FastAPI backend: upload, parse pipeline, replay APIs, detectors, coach agent
-    app/
-      analysis/   detectors → findings, round stats, code ranker
-      coach/      LLM client, agent loop, tools, verifier, prompts
-      maps/       radar transforms and callout zones
-      models/     Pydantic contracts (source of truth for the web types)
-      processing/ zstd + demoparser2 pipeline
-    tests/
-  web/          Next.js app: upload, processing, Analysis Studio (radar, timeline, coach)
-  mcp/          MCP server exposing the coach tools (python -m cs2_demo_mcp)
-docs/           all documentation, indexed in docs/README.md
-  handoff/      product, design system, contracts, decisions (numbered, read-first)
-  replay/       demo parser research, replay architecture, performance
-  coach/        AI coach plan, task board, school proposal
-eval/           evaluation and labelling tools (python -m eval.label_tool)
-data/labels/    hand labels for the detectors (no raw demos)
-docker/         Dockerfiles; compose.yaml at the root runs api + web
-prototype/      the original single-file Studio prototype, for reference only
-  qa/           its Playwright checks
-  fixtures/     the sample match extracted from it
-tools/          dev scripts (zones_overlay.py redraws docs/coach/zones/)
-.cursor/skills/ agent skills shared by Cursor and Claude Code
-```
+For local Python/Node setup, model configuration, recording prerequisites and checks, use [RUN-LOCALLY](docs/RUN-LOCALLY.md). Use disposable data directories for tests. Cloud/invited-user readiness still requires domain integration and the delivery plan's release gates.
 
-## For contributors and agents
+## Ownership
 
-- [AGENTS.md](AGENTS.md) is the single source of agent instructions (Claude Code reads it through [CLAUDE.md](CLAUDE.md)).
-- Before changing product or design, read [docs/handoff/19-DECISIONS.md](docs/handoff/19-DECISIONS.md) and [docs/handoff/18-CURRENT-STATE.md](docs/handoff/18-CURRENT-STATE.md).
-- British spelling in docs and UI copy.
+**Pawel:** application integration, API/parser, contracts, replay, recording, accounts, jobs and deployment.
+
+**Aleksander:** model configuration, agent/RAG, datasets, bilingual evaluation, fine-tuning experiments and research reporting.
+
+**Both:** labelling calibration, acceptance, invited-user feedback and the defence.
+
+Use one authoritative backlog: [FINAL-DELIVERY-PLAN](docs/planning/FINAL-DELIVERY-PLAN.md). The integration checklist expands existing RR tasks rather than creating a competing schedule.
+
+The other source folders remain intact as recovery copies. Work here going forward. No originals, demos, credentials or runtime databases were deleted or relocated; no commits or pushes were made.

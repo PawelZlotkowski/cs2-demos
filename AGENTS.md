@@ -1,5 +1,17 @@
 # Agent guide — Round Reviewer
 
+## Current workspace direction — 25 October 2026
+
+This is the canonical project folder after source organisation. Read [README.md](README.md), [the current delivery plan](docs/planning/FINAL-DELIVERY-PLAN.md) and [the consolidation record](docs/consolidation/README.md) first. The RR delivery tasks and the user's confirmed decisions override older scope, typography, language and map instructions below.
+
+- **Design is paused.** Preserve the saved Tactical Lens study; do not resume design exploration or integrate its visual treatment without a new user request.
+- Delivery scope: browser Studio, Ancient/Anubis (owner changed scope on 25 October), English/Polish, cloud API/parser, local RTX 5080 inference and Windows recording; invited users by 6 December 2026.
+- Local V1: `start-local.ps1` and [runbook](docs/LOCAL-V1-RUNBOOK.md). Its `local-v1` detector profile is deliberately narrower than the legacy research profile. Recording and the model are explicit startup options. Design remains paused.
+- Personal coach: one selected player only. New uploads pause after roster inspection for player, focus and language confirmation before full event/tick parsing. Teamwork focus means that player's support/trades, not a team-wide review.
+- `integration/phase1/` holds reference patches, not applied safeguards. Reconcile them by domain with Studio accounts and contracts; do not apply the full sets blindly or claim their historical test results for this application.
+- `docs/reference/phase1/` and older handoff/task documents retain historical evidence. They do not define a second active backlog. No duplicate app or floating desktop should be reintroduced.
+- Preserve the existing no-commit/no-push rule unless the user explicitly requests either action.
+
 British spelling. Handoff docs in `docs/handoff/` are the source of truth for product/design.
 **Demo Replay MVP:** landed — real `.dem.zst` → demoparser2 → Radar playback. See [docs/replay/replay-architecture.md](docs/replay/replay-architecture.md), [docs/replay/demo-parser.md](docs/replay/demo-parser.md), and [docs/handoff/18-CURRENT-STATE.md](docs/handoff/18-CURRENT-STATE.md).
 **Gameplay clips:** optional CS Demo Manager / stub worker after parse — [docs/replay/csdm-video.md](docs/replay/csdm-video.md). Radar ready first; clips fill asynchronously.
@@ -136,6 +148,6 @@ pytest
 - Call any hosted LLM API (OpenAI, Anthropic, Google, …) from app code, data generation or evaluation. Everything runs on self-hosted models (owner decision, [19](docs/handoff/19-DECISIONS.md) #16)
 - Let the LLM produce a number or fact that is not in a finding or `RoundStats`; every claim cites an ID and passes the verifier
 - Commit raw demos or player data other than derived labels and manifests
-- Add maps beyond Mirage and Anubis without the owner asking
+- Add delivery maps beyond Ancient and Anubis without the owner asking; retain legacy Mirage fixtures as regression evidence
 - Use generic shadcn / neon esports styling
 - Commit or push unless the owner asks (the owner assigns tasks from [TASKS](docs/coach/TASKS.md))

@@ -1,5 +1,7 @@
 # Round Reviewer: handoff package
 
+**Historical package.** Current workspace scope and priorities are in [the delivery plan](../planning/FINAL-DELIVERY-PLAN.md); source selection and pending safeguards are in [the consolidation record](../consolidation/README.md). Design work is paused as of 20 October 2026. Statements below describe the original handoff, not the current application's complete status.
+
 Round Reviewer is a CS2 coaching tool. A player uploads a match demo (`.dem.zst` or `.dem`), the engine picks the 5 or 6 moments with the most learning value, and the player reviews each one in a replay-analysis workspace. The workspace has rendered gameplay, a tactical radar, an event timeline and a Coach that already knows the context.
 
 It is a pair project for the Howest Generative AI course (MTS5 MCTE). The proposal is due 4 October 2026 and the project is due 6 December 2026.
