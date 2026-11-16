@@ -1,0 +1,116 @@
+<!doctype html>
+<!-- Static reference exported from the Round Reviewer design canvas. Sample data only. Not app code. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Round 3 research and ideas</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mona+Sans:wdth,wght@75..125,300..900&amp;family=Geologica:wght@400..700&amp;family=Doto:wght@800&amp;family=Science+Gothic:wdth,wght@50..200,500..800&amp;family=Atkinson+Hyperlegible+Next:wght@400..700&amp;display=swap">
+<style>
+body{margin:0;background:#E7E2D9}
+a{color:#1D1A22}
+.x{font-stretch:125%;font-variant-numeric:tabular-nums}
+.h2{margin:0 0 12px;font-size:22px;line-height:28px;font-weight:720;letter-spacing:-0.015em}
+.it{display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px;align-items:baseline;padding:12px 16px;border-radius:18px;background:rgba(255,255,255,.55);margin-bottom:6px}
+.ik{font-size:14.5px;font-weight:700}
+.iv{font-size:14px;line-height:21px;color:#3A3640}
+.sw{width:44px;height:44px;border-radius:22px;box-shadow:inset 0 0 0 1px rgba(29,26,34,.12)}
+.col{flex:1 1 0;border-radius:28px;background:rgba(255,255,255,.55);padding:20px;display:flex;flex-direction:column;gap:12px;box-shadow:0 0 0 1px rgba(60,48,30,.06)}
+.tag{height:26px;border-radius:13px;padding:0 10px;display:inline-flex;align-items:center;font-size:12.5px;font-weight:650;background:rgba(29,26,34,.07)}
+</style>
+
+<div style="width:1440px;min-height:1960px;box-sizing:border-box;padding:56px 64px 64px;background:radial-gradient(ellipse 80% 40% at 50% 0%,#F4F0E9 0%,#E7E2D9 70%);color:#1D1A22;font-family:'Mona Sans',system-ui,sans-serif;display:flex;flex-direction:column;gap:44px">
+
+  <header style="display:flex;gap:56px;align-items:flex-end">
+    <div style="flex:1 1 0;display:flex;flex-direction:column;gap:14px">
+      <span style="font-size:14px;font-weight:600;color:#5E5966">Round 3 research, 15 November</span>
+      <h1 style="margin:0;font-size:56px;line-height:58px;font-weight:760;letter-spacing:-0.035em;text-wrap:balance">Glass over the map. Soft, precise, and only colourful where it means something.</h1>
+    </div>
+    <p style="width:420px;flex:none;margin:0;font-size:15.5px;line-height:24px;color:#3A3640">You asked for frosted glass, round edges, popping colour and a look that stands apart from everything earlier. These boards answer with one idea in three colour worlds: the radar becomes a physical model that fills the screen, and all controls float above it as glass.</p>
+  </header>
+
+  <section>
+    <h2 class="h2">What you have already told me you like</h2>
+    <div class="it"><span class="ik">Your earlier app brief</span><span class="iv">Precise, technical, premium, priced like WHOOP. Soft corners, smooth springs, summary first and detail on tap. Cheap tells you listed: purple gradients, emoji icons, rings everywhere, every section in a rounded card, fake-precise percentages.</span></div>
+    <div class="it"><span class="ik">Your earlier design rules</span><span class="iv">Glass belongs to floating bars, never to reading content. Continuous corners, closer to Apple's, with inner shapes concentric to outer ones. Controls are capsules. Springs bounce once at most.</span></div>
+    <div class="it"><span class="ik">Your island feedback</span><span class="iv">Two scores should stand apart by their own tinted tile, not by a thin divider. Everything should feel like it belongs together.</span></div>
+    <div class="it"><span class="ik">This request</span><span class="iv">Frosted glass and round edges like the @uiuxjosh posts, bone with pink or light and dark blue with yellow, no squares, nothing that looks like a 70s calendar.</span></div>
+  </section>
+
+  <section>
+    <h2 class="h2">What I took from your references</h2>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
+      <div class="it" style="margin:0"><span class="ik">Frosted sidebar dashboard</span><span class="iv">Translucent navigation over a soft tint, white bubble on the active item. Became the floating nav capsule on every board.</span></div>
+      <div class="it" style="margin:0"><span class="ik">Edge-docked dark panel</span><span class="iv">A pill that grows out of the screen edge with concave corners. Became the moment pill docked into the Daylight stage.</span></div>
+      <div class="it" style="margin:0"><span class="ik">Glass tiles over a product</span><span class="iv">Frosted tiles over a hero object. Here the hero object is the map, so the lens and labels float over it.</span></div>
+      <div class="it" style="margin:0"><span class="ik">Glass folders</span><span class="iv">A frosted front over colourful artwork. Became the match library: each match is a folder with its own map behind the glass.</span></div>
+      <div class="it" style="margin:0"><span class="ik">Mobbin: Apple TV, Grok, Felt</span><span class="iv">A floating capsule tab bar with a glass bubble, glass playback controls over video, rounded panels floating over a full-bleed map.</span></div>
+      <div class="it" style="margin:0"><span class="ik">DesignBookmark Motion</span><span class="iv">Live components with a "copy for Codex" prompt, listed below with where each one goes.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="h2">DesignBookmark components to drop straight in</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+      <div class="it" style="margin:0;grid-template-columns:1fr"><span class="ik">Glass lens</span><span class="iv">The signature. A refracting lens that magnifies the fight location of the current moment on the radar.</span></div>
+      <div class="it" style="margin:0;grid-template-columns:1fr"><span class="ik">Morph island</span><span class="iv">Processing status and coach status in one pill at the top: upload with real percent, then stage 5 of 10, then "Coach checked 4 claims".</span></div>
+      <div class="it" style="margin:0;grid-template-columns:1fr"><span class="ik">Rubber dock</span><span class="iv">The six moments as a floating dock; the active one grows and its neighbours lean towards it.</span></div>
+      <div class="it" style="margin:0;grid-template-columns:1fr"><span class="ik">Tab pill and Segmented control</span><span class="iv">Analysis, Ask, Round and Notes; Radar and Clip. A white bubble slides with a spring.</span></div>
+      <div class="it" style="margin:0;grid-template-columns:1fr"><span class="ik">Scrubber and Glass player</span><span class="iv">The timeline handle and the clip controls when the stage shows recorded footage.</span></div>
+      <div class="it" style="margin:0;grid-template-columns:1fr"><span class="ik">Agent steps and Streaming reply</span><span class="iv">The coach's real tool calls while it answers in Ask, then the checked answer arriving block by block.</span></div>
+      <div class="it" style="margin:0;grid-template-columns:1fr"><span class="ik">Expand card</span><span class="iv">A moment row opens into its detail, as the Porcelain moment stack shows.</span></div>
+      <div class="it" style="margin:0;grid-template-columns:1fr"><span class="ik">Step progress</span><span class="iv">The ten processing stages, with only real counts.</span></div>
+      <div class="it" style="margin:0;grid-template-columns:1fr"><span class="ik">Parallax ticket</span><span class="iv">A share card for a reviewed match, for after the showcase.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="h2">Three colour worlds</h2>
+    <div style="display:flex;gap:16px">
+      <div class="col">
+        <span style="font-size:17px;font-weight:720">Porcelain</span>
+        <div style="display:flex;gap:8px"><span class="sw" style="background:#E7E2D9"></span><span class="sw" style="background:#FBF9F5"></span><span class="sw" style="background:#1D1A22"></span><span class="sw" style="background:#FF48B0"></span><span class="sw" style="background:#B42318"></span><span class="sw" style="background:#12805C"></span></div>
+        <span class="x" style="font-size:40px;font-weight:850;letter-spacing:-0.03em">13–7</span>
+        <span class="iv">Bone porcelain chrome around a dark game-screen radar in Counter-Strike colours, riso pink for you. Mona Sans in one family: expanded for numbers, normal for words. Chosen on 15 November.</span>
+      </div>
+      <div class="col">
+        <span style="font-size:17px;font-weight:720;font-family:'Geologica',sans-serif">Daylight</span>
+        <div style="display:flex;gap:8px"><span class="sw" style="background:#DCEBFA"></span><span class="sw" style="background:#1B37BE"></span><span class="sw" style="background:#0B1B4A"></span><span class="sw" style="background:#FFD43B"></span><span class="sw" style="background:#FF8A3D"></span><span class="sw" style="background:#36D3A8"></span></div>
+        <span style="font-family:'Doto',monospace;font-weight:800;font-size:40px">13:7</span>
+        <span class="iv">Ice blue with a cobalt pool and a yellow you. Geologica for words, Doto for the LED clock. The most striking on a projector.</span>
+      </div>
+      <div class="col" style="background:#101A38;color:#EEF2FF">
+        <span style="font-size:17px;font-weight:700;font-family:'Science Gothic',sans-serif">Night match</span>
+        <div style="display:flex;gap:8px"><span class="sw" style="background:#0B1430;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)"></span><span class="sw" style="background:#2B3E78"></span><span class="sw" style="background:#EEF2FF"></span><span class="sw" style="background:#FFD95A"></span><span class="sw" style="background:#FF9F5A"></span><span class="sw" style="background:#7FE3C4"></span></div>
+        <span style="font-family:'Science Gothic',sans-serif;font-stretch:125%;font-weight:800;font-size:40px">13/7</span>
+        <span class="iv" style="color:#C9D3F2">Navy, not black, with butter yellow. Science Gothic for numbers, Atkinson Hyperlegible Next for reading. Best as the dark mode of Daylight.</span>
+      </div>
+    </div>
+  </section>
+
+  <section style="display:flex;gap:16px">
+    <div class="col">
+      <h2 class="h2" style="margin:0">Skills now in the repo</h2>
+      <span class="iv"><b>apple-design</b> (Emil Kowalski): translucent layers, springs, materialise on enter, reduced-transparency fallback.</span>
+      <span class="iv"><b>frontend-design</b> (Anthropic): plan the tokens, check them against AI defaults, then build.</span>
+      <span class="iv"><b>avoid-ai-design</b>: a catalogue of AI tells and a scanner to run on the build.</span>
+      <span class="iv"><b>better-ui</b> and <b>variant</b> (Jakub Krehel): concentric radii and shadows; three variants behind a picker in the real app.</span>
+      <span class="iv" style="color:#5E5966">All in .cursor/skills with their licences, found through designbookmark.com/skills.</span>
+    </div>
+    <div class="col">
+      <h2 class="h2" style="margin:0">Rules every board follows</h2>
+      <span class="iv">Glass only on what floats: nav, dock, island, lens. The coach reads on a near-solid sheet.</span>
+      <span class="iv">Outer corners 28 px, inner 18 px, controls as capsules. No hairline dividers: spacing and tinted tiles instead.</span>
+      <span class="iv">Colour means something: the accent is you, red or orange is a mistake, green is a good play.</span>
+      <span class="iv">No all-caps labels, no dot-separated meta strings, no glow, no rings except a real progress state.</span>
+      <span class="iv">Springs with no bounce for UI, one small bounce only after a flick. Keyboard and reduced motion jump instantly.</span>
+    </div>
+  </section>
+</div>
+
+</body>
+</html>

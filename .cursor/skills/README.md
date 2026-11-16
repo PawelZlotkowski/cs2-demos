@@ -27,3 +27,13 @@ Written for this repo, not vendored. Coach milestone: [docs/coach/AI-COACH-PLAN.
 - `rr-detector`: detectors → findings (`apps/api/app/analysis/`)
 - `rr-coach-agent`: tools, MCP server, llama.cpp client, prompts, verifier (`apps/api/app/coach/`, `apps/mcp/`, `apps/api/app/rag/`)
 - `rr-eval`: evaluation, labels, fine-tuning data (`eval/`, `ml/`, `data/labels/`)
+
+## Added 15 Nov 2026 for the premium redesign (copied as is, each with its licence)
+- `apple-design`: Emil Kowalski, https://github.com/emilkowalski/skills (commit 0f2e23b, MIT). Translucent materials, springs, depth.
+- `frontend-design`: Anthropic, https://github.com/anthropics/skills (commit 1780c5e, Apache 2.0). Plan, review against AI defaults, build, critique.
+- `avoid-ai-design`: funboy322, https://github.com/funboy322/avoid-ai-design (commit 2b7c718, MIT). AI-tell catalogue and `scripts/detect.mjs` scanner (`node .cursor/skills/avoid-ai-design/scripts/detect.mjs <path>`).
+- `better-ui`, `variant`: Jakub Krehel, https://github.com/jakubkrehel/skills (commit a72290d, MIT). Surface polish (radius, shadows, optical alignment); three deliberate variants behind a picker.
+Found via https://designbookmark.com/skills.
+
+## Round Reviewer Porcelain UI (project-authored, 15 Nov 2026)
+- `rr-porcelain-ui`: the chosen visual direction for apps/web: tokens, components, screens, a build plan to 25 Nov and ChatGPT/Codex prompts. Reference: `prototype/glass/g1-porcelain.html`, screenshots in `docs/design/porcelain/`.

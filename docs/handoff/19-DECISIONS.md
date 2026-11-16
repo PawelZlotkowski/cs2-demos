@@ -73,3 +73,18 @@ Don't reverse any of these without the owner's approval. Each lists the decision
     - *Consequence:* a top-bar Coach page with Ask across matches, a practice Plan and Knowledge; the Home ask bar hands off to it. Decision 5 still applies. See [29](./29-FEATURE-ROADMAP.md).
 27. **The Studio Round tab comes after the Coach page.** (Owner, 27 Sep 2026)
     - *Consequence:* R04 is built after R05 and R06.
+
+28. **The Porcelain visual direction.** (Owner, 15 Nov 2026)
+    - *Reason:* the owner wants a premium, distinctive front end for the 25 Nov showcase. Earlier dark, hairline and print-style directions read as generic.
+    - *Consequence:* the spec is [`.cursor/skills/rr-porcelain-ui`](../../.cursor/skills/rr-porcelain-ui/SKILL.md) and the reference is `prototype/glass/g1-porcelain.html`.
+      - Bone porcelain chrome. Frosted glass only on floating navigation, the moment stack, the playback dock and the status island; reading content stays on solid sheets.
+      - The radar is a dark game screen: the real radar art, flat player dots in Counter-Strike side colours (T yellow, CT blue), and a white ring for the coached player.
+      - Pink marks you and your selection in the chrome. Mistakes are red triangles and good plays green circles.
+      - Mona Sans replaces Hanken Grotesk, Archivo and Newsreader.
+      - Corners are concentric (28 px sheets, 16 px tiles, pill controls) with spacing and tinted tiles instead of dividers.
+      - Critically damped springs for motion.
+    - *What this replaces:*
+      - Decision 4: blue no longer marks a good play, because blue is the CT side.
+      - Decision 6: radii above 6 px are allowed, and floating layers cast shadows; there are still no card grids or dashboard tiles.
+      - Decision 21: light theme only for now; a dark mode can follow later.
+    - Decisions 1, 2, 3, 5, 7–15 and the rest stand.

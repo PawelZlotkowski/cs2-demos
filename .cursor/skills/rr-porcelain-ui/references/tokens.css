@@ -1,0 +1,171 @@
+/* Round Reviewer, Porcelain direction (owner choice, 15 Nov 2026).
+   Drop-in replacement for the token blocks in apps/web/src/styles/tokens.css.
+   Keep every existing name (left column of comments) so current CSS keeps working,
+   then move components to the new names as each screen is rebuilt.
+   Light only for the 25 Nov showcase: delete the old dark blocks and the ThemeSelect. */
+
+:root {
+  color-scheme: light;
+
+  /* Ground and surfaces */
+  --surface-app: #E7E2D9;        /* bone ground behind everything */
+  --surface-page: #E7E2D9;       /* existing name: page ground */
+  --surface-panel: #FBF9F5;      /* existing name: solid sheets (coach sheet, dialogs) */
+  --surface-raised: #FFFFFF;     /* existing name: active pill, expanded row, inputs */
+  --surface-sunk: #ECE8E1;       /* existing name: solid version of tint-2 */
+  --tint-1: rgba(29, 26, 34, 0.045); /* evidence tiles, tracks */
+  --tint-2: rgba(29, 26, 34, 0.07);  /* chips, segmented-control wells */
+
+  /* Glass: only for chrome that floats (nav capsule, moment stack, dock, island) */
+  --glass-bg: rgba(255, 255, 255, 0.56);
+  --glass-filter: blur(24px) saturate(170%);
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --glass-solid: #FBF9F5;        /* used when prefers-reduced-transparency */
+
+  /* Text */
+  --text: #1D1A22;               /* 15.2:1 on panel */
+  --text-2: #3A3640;             /* prose */
+  --text-3: #5E5966;             /* meta; 4.9:1 on bone, 6.0:1 on panel */
+  --text-4: #8C8592;             /* de-emphasised numerals only, 24px+ */
+
+  /* Lines: rings, not dividers. There are no hairline dividers in Porcelain. */
+  --border: rgba(29, 26, 34, 0.10);
+  --border-soft: rgba(29, 26, 34, 0.06);
+
+  /* Accent: you and your selection in the chrome. Never on the radar. */
+  --accent: #FF48B0;             /* riso fluorescent pink, fills only */
+  --accent-strong: #D6267F;      /* rings, outlines, 18px+ text; 4.1:1 on bone */
+  --accent-soft: rgba(255, 72, 176, 0.14);
+  --on-accent: #1D1A22;          /* text on --accent, 5.7:1 */
+  --focus-ring: #1D1A22;         /* existing name; 2px outline, 3px offset */
+
+  /* Meaning in the chrome */
+  --mistake: #B42318;            /* existing name; triangle glyph; 6.3:1 on panel */
+  --mistake-soft: rgba(180, 35, 24, 0.12);
+  --good: #12805C;               /* existing name; circle glyph; 4.8:1 on panel */
+  --good-soft: rgba(18, 128, 92, 0.10);
+  --negative: var(--mistake);    /* existing alias */
+  --negative-soft: var(--mistake-soft);
+  --positive: var(--good);       /* existing alias */
+  --positive-soft: var(--good-soft);
+
+  /* Counter-Strike sides. Fills on the dark stage; *-text variants on light chrome. */
+  --side-t: #E2B13C;
+  --side-ct: #5D9CEC;
+  --side-t-text: #8A6200;        /* 5.0:1 on panel */
+  --side-ct-text: #2F63B5;       /* 5.5:1 on panel */
+  --side-t-on-dark: #EBC45E;     /* kill feed names */
+  --side-ct-on-dark: #7FB4F2;
+
+  /* Stage: the radar is a dark game screen inside the porcelain chrome */
+  --stage: #18191E;              /* existing name */
+  --stage-plate: rgba(0, 0, 0, 0.45);   /* existing name: kill feed, labels over the map */
+  --stage-line: rgba(255, 255, 255, 0.08);
+  --stage-text: #F4F1EC;
+  --stage-text-2: #A6A1AA;
+  --stage-you: #FFFFFF;          /* existing name: the white ring around your dot */
+  --stage-halo: #0E0F12;         /* existing name: dot outline and label halo */
+  --stage-neg: #FF6B5E;          /* mistake glyph on the stage */
+  --stage-pos: #3FC79A;          /* good-play glyph on the stage */
+  --stage-smoke: rgba(201, 205, 212, 0.38);
+  --stage-fire: rgba(255, 138, 61, 0.40);
+  /* Deprecated: players are coloured by side now, not by team/enemy role. */
+  --stage-team: var(--side-t);
+  --stage-enemy: var(--side-ct);
+  --stage-team-text: var(--side-t-on-dark);
+  --stage-enemy-text: var(--side-ct-on-dark);
+  --enemy: var(--side-ct);
+
+  /* Type: one family. Mona Sans, expanded width for numbers. */
+  --ui: "Mona Sans Variable", "Mona Sans", system-ui, sans-serif;
+  --display: var(--ui);          /* existing name; use with --num-stretch */
+  --serif: var(--ui);            /* existing name; the serif coach voice is retired */
+  --num-stretch: 125%;           /* font-stretch for scores, clocks, moment numbers */
+  --fs-11: 11px;   /* axis ticks only */
+  --fs-12: 12.5px; /* meta, chips, tile labels */
+  --fs-13: 13.5px; /* controls, tabs, buttons */
+  --fs-14: 14px;   /* rows */
+  --fs-15: 15px;   /* coach prose, inputs */
+  --fs-16: 17px;   /* panel titles */
+  --fs-20: 22px;   /* tile values, clock */
+  --fs-24: 24px;   /* finding title */
+  --fs-26: 24px;   /* existing name kept, same as fs-24 */
+  --fs-36: 36px;   /* page title */
+  --lh-tight: 1.15;
+  --lh-ui: 1.4;
+  --lh-prose: 1.6;
+  --track-display: -0.022em;     /* 22px and up */
+
+  /* Space: 4px base, use these only */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* Shape: concentric. outer = inner + padding. */
+  --r-sheet: 28px;               /* floating sheets and the stage */
+  --r-tile: 16px;                /* tiles and rows inside a sheet (28 - 12 padding) */
+  --r-panel: 16px;               /* existing name, now the tile radius */
+  --r-ctl: 10px;                 /* existing name: small controls such as HUD slots */
+  --r-pill: 999px;               /* buttons, chips, segmented controls, nav */
+
+  /* Elevation: only floating things cast shadows */
+  --shadow-float: 0 0 0 1px rgba(60, 48, 30, 0.08), 0 10px 28px rgba(60, 48, 30, 0.10);
+  --shadow-sheet: 0 0 0 1px rgba(60, 48, 30, 0.08), 0 18px 44px rgba(60, 48, 30, 0.12);
+  --shadow-pill: 0 1px 2px rgba(60, 48, 30, 0.14), 0 3px 8px rgba(60, 48, 30, 0.08);
+  --shadow-stage: 0 0 0 1px rgba(29, 26, 34, 0.10), 0 22px 50px rgba(29, 26, 34, 0.22);
+  --shadow-lens: inset 0 0 0 2px rgba(255, 255, 255, 0.9), 0 12px 28px rgba(0, 0, 0, 0.45);
+
+  /* Layout */
+  --gutter: 20px;                /* outer margin */
+  --gap: 16px;                   /* between floating regions */
+  --bar: 48px;                   /* existing name: header capsule height */
+  --header-h: 80px;              /* top of content (16 + 48 + 16) */
+  --reel-w: 276px;
+  --coach-w: 380px;
+  --lane-h: 20px;                /* existing name */
+
+  /* Motion. Springs generated from damping ratio and response (Apple's parameters). */
+  --ease-spring: linear(0, 0.044, 0.142, 0.261, 0.381, 0.491, 0.589, 0.672, 0.741, 0.797, 0.842, 0.877, 0.906, 0.928, 0.945, 0.958, 0.968, 0.976, 0.982, 0.986, 0.99, 0.992, 0.994, 0.996, 0.997, 0.998, 0.998, 0.999, 1);
+  --dur-spring: 520ms;           /* damping 1.0, response 0.35 s: sheets, lens, camera */
+  --dur-spring-quick: 370ms;     /* damping 1.0, response 0.25 s: pills, tabs, bubbles */
+  --ease-spring-bounce: linear(0, 0.039, 0.134, 0.255, 0.383, 0.507, 0.619, 0.716, 0.796, 0.86, 0.909, 0.946, 0.973, 0.991, 1.003, 1.01, 1.014, 1.015, 1.015, 1.013, 1.012, 1.01, 1.008, 1.006, 1.005, 1.003, 1.002, 1.002, 1);
+  --dur-spring-bounce: 480ms;    /* damping 0.8: only after a drag or flick */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);     /* existing name */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* existing name */
+  --ease-drawer: var(--ease-spring);              /* existing name */
+  --dur-press: 120ms;
+  --dur-hover: 150ms;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glass-bg: var(--glass-solid); --glass-filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-spring: 1ms; --dur-spring-quick: 1ms; --dur-spring-bounce: 1ms; }
+}
+
+:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+
+/* Shared material classes */
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-edge), var(--shadow-float);
+}
+.sheet {
+  background: var(--surface-panel);
+  box-shadow: inset 0 1px 0 #fff, var(--shadow-sheet);
+}
+.num {
+  font-stretch: var(--num-stretch);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--track-display);
+}

@@ -4,7 +4,7 @@
 
 This is the canonical project folder after source organisation. Read [README.md](README.md), [the current delivery plan](docs/planning/FINAL-DELIVERY-PLAN.md) and [the consolidation record](docs/consolidation/README.md) first. The RR delivery tasks and the user's confirmed decisions override older scope, typography, language and map instructions below.
 
-- **Design is paused.** Preserve the saved Tactical Lens study; do not resume design exploration or integrate its visual treatment without a new user request.
+- **Design resumed on 15 Nov 2026: Porcelain.** The owner chose the Porcelain direction for the 25 Nov showcase. Follow [`.cursor/skills/rr-porcelain-ui`](.cursor/skills/rr-porcelain-ui/SKILL.md) for every UI change; it replaces the design notes below and in `docs/handoff` (see [19-DECISIONS](docs/handoff/19-DECISIONS.md) #28). The Tactical Lens study stays a saved reference only.
 - Delivery scope: browser Studio, Ancient/Anubis (owner changed scope on 25 October), English/Polish, cloud API/parser, local RTX 5080 inference and Windows recording; invited users by 6 December 2026.
 - Local V1: `start-local.ps1` and [runbook](docs/LOCAL-V1-RUNBOOK.md). Its `local-v1` detector profile is deliberately narrower than the legacy research profile. Recording and the model are explicit startup options. Design remains paused.
 - Personal coach: one selected player only. New uploads pause after roster inspection for player, focus and language confirmation before full event/tick parsing. Teamwork focus means that player's support/trades, not a team-wide review.
@@ -57,14 +57,14 @@ Current: `uploaded` → `decompressing` → `decompressed` → `parsing` → `no
 
 Planned for the coach (plan §3): `detecting` → `selecting` → `recording` → `explaining` → `complete`. Clips may finish after `explaining`.
 
-## Design direction (preserve)
+## Design direction: Porcelain (owner, 15 Nov 2026)
 
-- Analysis Studio: light chrome, dark stage
-- Fonts: Hanken Grotesk (UI/data), Newsreader (reserved for Coach later)
-- Stage-first Radar; one shared playback clock
-- Anti-AI rules in [04](docs/handoff/04-ANTI-AI-DESIGN-RULES.md)
-- Visual reference: [`prototype/analysis-studio.html`](prototype/analysis-studio.html) (chrome only — do not port wholesale)
-- Agent skills: [12 Skills](docs/handoff/12-SKILLS-AND-REFERENCES.md); local paths under `.cursor/skills/` (Emil + GSAP for UI; `rr-detector`, `rr-coach-agent`, `rr-eval` for the coach milestone)
+- Bone porcelain chrome with frosted glass only on floating parts; the radar is a dark game screen in Counter-Strike side colours; pink marks you and your selection
+- Font: Mona Sans (one family, expanded width for numbers); Hanken Grotesk, Archivo and Newsreader are retired as the screens are rebuilt
+- Stage-first Radar; one shared playback clock (unchanged)
+- Skill and spec: [`.cursor/skills/rr-porcelain-ui`](.cursor/skills/rr-porcelain-ui/SKILL.md) (tokens, components, screens, build plan, ChatGPT/Codex prompts)
+- Visual reference: [`prototype/glass/g1-porcelain.html`](prototype/glass/g1-porcelain.html) and screenshots in `docs/design/porcelain/` (sample data; rebuild from contracts, do not port wholesale)
+- Supporting skills under `.cursor/skills/`: `apple-design`, `better-ui`, `avoid-ai-design` (run its scanner), `emil-design-eng`, the GSAP skills; `rr-detector`, `rr-coach-agent`, `rr-eval` for the coach milestone
 
 ## How to run
 
