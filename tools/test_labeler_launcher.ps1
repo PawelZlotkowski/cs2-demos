@@ -103,6 +103,9 @@ try {
     Assert-Equal $script:Calls[0] @('--profile', 'recording', 'up', '-d', '--wait', 'csdm-db') 'Existing database was mistaken for a port collision.'
     Assert-Equal (Get-LabellerSetting 'CSDM_DB_PASSWORD' '') $password 'Repeated database setup changed its password.'
 
+    # GitHub's pwsh wrapper exits with LASTEXITCODE. The Docker failure stub
+    # deliberately sets it to 1; successful assertions must clear that fake exit.
+    $global:LASTEXITCODE = 0
     Write-Output 'Launcher checks passed for Compose settings, spaced paths, imports, process quoting and backup recovery.'
 } finally {
     $resolved = [IO.Path]::GetFullPath($temporary)
