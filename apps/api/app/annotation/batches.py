@@ -10,6 +10,8 @@ from fastapi.responses import Response
 from pydantic import Field, model_validator
 
 from app.annotation.media import Media, ClipRequest
+from app.annotation.examples import ExampleQuery, coach_examples
+from app.annotation.grouping import GROUPING_VERSION, group_moments, review_key
 from app.annotation.store import Conflict, encode, now
 from app.models.annotation import StrictModel
 
@@ -36,6 +38,8 @@ class ClipLabel(StrictModel):
     assessment: Literal['mistake', 'good', 'neutral', 'uncertain'] | None = None
     notes: str = ''
     language: Literal['en', 'pl'] = 'en'
+    inputMode: Literal['structured', 'note'] = 'structured'
+    confirmFootage: bool = False
 
 
 class Batches:
@@ -55,20 +59,23 @@ class Batches:
             raise Conflict('Prepare this player before recording detected moments.')
         # Identical requests converge even across tabs/restarts. A new context
         # creates a new batch and pauses unstarted work from its predecessor.
-        identity = hashlib.sha256(encode([demo, player, snapshot['id'], float(value.before), float(value.after)]).encode()).hexdigest()[:32]
-        records = []
+        identity = hashlib.sha256(encode([demo, player, snapshot['id'], float(value.before), float(value.after), GROUPING_VERSION]).encode()).hexdigest()[:32]
+        moments = []
         for finding in sorted(snapshot['findings'], key=lambda f: (f['round'], f['t'], f['id'])):
             metadata = self.media.prepare(demo, player, finding['round'],
                                           ClipRequest(anchor=finding['t'], before=value.before, after=value.after))
             metadata.update(batchId=identity, snapshotId=snapshot['id'], finding=finding)
-            clip_id = hashlib.sha256(encode([identity, finding['id']]).encode()).hexdigest()[:32]
-            records.append((clip_id, demo, player, finding['round'], 'queued', encode(metadata)))
+            moments.append(metadata)
+        records = []
+        for metadata in group_moments(moments):
+            clip_id = hashlib.sha256(encode([identity, review_key(metadata)]).encode()).hexdigest()[:32]
+            records.append((clip_id, demo, player, metadata['finding']['round'], 'queued', encode(metadata)))
         with self.store.connect() as con:
             con.execute('BEGIN IMMEDIATE')
             if not con.execute('SELECT 1 FROM clip_batches WHERE id=?', (identity,)).fetchone():
                 con.execute('UPDATE clip_batches SET paused=1 WHERE demo=? AND player=?', (demo, player))
                 con.execute('INSERT INTO clip_batches VALUES(?,?,?,?,?,0)',
-                            (identity, demo, player, snapshot['id'], encode({**value.model_dump(), 'createdAt': now()})))
+                            (identity, demo, player, snapshot['id'], encode({**value.model_dump(), 'groupingVersion': GROUPING_VERSION, 'createdAt': now()})))
                 con.executemany('INSERT INTO footage VALUES(?,?,?,?,?,?,NULL,NULL)', records)
             con.execute('INSERT INTO clip_selection VALUES(?,?,?) ON CONFLICT(demo,player) DO UPDATE SET batch=excluded.batch',
                         (demo, player, identity))
@@ -87,7 +94,7 @@ class Batches:
             if labeller:
                 self.store.labeller(labeller)
                 for row in rows:
-                    label = self.current(batch, json.loads(row['metadata'])['finding']['id'], labeller, con)
+                    label = self.current(batch, review_key(json.loads(row['metadata'])), labeller, con)
                     completed += bool(label and label['status'] == 'complete')
         return {'id': identity, 'demo': batch['demo'], 'player': batch['player'], 'snapshotId': batch['snapshot'],
                 **batch['metadata'], 'paused': bool(batch['paused']), 'total': len(rows),
@@ -109,7 +116,7 @@ class Batches:
                 clip = self.media.public(row, include_finding=True)
                 con.execute('INSERT OR IGNORE INTO candidate_exposure VALUES(?,?,?,?,?)',
                             (batch['demo'], batch['player'], row['round'], labeller, now()))
-                result.append({**clip, 'label': self.current(batch, clip['finding']['id'], labeller, con)})
+                result.append({**clip, 'label': self.current(batch, review_key(clip), labeller, con)})
         return result
 
     def save(self, identity, clip_id, labeller, value):
@@ -123,35 +130,68 @@ class Batches:
             raise Conflict('Wait until this recording is ready before labelling it.')
         if value.status == 'complete':
             missing = []
-            if not clip['alignmentConfirmed']:
+            if not clip['alignmentConfirmed'] and not value.confirmFootage:
                 missing.append('confirm this clip’s player and event timing in step 1')
-            if not value.verdict:
+            if value.inputMode == 'note' and not value.notes.strip():
+                missing.append('write a note about this clip')
+            if value.inputMode == 'structured' and not value.verdict:
                 missing.append('choose a detection verdict in step 2')
-            if not value.assessment:
+            if value.inputMode == 'structured' and not value.assessment:
                 missing.append('choose a decision assessment in step 3')
             if missing:
                 raise ValueError('Still needed: ' + '; '.join(missing) + '.')
         with self.store.connect() as con:
             con.execute('BEGIN IMMEDIATE')
-            old = self.current(batch, clip['finding']['id'], labeller, con)
+            old = self.current(batch, review_key(clip), labeller, con)
             if value.previousRevision != (old['revision'] if old else None):
+                fields = value.model_dump(exclude={'previousRevision', 'confirmFootage'})
+                if (value.confirmFootage or value.inputMode == 'note') and old and old['footage']['id'] == clip_id and all(
+                    old.get(k, 'structured' if k == 'inputMode' else None) == v for k, v in fields.items()
+                ):
+                    return old
                 raise Conflict('This clip label changed in another tab. Reload its saved label before editing.')
+            if value.status == 'complete' and value.confirmFootage and not clip['alignmentConfirmed']:
+                con.execute("""UPDATE footage SET metadata=json_set(metadata,'$.alignmentConfirmed',json('true'))
+                               WHERE id=?""", (clip_id,))
+                clip['alignmentConfirmed'] = True
             metadata = self.store.demo(batch['demo'])
-            payload = {**value.model_dump(exclude={'previousRevision'}), 'schemaVersion': 1,
+            payload = {**value.model_dump(exclude={'previousRevision', 'confirmFootage'}), 'schemaVersion': 2,
                        'reviewMode': 'candidate-first', 'matchId': batch['demo'], 'playerId': batch['player'],
                        'snapshotId': batch['snapshot'], 'round': row['round'], 'labeller': labeller,
                        'finding': clip['finding'], 'footage': clip, 'provenance': metadata['provenance']}
             con.execute('INSERT OR IGNORE INTO candidate_exposure VALUES(?,?,?,?,?)',
                         (batch['demo'], batch['player'], row['round'], labeller, now()))
             con.execute('INSERT INTO clip_labels(demo,player,snapshot,finding,labeller,payload,created) VALUES(?,?,?,?,?,?,?)',
-                        (batch['demo'], batch['player'], batch['snapshot'], clip['finding']['id'], labeller, encode(payload), now()))
-            return self.current(batch, clip['finding']['id'], labeller, con)
+                        (batch['demo'], batch['player'], batch['snapshot'], review_key(clip), labeller, encode(payload), now()))
+            return self.current(batch, review_key(clip), labeller, con)
 
 
 def install_batches(app, store):
     batches = Batches(store)
     app.state.batches = batches
     prefix = '/api/demos/{demo}/players/{player}/clip-batch'
+
+    @app.post('/api/coach-examples')
+    def examples(value: ExampleQuery):
+        return coach_examples(store, value)
+
+    @app.get('/api/next-ready-clip')
+    def next_ready(labeller: str):
+        store.labeller(labeller)
+        with store.connect() as con:
+            row = con.execute("""
+                SELECT f.demo, f.player, f.id AS clip FROM clip_selection s
+                JOIN footage f ON json_extract(f.metadata,'$.batchId')=s.batch
+                WHERE f.state='ready' AND COALESCE((
+                    SELECT json_extract(c.payload,'$.status') FROM clip_labels c
+                    WHERE c.demo=f.demo AND c.player=f.player AND c.labeller=?
+                      AND c.snapshot=json_extract(f.metadata,'$.snapshotId')
+                      AND c.finding=COALESCE(json_extract(f.metadata,'$.reviewKey'),json_extract(f.metadata,'$.finding.id'))
+                    ORDER BY c.id DESC LIMIT 1
+                ),'')!='complete'
+                ORDER BY s.rowid DESC, f.round, json_extract(f.metadata,'$.anchor'), f.id LIMIT 1
+            """, (labeller,)).fetchone()
+        return dict(row) if row else None
 
     @app.post(prefix, status_code=202)
     def create(demo: str, player: str, value: BatchRequest):
@@ -205,7 +245,7 @@ def install_batches(app, store):
         return batches.summary(identity)
 
     @app.get('/api/clip-labels/export')
-    def export(labeller: str, training: bool = False):
+    def export(labeller: str, training: bool = False, split: Literal['unassigned', 'train', 'val', 'test'] | None = None):
         store.labeller(labeller)
         with store.connect() as con:
             rows = con.execute('SELECT payload FROM clip_labels WHERE id IN (SELECT MAX(id) FROM clip_labels WHERE labeller=? GROUP BY demo,player,snapshot,finding)', (labeller,)).fetchall()
@@ -213,6 +253,8 @@ def install_batches(app, store):
         for row in rows:
             label = json.loads(row['payload'])
             provenance = store.demo(label['matchId'])['provenance']
+            if split and provenance['split'] != split:
+                continue
             if label['status'] != 'complete' or (training and (provenance['split'] != 'train' or not provenance['trainingPermitted'])):
                 continue
             labels.append({**label, 'provenance': provenance})

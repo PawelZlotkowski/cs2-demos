@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     # Off by default so the app runs without a GPU; the code ranker and the
     # finding templates stand in until RR_LLM_ENABLED=true.
     llm_enabled: bool = False
+    labeler_url: str | None = None
     llm_base_url: str = "http://127.0.0.1:8080/v1"
     llm_model: str = "qwen3-14b-q4_k_m"
     llm_timeout_seconds: float = 180.0

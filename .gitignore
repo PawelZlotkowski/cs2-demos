@@ -74,3 +74,4 @@ eval/results/
 docs/university/*.docx
 docs/university/*.pdf
 prototype/fixtures/match-room.json
+labeler.env

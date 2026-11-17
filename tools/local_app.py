@@ -85,6 +85,7 @@ def main() -> int:
         'RR_AUTH_ENABLED': 'false',
         'RR_LOAD_SAVED_SETTINGS': 'false',
         'RR_LLM_ENABLED': str(args.llm).lower(),
+        'RR_LABELER_URL': os.getenv('RR_LABELER_URL', 'http://127.0.0.1:8765'),
         'RR_CSDM_ENABLED': str(args.recording).lower(),
         'RR_CSDM_MODE': 'csdm',
         'RR_CSDM_ROUND_CLIPS': 'false',

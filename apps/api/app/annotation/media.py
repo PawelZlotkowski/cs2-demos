@@ -110,6 +110,7 @@ class Media:
         metadata = json.loads(row['metadata'])
         if not include_finding:
             metadata.pop('finding', None)
+            metadata.pop('findings', None)
         return {**metadata, 'id': row['id'], 'state': row['state'],
                 'demo': row['demo'], 'player': row['player'], 'round': row['round'],
                 'url': f"/api/footage/{row['id']}.mp4" if row['state'] == 'ready' else None}

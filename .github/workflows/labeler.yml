@@ -1,0 +1,29 @@
+name: Labeller
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  source-kit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python tools/package_labeler.py --check-git
+      - run: python tools/package_labeler.py --output /tmp/labeler.zip
+      - run: python -m zipfile -e /tmp/labeler.zip /tmp/labeler-kit
+      - run: docker build --target test-core -f /tmp/labeler-kit/docker/Dockerfile.labeler -t labeler-test /tmp/labeler-kit
+      - run: docker run --rm labeler-test
+      - run: bash tools/test_labeler_launcher.sh
+  windows-recorder:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m unittest discover -s tools -p test_record_label_clips.py
+      - run: ./tools/test_labeler_launcher.ps1
+      - run: node tools/test_label_batches.cjs
+      - run: node tools/test_label_navigation.cjs

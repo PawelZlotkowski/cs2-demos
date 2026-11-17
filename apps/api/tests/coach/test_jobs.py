@@ -54,6 +54,39 @@ def traces(tmp_path) -> list[dict]:
     return [json.loads(line) for p in (tmp_path / "traces").glob("*.jsonl") for line in p.read_text().splitlines()]
 
 
+def test_local_clip_note_reaches_contextual_ask_and_explanation(analysed, tmp_path, monkeypatch):
+    import hashlib
+    import httpx
+
+    mid, pid = analysed
+    jobs, llm = jobs_with([good_text(mid, pid)] * 2, tmp_path)
+    monkeypatch.setattr(jobs, "_map", lambda match_id: "Ancient")
+    monkeypatch.setattr(settings, "work_dir", tmp_path)
+    monkeypatch.setattr(settings, "labeler_url", "http://127.0.0.1:8765")
+    monkeypatch.setattr(settings, "auth_enabled", False)
+    (tmp_path / f"{mid}.dem").write_bytes(b"different reviewed demo")
+    note = "Look for cover before suggesting a change."
+    lookups = []
+
+    def lookup(request):
+        assert request.url.path == "/api/coach-examples"
+        data = json.loads(request.content)
+        assert data["map"] == "de_ancient" and data["language"] == "en"
+        assert data["demoHash"] == hashlib.sha256(b"different reviewed demo").hexdigest()
+        lookups.append(data)
+        return httpx.Response(200, json=[{"revision":19, "detector":"shot_while_moving",
+            "language":"en","signal":None,"decision":None,"note":note}])
+
+    client = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: client(transport=httpx.MockTransport(lookup), **kw))
+    result = asyncio.run(jobs.ask(mid, pid, AskRequest(question="How was that round?", round=1, language="en")))
+    explanation = asyncio.run(jobs.explain(mid, pid, "r1", "en", store=False))
+    assert result.source == explanation.source == "agent"
+    assert len(lookups) == 2 and all("shot_while_moving" in q["detectors"] for q in lookups)
+    assert all(note in r["messages"][1]["content"] for r in llm.requests)
+    assert all(t["clipExampleRevisions"] == [19] for t in traces(tmp_path))
+
+
 # --- selection ---
 
 

@@ -1,10 +1,11 @@
-name: round-labeler
+name: ${LABELER_PROJECT:-round-labeler}
 services:
   labeler:
+    image: ${LABELER_IMAGE:-round-labeler-labeler}
     build:
       context: .
       dockerfile: docker/Dockerfile.labeler
-      target: runtime
+      target: ${LABELER_BUILD_TARGET:-runtime}
     # Use the same native parser wheels on x86 hosts and ARM Docker Desktop
     # (which runs this image through amd64 emulation).
     platform: linux/amd64
@@ -13,8 +14,8 @@ services:
     volumes:
       - labels:/data
     environment:
-      RR_ANNOTATION_WORKER_MB: "4096"
-      RR_ANNOTATION_TIMEOUT_SECONDS: "900"
+      RR_ANNOTATION_WORKER_MB: "${LABELER_WORKER_MB:-4096}"
+      RR_ANNOTATION_TIMEOUT_SECONDS: "${LABELER_PARSE_TIMEOUT:-900}"
       RR_ANNOTATION_MAX_UPLOAD_MB: "2048"
       RR_ANNOTATION_MAX_DEMO_MB: "2048"
     init: true
@@ -27,5 +28,35 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  csdm-db:
+    profiles: [recording]
+    image: postgres:17
+    ports:
+      - "127.0.0.1:${CSDM_DB_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${CSDM_DB_USER:-postgres}
+      POSTGRES_DB: ${CSDM_DB_NAME:-csdm}
+      POSTGRES_PASSWORD: ${CSDM_DB_PASSWORD:-}
+    volumes:
+      - csdm-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    stop_grace_period: 30s
+    shm_size: 256mb
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 volumes:
   labels:
+  csdm-db:

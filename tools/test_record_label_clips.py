@@ -25,7 +25,10 @@ class RecorderTests(unittest.TestCase):
     def test_stalled_start_retries_once_in_a_fresh_directory(self):
         self.exercise_session(stall_first=True)
 
-    def exercise_session(self, fail_one=False, duplicate=False, stall_first=False):
+    def test_csdm_321_nested_output_is_detected_and_uploaded(self):
+        self.exercise_session(nested=True)
+
+    def exercise_session(self, fail_one=False, duplicate=False, stall_first=False, nested=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = b'QA demo bytes, not real gameplay'
@@ -42,20 +45,29 @@ class RecorderTests(unittest.TestCase):
 
             def fake_run(command, **options):
                 commands.append((command, options))
-                if command[1] == 'video':
+                if command[1] == 'json':
+                    roster = Path(command[command.index('--output-folder')+1])
+                    (roster/'match.json').write_text(json.dumps({'players':[{'steamId':job['player']}]}))
+                elif command[1] == 'video':
                     config = json.loads(Path(command[command.index('--config-file')+1]).read_text('utf-8'))
                     output = Path(config['outputFolderPath'])
                     if stall_first and sum(c[1] == 'video' for c, _ in commands) == 1:
                         raise recorder.CaptureStartupError('QA capture startup stalled')
                     if stall_first:
                         assert output.name.endswith('-retry1')
+                    if nested:
+                        output = output / 'abcdef01-2345-6789-abcd-ef0123456789'
+                        output.mkdir()
                     assert len(config['sequences']) == 2
                     assert config['closeGameAfterRecording'] and not config['concatenateSequences']
                     for sequence in config['sequences']:
                         assert sequence['playerCameras'][0]['playerSteamId'] == job['player']
+                        assert sequence['playerCameras'][0]['tick'] == sequence['startTick']-32
                         assert not sequence['showXRay'] and not sequence['showOnlyDeathNotices']
+                        (output/f"{sequence['number']}-sequence").mkdir()
                         name = f"sequence-{sequence['number']}-tick-{sequence['startTick']}-to-{sequence['endTick']}.mp4"
                         (output/name).write_bytes(b'Q'*2048)
+                    assert options['startup_ready']()
                 elif command[0] == 'ffmpeg':
                     Path(command[-1]).write_bytes(b'Q'*2048)
                 return 'mock success'
@@ -66,7 +78,7 @@ class RecorderTests(unittest.TestCase):
 
             with patch.object(recorder, 'run', side_effect=fake_run), patch.object(recorder, 'call', side_effect=fake_call) as upload:
                 assert recorder.record_session('http://127.0.0.1:8765', jobs, args, 'csdm', 'ffmpeg') is not fail_one
-            command, options = commands[1]
+            command, options = next((c, o) for c, o in commands if c[1] == 'video')
             assert len([c for c, _ in commands if c[1] == 'video']) == (2 if stall_first else 1)
             assert int(options['env']['CSDM_WS_PORT']) > 0
             assert options['env']['CSDM_WS_PORT'] != '4574'
@@ -92,6 +104,82 @@ class RecorderTests(unittest.TestCase):
         with patch.object(recorder.subprocess, 'Popen', return_value=process):
             with self.assertRaisesRegex(RuntimeError, 'PostgreSQL'):
                 recorder.run(['csdm', 'analyze', 'qa.dem'])
+
+    def test_zero_exit_failed_analysis_is_not_success(self):
+        for output in ('Failed to analyze ancient.dem\n0 analyzed / 1 failed',
+                       'The demo source could not be detected, use --source to force one',
+                       'Failed demos:\nancient.dem'):
+            process = SimpleNamespace(returncode=0, communicate=lambda timeout: (output, None))
+            with self.subTest(output=output), patch.object(recorder.subprocess, 'Popen', return_value=process):
+                with self.assertRaises(RuntimeError):
+                    recorder.run(['csdm', 'analyze', 'qa.dem'])
+
+    def test_unknown_source_fallback_requires_selected_player_in_roster(self):
+        player = '76561198176358539'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            commands = []
+            def fake_run(command, **options):
+                commands.append(command)
+                if command[1] == 'analyze' and '--source' not in command:
+                    raise RuntimeError('The demo source could not be detected, use --source to force one')
+                if command[1] == 'json':
+                    roster = Path(command[command.index('--output-folder')+1])
+                    (roster/'match.json').write_text(json.dumps({'players':[{'steamId':player,'name':'zock9'}]}))
+                return 'success'
+            with patch.object(recorder, 'run', side_effect=fake_run):
+                recorder.prepare_recording_demo('csdm', root/'match.dem', root, player)
+            self.assertEqual(commands[1][-2:], ['--source', 'valve'])
+            self.assertIn('fallback', (root/'analysis.log').read_text())
+
+    def test_failed_analysis_does_not_attempt_export_or_capture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(recorder, 'run', side_effect=RuntimeError('Malformed demo')) as run:
+                with self.assertRaisesRegex(RuntimeError, 'Malformed demo'):
+                    recorder.prepare_recording_demo('csdm', root/'match.dem', root, '76561198176358539')
+                self.assertEqual(run.call_count, 1)
+
+    def test_fallback_failure_is_not_accepted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(recorder, 'run', side_effect=[
+                RuntimeError('The demo source could not be detected'), RuntimeError('Failed to analyze match.dem')
+            ]) as run:
+                with self.assertRaisesRegex(RuntimeError, 'Failed to analyze'):
+                    recorder.prepare_recording_demo('csdm', root/'match.dem', root, '76561198176358539')
+                self.assertEqual(run.call_count, 2)
+
+    def test_mixed_players_never_start_a_session(self):
+        with tempfile.TemporaryDirectory() as directory:
+            job = dict(id='a'*32, lease='b'*32, demo='demo-'+'c'*64, player='76561198176358539',
+                       round=1, start=0, end=10, startTick=1000, endTick=1640)
+            with patch.object(recorder, 'run') as run:
+                with self.assertRaisesRegex(ValueError, 'one demo, player and lease'):
+                    recorder.record_session('unused', [job, {**job, 'id':'d'*32, 'player':'76561198000000001'}],
+                                            SimpleNamespace(cache=Path(directory)), 'csdm', 'ffmpeg')
+                run.assert_not_called()
+
+    def test_missing_selected_player_rejects_other_players_roster(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def fake_run(command, **options):
+                if command[1] == 'json':
+                    (root/'roster'/'match.json').write_text(json.dumps({'players':[{'steamId':'76561198000000001'}]}))
+                return 'success'
+            with patch.object(recorder, 'run', side_effect=fake_run):
+                with self.assertRaisesRegex(RuntimeError, 'selected player is missing'):
+                    recorder.prepare_recording_demo('csdm', root/'match.dem', root, '76561198176358539')
+
+    def test_ambiguous_outputs_are_not_substituted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            group = dict(number=2, startTick=300, endTick=600)
+            for name in ('first', 'second'):
+                (root/name).mkdir()
+                (root/name/'sequence-2-tick-300-to-600.mp4').write_bytes(b'video')
+            with self.assertRaisesRegex(RuntimeError, 'ambiguous'):
+                recorder.captured_sequence(root, group)
 
     def test_worker_lock_is_exclusive_and_released(self):
         with tempfile.TemporaryDirectory() as directory:

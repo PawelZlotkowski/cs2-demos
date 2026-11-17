@@ -1,0 +1,170 @@
+{
+ "format": "round-reviewer-notes-v1",
+ "origin": "cafecafecafecafecafecafecafecafe",
+ "labeller": "alex_web",
+ "exportedAt": "2026-11-18T15:00:00+00:00",
+ "demos": {
+  "demo-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+   "metadata": {
+    "id": "demo-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "map": "de_ancient",
+    "filename": "fixture.dem",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "players": [
+     {
+      "id": "76561198000000001",
+      "name": "Selected player",
+      "team": "CT"
+     }
+    ]
+   },
+   "provenance": {
+    "source": "",
+    "sourceMatchId": "match-ancient",
+    "split": "train",
+    "trainingPermitted": true
+   }
+  }
+ },
+ "labels": [
+  {
+   "kind": "clip",
+   "revision": 7,
+   "savedAt": "2026-11-18T12:00:00+00:00",
+   "label": {
+    "status": "complete",
+    "verdict": null,
+    "assessment": null,
+    "notes": "Original individual note.",
+    "language": "en",
+    "inputMode": "note",
+    "schemaVersion": 2,
+    "reviewMode": "cloud-independent-clip",
+    "matchId": "demo-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "playerId": "76561198000000001",
+    "snapshotId": "frozen-snapshot",
+    "round": 1,
+    "labeller": "alex_web",
+    "finding": {
+     "id": "F1",
+     "round": 1,
+     "detector": "untraded_death",
+     "t": 5,
+     "evidence": {}
+    },
+    "footage": {
+     "source": "csdm",
+     "anchor": 5,
+     "requestedBefore": 4,
+     "requestedAfter": 3,
+     "startTick": 704,
+     "endTick": 1152,
+     "start": 1,
+     "end": 8,
+     "createdAt": "2026-11-17T11:00:00+00:00",
+     "alignmentConfirmed": true,
+     "duration": 7,
+     "width": 1280,
+     "height": 720,
+     "fps": "30/1",
+     "codec": "h264",
+     "videoEnd": 8,
+     "sha256": "17fa8bf5522ce8e05426a4d48b8bfc5017030a7055c69e90f31567198e906118",
+     "bytes": 360,
+     "id": "77a84a874571a0015f13bf962a05e08b",
+     "state": "ready",
+     "demo": "demo-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "player": "76561198000000001",
+     "round": 1,
+     "batchId": "f3a2c391c6e5fda45f0e247003644b34",
+     "snapshotId": "frozen-snapshot"
+    },
+    "cloud": {
+     "clipId": "00000000-0000-4000-8000-000000000100",
+     "sha256": "17fa8bf5522ce8e05426a4d48b8bfc5017030a7055c69e90f31567198e906118",
+     "status": "complete",
+     "issue": null
+    }
+   }
+  },
+  {
+   "kind": "clip",
+   "revision": 9,
+   "savedAt": "2026-11-18T12:10:00+00:00",
+   "label": {
+    "status": "complete",
+    "verdict": null,
+    "assessment": null,
+    "notes": "Wait for a trade.\nUse the flash before peeking.",
+    "language": "en",
+    "inputMode": "note",
+    "schemaVersion": 2,
+    "reviewMode": "cloud-independent-clip",
+    "matchId": "demo-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "playerId": "76561198000000001",
+    "snapshotId": "frozen-snapshot",
+    "round": 1,
+    "labeller": "alex_web",
+    "finding": {
+     "id": "F1",
+     "round": 1,
+     "detector": "untraded_death",
+     "t": 5,
+     "evidence": {}
+    },
+    "footage": {
+     "source": "csdm",
+     "anchor": 5,
+     "requestedBefore": 4,
+     "requestedAfter": 3,
+     "startTick": 704,
+     "endTick": 1152,
+     "start": 1,
+     "end": 8,
+     "createdAt": "2026-11-17T11:00:00+00:00",
+     "alignmentConfirmed": true,
+     "duration": 7,
+     "width": 1280,
+     "height": 720,
+     "fps": "30/1",
+     "codec": "h264",
+     "videoEnd": 8,
+     "sha256": "17fa8bf5522ce8e05426a4d48b8bfc5017030a7055c69e90f31567198e906118",
+     "bytes": 360,
+     "findings": [
+      {
+       "id": "F1",
+       "round": 1,
+       "detector": "untraded_death",
+       "t": 5,
+       "evidence": {}
+      },
+      {
+       "id": "F999",
+       "round": 1,
+       "detector": "unused_utility",
+       "t": 5,
+       "evidence": {
+        "grenadeList": "flashbang"
+       }
+      }
+     ],
+     "reviewKey": "F1+F999",
+     "id": "77a84a874571a0015f13bf962a05e08b",
+     "state": "ready",
+     "demo": "demo-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "player": "76561198000000001",
+     "round": 1,
+     "batchId": "f3a2c391c6e5fda45f0e247003644b34",
+     "snapshotId": "frozen-snapshot"
+    },
+    "cloud": {
+     "clipId": "00000000-0000-4000-8000-000000000100",
+     "sha256": "17fa8bf5522ce8e05426a4d48b8bfc5017030a7055c69e90f31567198e906118",
+     "status": "complete",
+     "issue": null
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,135 @@
+{
+ "format": "round-reviewer-clips-v1",
+ "exportedAt": "2026-11-17T12:00:00+00:00",
+ "workspace": "0123456789abcdef0123456789abcdef",
+ "demos": {
+  "demo-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+   "metadata": {
+    "id": "demo-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "map": "de_ancient",
+    "filename": "fixture.dem",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "players": [
+     {
+      "id": "76561198000000001",
+      "name": "Selected player",
+      "team": "CT"
+     }
+    ]
+   },
+   "provenance": {
+    "source": "",
+    "sourceMatchId": "match-ancient",
+    "split": "train",
+    "trainingPermitted": true
+   }
+  },
+  "demo-dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd": {
+   "metadata": {
+    "id": "demo-dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "map": "de_anubis",
+    "filename": "anubis-fixture.dem",
+    "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "players": [
+     {
+      "id": "76561198000000002",
+      "name": "Second player",
+      "team": "T"
+     }
+    ]
+   },
+   "provenance": {
+    "source": "",
+    "sourceMatchId": "match-anubis",
+    "split": "val",
+    "trainingPermitted": false
+   }
+  }
+ },
+ "clips": [
+  {
+   "footageId": "77a84a874571a0015f13bf962a05e08b",
+   "path": "clips/77a84a874571a0015f13bf962a05e08b.mp4",
+   "bytes": 360,
+   "sha256": "17fa8bf5522ce8e05426a4d48b8bfc5017030a7055c69e90f31567198e906118",
+   "contentType": "video/mp4",
+   "matchId": "demo-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "playerId": "76561198000000001",
+   "snapshotId": "frozen-snapshot",
+   "round": 1,
+   "batchId": "f3a2c391c6e5fda45f0e247003644b34",
+   "finding": {
+    "id": "F1",
+    "round": 1,
+    "detector": "untraded_death",
+    "t": 5.0,
+    "evidence": {}
+   },
+   "footage": {
+    "source": "csdm",
+    "anchor": 5.0,
+    "requestedBefore": 4.0,
+    "requestedAfter": 3.0,
+    "startTick": 704,
+    "endTick": 1152,
+    "start": 1.0,
+    "end": 8.0,
+    "createdAt": "2026-11-17T11:00:00+00:00",
+    "alignmentConfirmed": false,
+    "duration": 7.0,
+    "width": 1280,
+    "height": 720,
+    "fps": "30/1",
+    "codec": "h264",
+    "videoEnd": 8.0,
+    "sha256": "17fa8bf5522ce8e05426a4d48b8bfc5017030a7055c69e90f31567198e906118",
+    "bytes": 360
+   }
+  },
+  {
+   "footageId": "84c8ede531bbc3ea7c77291f959aa425",
+   "path": "clips/84c8ede531bbc3ea7c77291f959aa425.mp4",
+   "bytes": 360,
+   "sha256": "c63a446bf66d26d23d800048213af3514593789c9d89bca7a1e9ff961505b40d",
+   "contentType": "video/mp4",
+   "matchId": "demo-dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+   "playerId": "76561198000000002",
+   "snapshotId": "anubis-snapshot",
+   "round": 3,
+   "batchId": "1e37b2a69ebcb75fb7273ae2b94119db",
+   "finding": {
+    "id": "F2",
+    "round": 3,
+    "detector": "shot_while_moving",
+    "t": 9.5,
+    "kind": "mistake",
+    "evidence": {
+     "shots": 6,
+     "movingShots": 4,
+     "weapon": "ak47"
+    },
+    "zone": null
+   },
+   "footage": {
+    "source": "csdm",
+    "anchor": 9.5,
+    "requestedBefore": 4.0,
+    "requestedAfter": 3.0,
+    "startTick": 3552,
+    "endTick": 4000,
+    "start": 5.5,
+    "end": 12.5,
+    "createdAt": "2026-11-17T11:00:00+00:00",
+    "alignmentConfirmed": false,
+    "duration": 7.0,
+    "width": 1280,
+    "height": 720,
+    "fps": "30/1",
+    "codec": "h264",
+    "videoEnd": 12.5,
+    "sha256": "c63a446bf66d26d23d800048213af3514593789c9d89bca7a1e9ff961505b40d",
+    "bytes": 360
+   }
+  }
+ ]
+}

@@ -5,7 +5,7 @@ const state = {demos: [], demo: '', player: '', round: null, rounds: [], progres
   conflict: false, timer: null, saving: Promise.resolve(), generation: 0, labeller: '', pending: null};
 const categories = ['shooting','utility','teamwork','positioning','objective','economy','other'];
 const safeRead = key => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
-const remember = () => { try { localStorage.setItem('rr.annotation.location', JSON.stringify({labeller: state.labeller,demo:state.demo,player:state.player,round:state.round})); } catch {} };
+const remember = () => { try { localStorage.setItem('rr.annotation.location', JSON.stringify({labeller: state.labeller,demo:state.demo,player:state.player,round:state.round,pending:state.pending})); } catch {} };
 function el(tag, text, props={}) { const n=document.createElement(tag); if(text!==null)n.textContent=text; Object.assign(n,props); return n; }
 function message(text='') { $('message').textContent=text; $('message').hidden=!text; }
 function errorText(detail) { return typeof detail==='string'?detail:JSON.stringify(detail); }
@@ -43,9 +43,27 @@ async function save(force=false){
   return state.saving;
 }
 async function leave(){leaveVoice();await leaveClip();await save();if(state.dirty)await save();}
-function optionList(node, items, value, placeholder){node.replaceChildren();if(placeholder)node.append(el('option',placeholder,{value:''}));for(const [id,label] of items)node.append(el('option',label,{value:id}));node.value=value;}
-async function refreshDemos(){state.demos=await api('/api/demos');optionList($('demo'),state.demos.map(d=>[d.id,`${d.map.replace('de_','')} · ${d.filename}`]),state.demo,'Choose an imported demo');}
-function setDemo(){const d=state.demos.find(d=>d.id===state.demo);optionList($('player'),(d?.players||[]).map(p=>[p.id,`${p.name} · ${p.id}`]),state.player,'Choose a player');$('parse').disabled=!d;for(const k of ['source','sourceMatchId','split'])$(k).value=d?.provenance[k]??(k==='split'?'unassigned':'');$('trainingPermitted').checked=d?.provenance.trainingPermitted??false;}
+function optionList(node, items, value, placeholder){
+  const options=placeholder?[['',placeholder],...items]:items;
+  const unchanged=node.options.length===options.length&&options.every(([id,label],i)=>node.options[i].value===id&&node.options[i].textContent===label);
+  if(!unchanged)node.replaceChildren(...options.map(([id,label])=>el('option',label,{value:id})));
+  if(node.value!==value)node.value=value;
+}
+let demosRequest=0;
+async function refreshDemos(){
+  const request=++demosRequest,demos=await api('/api/demos');
+  if(request!==demosRequest)return;
+  state.demos=demos;
+  optionList($('demo'),demos.map(d=>[d.id,`${d.map.replace('de_','')} · ${d.filename}`]),state.demo,'Choose an imported demo');
+}
+function setDemo(){
+  const d=state.demos.find(d=>d.id===state.demo);
+  optionList($('player'),(d?.players||[]).map(p=>[p.id,`${p.name} · ${p.id}`]),state.player,'Choose a player');
+  $('parse').disabled=!d||!state.player;
+  for(const k of ['source','sourceMatchId','split'])$(k).value=d?.provenance[k]??(k==='split'?'unassigned':'');
+  $('trainingPermitted').checked=d?.provenance.trainingPermitted??false;
+  if(typeof renderCoachEligibility==='function')renderCoachEligibility(d);
+}
 function clearReview(){resetClipFlow();resetReplay();state.generation++;state.replay=null;state.round=null;state.rounds=[];state.revision=null;state.dirty=false;state.conflict=false;$('parseState').textContent='';$('reviewPanel').hidden=true;$('welcome').hidden=false;$('rounds').replaceChildren();$('progress').textContent='Prepare a player to see rounds.';}
 async function loadRounds(preferred=null){
   validName();const selection=[state.demo,state.player,state.labeller].join('/');
@@ -112,27 +130,96 @@ function renderCandidates(){
     const seek=el('button','Watch context',{className:'secondary'});seek.onclick=()=>watchContext(f.t);const record=el('button','Record context',{className:'secondary'});record.onclick=guard(()=>recordContext(f.t));const mark=el('button','Label this decision',{className:'secondary'});mark.onclick=()=>addMoment(f.t);card.append(seek,record,mark);box.append(card);
   }
 }
-async function poll(){
-  const list=await api('/api/jobs'),box=$('jobs');box.replaceChildren();
+let polling=null,renderedJobs='',savedLocation=null;
+function poll(){
+  if(!polling)polling=refreshStatus().finally(()=>{polling=null;});
+  return polling;
+}
+function renderJobs(list){
+  const box=$('jobs');
   const active=list.filter(j=>['queued','running'].includes(j.state)).length;
   $('jobsSummary').textContent=`Import and parsing history · ${active} active`;
+  const signature=JSON.stringify(list.slice(0,8).map(j=>[j.id,j.state,j.error,j.payload.filename]));
+  if(renderedJobs===signature)return;
+  renderedJobs=signature;box.replaceChildren();
   for(const j of list.slice(0,8)){const card=el('div',null,{className:'job'});card.append(el('strong',`${j.kind==='inspect'?'Import':'Parse'} · ${j.state}`),el('div',j.payload.filename||state.demos.find(d=>d.id===j.payload.demo)?.filename||j.payload.demo));if(j.error)card.append(el('p',j.error));
-    if(['failed','cancelled'].includes(j.state)){const b=el('button','Retry');b.onclick=guard(async()=>{await api(`/api/jobs/${j.id}/retry`,{method:'POST'});});card.append(b);}
+    if(['failed','cancelled'].includes(j.state)){const b=el('button','Retry');b.onclick=guard(async()=>{await api(`/api/jobs/${j.id}/retry`,{method:'POST'});if(j.kind==='parse'&&j.payload.demo===state.demo&&j.payload.player===state.player){state.pending={id:j.id,demo:state.demo,player:state.player};remember();}await poll();});card.append(b);}
     if(['queued','running'].includes(j.state)){const b=el('button','Cancel',{className:'secondary'});b.onclick=guard(async()=>{await api(`/api/jobs/${j.id}/cancel`,{method:'POST'});});card.append(b);}box.append(card);}
-  await refreshDemos();await refreshBatch();
+}
+async function resumeLocation(){
+  const saved=savedLocation;
+  if(!saved)return;
+  const demo=state.demos.find(d=>d.id===saved.demo);
+  if(!demo){savedLocation=null;return;}
+  state.demo=demo.id;state.player=demo.players.some(p=>p.id===saved.player)?saved.player:'';
+  if(saved.pending?.demo===state.demo&&saved.pending.player===state.player)state.pending=saved.pending;
+  setDemo();$('demo').value=state.demo;
+  if(state.player&&state.labeller){
+    try{
+      if(!state.replay)await loadRounds(saved.round);
+      if(savedLocation===saved)await resumeClipLocation();
+    }catch(e){if(e.status!==409)throw e;}
+  }
+  if(savedLocation===saved)savedLocation=null;
+}
+async function refreshStatus(){
+  const list=await api('/api/jobs');
+  await refreshDemos();
+  renderJobs(list);
+  await resumeLocation();
+  await refreshBatch();
   if($('saveState').textContent.startsWith('Server unavailable'))$('saveState').textContent=state.dirty?'Unsaved changes':state.revision?`Saved · revision ${state.revision}`:'Server ready';
   if(state.pending){const j=list.find(j=>j.id===state.pending.id);if(j?.state==='complete'){
-      const p=state.pending;state.pending=null;if(state.demo===p.demo&&state.player===p.player)await loadRounds();
-    }else if(j&&['failed','cancelled'].includes(j.state)){$('parseState').textContent=j.error||j.state;state.pending=null;}}
+      const p=state.pending;if(state.demo===p.demo&&state.player===p.player&&!state.replay)await loadRounds();
+      if(state.pending===p){state.pending=null;remember();}
+    }else if(j&&['failed','cancelled'].includes(j.state)){$('parseState').textContent=j.error||j.state;state.pending=null;remember();}}
 }
 function upload(file){return new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('POST','/api/import');xhr.setRequestHeader('X-Annotation-Request','1');xhr.setRequestHeader('X-Filename',encodeURIComponent(file.name));xhr.setRequestHeader('Content-Type','application/octet-stream');xhr.upload.onprogress=e=>{$('uploadState').textContent=`Uploading ${file.name} · ${e.lengthComputable?Math.round(e.loaded/e.total*100)+'%':'…'}`;};xhr.onload=()=>{let data;try{data=JSON.parse(xhr.responseText);}catch{data={detail:xhr.statusText};}if(xhr.status>=200&&xhr.status<300)resolve(data);else reject(new Error(errorText(data.detail)));};xhr.onerror=()=>reject(new Error('Upload interrupted. Check the local server and try again.'));xhr.send(file);});}
 async function importFiles(files){validName();const demos=[...files].filter(f=>/\.dem(\.zst)?$/i.test(f.name));if(!demos.length)throw new Error('No .dem or .dem.zst files selected.');const failures=[];for(const f of demos){try{await upload(f);}catch(e){failures.push(`${f.name}: ${e.message}`);}}$('uploadState').textContent=`${demos.length-failures.length} file(s) queued. Roster inspection runs before full parsing.`;if(failures.length)message(failures.join('\n'));await poll();}
-$('files').onchange=guard(e=>importFiles(e.target.files));$('folder').onchange=guard(e=>importFiles(e.target.files));
-$('useName').onclick=guard(async()=>{await leave();const name=$('labeller').value.trim();if(!/^[A-Za-z0-9_]{1,40}$/.test(name))throw new Error('Use 1–40 letters, digits or underscores.');resetClipFlow();state.labeller=name;remember();$('saveState').textContent=`Labelling as ${name}`;if(state.demo&&state.player){try{await loadRounds(state.round);}catch(e){if(e.status!==409)throw e;}}});
-$('demo').onchange=guard(async()=>{await leave();state.demo=$('demo').value;state.player='';clearReview();setDemo();remember();});
-$('player').onchange=guard(async()=>{await leave();state.player=$('player').value;clearReview();remember();});
-$('parse').onclick=guard(async()=>{validName();if(!state.player)throw new Error('Select the player you want to review.');await leave();const j=await api(`/api/demos/${state.demo}/select`,{method:'POST',body:JSON.stringify({playerId:state.player,autoRecord:$('autoRecord').checked,before:Number($('batchBefore').value),after:Number($('batchAfter').value)})});if(j.state==='complete')await loadRounds();else{state.pending={id:j.id,demo:state.demo,player:state.player};$('parseState').textContent='Queued. Parsing runs once, then rounds can be resumed.';}await poll();});
-$('provenance').onclick=guard(async()=>{if(!state.demo)throw new Error('Choose a demo first.');await api(`/api/demos/${state.demo}/provenance`,{method:'PUT',body:JSON.stringify({source:$('source').value,sourceMatchId:$('sourceMatchId').value,split:$('split').value,trainingPermitted:$('trainingPermitted').checked})});await refreshDemos();message('Source details saved.');});
+for(const id of ['files','folder'])$(id).onchange=guard(async e=>{
+  const files=[...e.target.files];e.target.value='';
+  if(files.length)await importFiles(files);
+});
+$('useName').onclick=guard(async()=>{
+  const name=$('labeller').value.trim();
+  if(!/^[A-Za-z0-9_]{1,40}$/.test(name))throw new Error('Use 1–40 letters, digits or underscores.');
+  try{await leave();}catch(e){$('labeller').value=state.labeller;throw e;}
+  savedLocation=null;resetClipFlow();state.labeller=name;remember();
+  $('saveState').textContent=`Labelling as ${name}`;
+  if(state.demo&&state.player){try{await loadRounds(state.round);}catch(e){if(e.status!==409)throw e;}}
+});
+async function changeSelection(field,value){
+  // Keep the controls on the saved selection until all pending edits are safe.
+  $(field).value=state[field];
+  if(value===state[field]||$(field).disabled)return;
+  const controls=['demo','player','parse','useName','provenance'].map($);
+  const disabled=controls.map(control=>control.disabled);
+  controls.forEach(control=>{control.disabled=true;});
+  try{await leave();}finally{controls.forEach((control,i)=>{control.disabled=disabled[i];});}
+  savedLocation=null;state.pending=null;state[field]=value;
+  if(field==='demo')state.player='';
+  clearReview();$('demo').value=state.demo;
+  if(field==='demo')setDemo();
+  else{$('player').value=state.player;$('parse').disabled=!state.player;}
+  remember();
+}
+for(const field of ['demo','player'])$(field).onchange=guard(e=>changeSelection(field,e.target.value));
+$('parse').onclick=guard(async()=>{
+  validName();
+  if(!state.player)throw new Error('Select the player you want to review.');
+  const demo=state.demo,player=state.player;
+  const body=JSON.stringify({playerId:player,autoRecord:$('autoRecord').checked,before:Number($('batchBefore').value),after:Number($('batchAfter').value)});
+  await leave();
+  if(demo!==state.demo||player!==state.player)return;
+  const j=await api(`/api/demos/${demo}/select`,{method:'POST',body});
+  if(demo!==state.demo||player!==state.player)return;
+  if(j.state==='complete')await loadRounds();else{
+    state.pending={id:j.id,demo,player};remember();
+    $('parseState').textContent='Queued. Parsing runs once, then rounds can be resumed.';
+  }
+  await poll();
+});
+$('provenance').onclick=guard(async()=>{if(!state.demo)throw new Error('Choose a demo first.');await api(`/api/demos/${state.demo}/provenance`,{method:'PUT',body:JSON.stringify({source:$('source').value,sourceMatchId:$('sourceMatchId').value,split:$('split').value,trainingPermitted:$('trainingPermitted').checked})});await refreshDemos();setDemo();message('Source details saved.');});
 $('anchor').oninput=()=>setAnchor($('anchor').value);
 function addMoment(t){const w=contextWindow(t);state.moments.push({id:crypto.randomUUID(),...w,categories:['other'],assessment:'uncertain',facts:'',known:'',unknown:'',reason:'',alternative:'',confidence:'low',priority:1,evidence:[],missedDetector:null,footageId:null});renderMoments();markDirty();}
 $('addMoment').onclick=()=>{addMoment(Number($('anchor').value)||0);};
@@ -147,4 +234,13 @@ function download(training){validName();const params=new URLSearchParams({labell
 $('export').onclick=guard(async()=>{await leave();download(false);});$('exportTrain').onclick=guard(async()=>{await leave();download(true);});
 window.addEventListener('beforeunload',e=>{if(state.dirty){e.preventDefault();e.returnValue='';}});
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();(clipFlow.active?saveClipLabel('draft',true):save(true)).catch(e=>message(e.message));}});
-window.addEventListener('DOMContentLoaded',async()=>{try{const saved=safeRead('rr.annotation.location');state.labeller=saved?.labeller||'';$('labeller').value=state.labeller;await refreshDemos();if(saved?.demo&&state.demos.some(d=>d.id===saved.demo)){state.demo=saved.demo;state.player=saved.player;setDemo();$('demo').value=state.demo;if(state.player&&state.labeller){try{await loadRounds(saved.round);}catch(e){if(e.status!==409)throw e;}}}await poll();await resumeClipLocation();}catch(e){message(e.message);}finally{setInterval(()=>poll().catch(e=>{$('saveState').textContent='Server unavailable · keep this tab open';}),2500);}});
+window.addEventListener('DOMContentLoaded',async()=>{
+  savedLocation=safeRead('rr.annotation.location');
+  state.labeller=savedLocation?.labeller||'';$('labeller').value=state.labeller;
+  const update=()=>poll().catch(e=>{
+    $('saveState').textContent='Server unavailable · keep this tab open';
+    if(e.status)message(e.message);
+  });
+  await update();
+  setInterval(update,2500);
+});

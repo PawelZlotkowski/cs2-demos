@@ -28,6 +28,7 @@ from typing import Any, TypeVar
 
 from app.analysis.ranker import MIN_EACH, MIN_MOMENTS, TARGET, rank_moments
 from app.coach.agent import AgentRun, CoachAgent, StepCallback, TraceWriter, run_record
+from app.coach.examples import EXAMPLE_RULE, example_context
 from app.coach.backends import InProcessTools, MCPTools
 from app.coach.llm_client import LLM, LLMClient, LLMError, json_schema_format
 from app.coach.prompts import load_prompt
@@ -334,6 +335,10 @@ class CoachJobs:
             ]
         )
         ctx = self._verify_context(match_id, player_id)
+        examples = await example_context(match_id, self._map(match_id), findings, lang, record)
+        if examples:
+            system += EXAMPLE_RULE
+            user += "\n\n" + examples
         outcome = await self._answer(
             job="explain",
             prompt_version=prompt.version,
@@ -493,11 +498,20 @@ class CoachJobs:
         lines = [context]
         if in_view:
             lines += ["Findings in view:", *(_finding_row(f) for f in in_view)]
+        mentioned = set(re.findall(r"\bF\d+\b", req.question.upper()))
+        explicit = [f for f in all_findings if f.id in mentioned]
+        relevant = explicit or in_view
+        if req.t is not None and not explicit:
+            relevant = sorted(relevant, key=lambda f: abs(f.t - req.t))
+        examples = await example_context(match_id, self._map(match_id), relevant, req.language, record)
+        if examples:
+            lines.append(examples)
         lines += ["", f"Question: {req.question}", f"Answer in {LANGUAGE_NAMES[req.language]}."]
+        system = prompt.render(language=LANGUAGE_NAMES[req.language], language_notes=LANGUAGE_NOTES[req.language])
         return await self._answer(
             job="ask",
             prompt_version=prompt.version,
-            system=prompt.render(language=LANGUAGE_NAMES[req.language], language_notes=LANGUAGE_NOTES[req.language]),
+            system=system + EXAMPLE_RULE if examples else system,
             user="\n".join(lines),
             bound={"match_id": match_id, "player_id": player_id},
             ctx=self._verify_context(match_id, player_id, extra),

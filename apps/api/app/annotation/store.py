@@ -86,7 +86,7 @@ class Store:
     def demos(self):
         with self.connect() as con:
             return [{**json.loads(r['metadata']), 'provenance': json.loads(r['provenance'])}
-                    for r in con.execute('SELECT * FROM demos ORDER BY rowid DESC')]
+                    for r in con.execute("SELECT * FROM demos WHERE COALESCE(json_extract(metadata,'$.notesOnly'),0)=0 ORDER BY rowid DESC")]
 
     def demo(self, identity: str):
         with self.connect() as con:
@@ -97,7 +97,8 @@ class Store:
 
     def register(self, metadata: dict):
         with self.connect() as con:
-            con.execute('INSERT OR IGNORE INTO demos VALUES (?,?,?)',
+            con.execute("""INSERT INTO demos VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET metadata=excluded.metadata
+                           WHERE json_extract(demos.metadata,'$.notesOnly')=1""",
                         (metadata['id'], encode(metadata), encode(Provenance().model_dump())))
 
     def set_provenance(self, identity: str, value: Provenance):

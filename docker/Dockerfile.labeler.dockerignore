@@ -14,6 +14,17 @@
 !docker/
 !docker/Dockerfile.labeler
 !docker/requirements-labeler.lock
+!docker/requirements-labeler-core.lock
+!eval/tests/test_annotation_transfer.py
+!eval/tests/test_clip_export.py
+!eval/tests/test_cloud_notes.py
+!eval/tests/test_grouped_clips.py
+!tools/
+!tools/record_label_clips.py
+!tools/test_record_label_clips.py
+!eval/tests/fixtures/
+!eval/tests/fixtures/labeller/
+!eval/tests/fixtures/labeller/*.json
 **/__pycache__/
 **/*.pyc
 **/.env*
