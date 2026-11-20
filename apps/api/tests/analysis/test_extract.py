@@ -43,8 +43,10 @@ def test_end_to_end_analysis_on_synthetic_demo():
     t1 = sd.sid(sd.T_IDS[0])
     result = analyse_player(match, t1)
     detectors = {f.detector for f in result.findings}
-    assert {"shot_while_moving", "unused_utility", "team_flash", "opening_duel", "good_plays"} <= detectors
-    assert "untraded_death" not in detectors  # T2 traded within 1.6 s
+    assert {"unused_utility", "team_flash", "opening_duel", "good_plays"} <= detectors
+    moving = next(f for f in result.findings if f.detector == "shot_while_moving")
+    assert moving.kind == "context" and moving.evidence["shots"] == 2
+    assert "untraded_death" not in detectors  # Selected player died, no nearby mate death while alive.
     assert [f.id for f in result.findings] == [f"F{i}" for i in range(1, len(result.findings) + 1)]
     assert all(f.summary and "{" not in f.summary for f in result.findings)
     assert len(result.round_stats) == 2

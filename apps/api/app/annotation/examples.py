@@ -67,8 +67,10 @@ def coach_examples(store, query: ExampleQuery):
         ranked.append((rank, source, {
             'revision': row['id'], 'detector': detector, 'language': label['language'],
             # Group-level ratings cannot establish whether each signal was correct.
-            'signal': label.get('verdict') if len(members) == 1 else None,
+            'signal': next((r['verdict'] for r in label.get('signalReviews', []) if r['findingId'] == finding['id']),
+                           label.get('verdict') if len(members) == 1 else None),
             'decision': label.get('assessment'), 'note': note[:600],
+            **({'selection': label['selectionVerdict']} if label.get('selectionVerdict') else {}),
         }))
     chosen = []
     seen = set()

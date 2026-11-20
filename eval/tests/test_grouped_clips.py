@@ -105,8 +105,9 @@ def test_overlap_boundaries_long_windows_and_separate_rounds():
                     finding=dict(id=f'F{n}',round=rnd,t=(start+end)/2))
     groups = group_moments([moment(1,0,20),moment(2,15,35),moment(3,30,50),moment(4,45,65),
                            moment(5,80,90),moment(6,0,20,2)])
-    assert [g['reviewKey'] for g in groups] == ['F1+F2+F3','F4','F5','F6']
-    assert all(g['end']-g['start']<=60 for g in groups)
+    assert [g['reviewKey'] for g in groups] == ['F1+F2+F3+F4','F5','F6']
+    assert groups[0]['end'] == 65
+    assert groups[0]['endTick'] < groups[1]['startTick']
     [long] = group_moments([moment(1,0,100),moment(2,40,50)])
     assert long['end']==100 and long['reviewKey']=='F1+F2'
 
@@ -121,3 +122,12 @@ def test_portable_notes_reject_forged_group_keys(client,store,tmp_path):
     payload['labels'][0]['label']['footage']['reviewKey']='F1'
     with pytest.raises(ValueError,match='review key'):
         validate_notes(payload)
+
+
+def test_grouping_upgrade_reuses_an_equivalent_ready_batch(client, store, monkeypatch):
+    monkeypatch.setattr('app.annotation.batches.GROUPING_VERSION', 'older-grouping')
+    old = batch(client)
+    clip = items(client, old['id'])[0]; ready(store, clip['id'])
+    monkeypatch.setattr('app.annotation.batches.GROUPING_VERSION', 'current-grouping')
+    updated = batch(client)
+    assert updated['id'] == old['id'] and updated['counts'] == {'ready': 1}

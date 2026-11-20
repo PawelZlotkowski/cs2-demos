@@ -9,6 +9,7 @@ import pytest
 
 from test_annotation import client, store, seed, DEMO, PLAYER, HEADERS, path
 from app.annotation.media import ClipRequest, Media, probe_video
+from app.annotation.media import validate_recording_duration
 from app.annotation.store import Conflict, Store
 from app.models.annotation import ReviewSave
 
@@ -82,6 +83,17 @@ def test_bad_uploads_leave_no_partial_files(client, store):
     assert list((store.root/'footage').iterdir()) == []
 
 
+def test_current_footage_list_hides_archived_snapshot_but_retains_history(client, store):
+    old = client.post(BASE, headers=HEADERS, json={'anchor': 4}).json()
+    current = client.post(BASE, headers=HEADERS, json={'anchor': 6}).json()
+    with store.connect() as con:
+        con.execute("UPDATE footage SET metadata=json_set(metadata,'$.snapshotId','old-snapshot') WHERE id=?", (old['id'],))
+        con.execute("UPDATE footage SET metadata=json_set(metadata,'$.snapshotId','frozen-snapshot') WHERE id=?", (current['id'],))
+    assert [c['id'] for c in client.get(BASE).json()] == [current['id']]
+    assert {c['id'] for c in client.get(BASE+'?history=true').json()} == {old['id'], current['id']}
+    assert Media(store).get(old['id'])['id'] == old['id']
+
+
 def test_recording_round_trip(client, video):
     clip = client.post(BASE, headers=HEADERS, json={'anchor': 5}).json()
     claimed = client.post('/api/recordings/claim', headers=HEADERS).json()
@@ -121,3 +133,24 @@ def test_map_assets_are_packaged(client):
     for name in ('ancient', 'anubis'):
         response = client.get(f'/static/maps/de_{name}_radar.png')
         assert response.status_code == 200 and response.content.startswith(b'\x89PNG')
+
+
+@pytest.mark.parametrize('duration', [14.2, 15.8])
+def test_recording_cannot_hide_a_second_of_missing_or_repeated_action(duration):
+    with pytest.raises(ValueError, match='duration differs'):
+        validate_recording_duration({'start':0,'end':15,'anchor':14.8}, {'duration':duration,'fps':'30/1'})
+
+
+def test_frame_quantisation_is_allowed_but_last_grouped_event_must_be_present():
+    validate_recording_duration({'start':0,'end':15,'anchor':8}, {'duration':14.9667,'fps':'30/1'})
+    with pytest.raises(ValueError, match='stops before'):
+        validate_recording_duration({'start':0,'end':15,'findings':[{'t':8},{'t':15}]}, {'duration':14.91,'fps':'30/1'})
+
+
+def test_readable_header_with_corrupt_frames_never_becomes_ready(client, store, video, monkeypatch):
+    def reject(_): raise ValueError('The video contains unreadable frames.')
+    monkeypatch.setattr('app.annotation.media.validate_video_frames', reject)
+    response = client.post(BASE+'/upload', headers=HEADERS, content=video)
+    assert response.status_code == 422 and 'unreadable frames' in response.text
+    assert client.get(BASE).json() == []
+    assert list((store.root/'footage').iterdir()) == []

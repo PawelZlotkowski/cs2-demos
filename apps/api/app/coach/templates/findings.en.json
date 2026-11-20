@@ -20,5 +20,11 @@
  "good_plays.multi_kill": "Got {kills} kills in {spanS} s, the last in {zone}.",
  "good_plays.clutch": "Won the round as the last player alive against {enemiesAlive} enemies, with {killsInClutch} kills.",
  "good_plays.flash_assist": "Flashed {victimName} for {killerName}'s kill in {zone}.",
- "good_plays.utility_damage": "Dealt {utilityDamage} grenade and fire damage to {enemiesHit} enemies."
+ "good_plays.utility_damage": "Dealt {utilityDamage} grenade and fire damage to {enemiesHit} enemies.",
+ "untraded_death.not_traded": "{teammateName} died {teammateDistanceM} m away; you did not kill {killerName} within {tradeWindowS} s. A clear trade opportunity is not established.",
+ "untraded_death.traded_by_teammate": "{teammateName} died {teammateDistanceM} m away; another teammate traded the killer after {observedWindowS} s.",
+ "untraded_death.player_died": "{teammateName} died {teammateDistanceM} m away; you died {observedWindowS} s later without a trade. This does not establish a missed opportunity.",
+ "untraded_death.window_incomplete": "{teammateName} died {teammateDistanceM} m away; only {observedWindowS} s remained in the round. No personal trade was recorded.",
+ "untraded_death.killer_unavailable": "{teammateName} died {teammateDistanceM} m away; the killer died by another cause after {observedWindowS} s.",
+ "shot_while_moving.review": "Fired {movingShots} of {shots} rifle shots above the {accurateSpeedUps} u/s review threshold with the {weapon} during combat in {zone}. Movement alone does not establish a mistake."
 }

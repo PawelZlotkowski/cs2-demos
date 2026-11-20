@@ -31,6 +31,7 @@ Smoke Window before crossing mid.
 def test_ingest_chunks_by_heading(tmp_path):
     (tmp_path / "a.md").write_text(DOC)
     (tmp_path / "README.md").write_text("## Not indexed\n\ntext")
+    (tmp_path / "SOURCES.md").write_text("## Source catalogue\n\nNot coaching advice")
     passages = load_passages(tmp_path)
     assert [(p.id, p.title) for p in passages] == [("K1", "Palace exits"), ("K2", "Window smoke")]
     assert passages[0].map == "de_mirage" and passages[0].side == "T" and passages[0].source == "own notes"
@@ -87,3 +88,18 @@ def test_dense_ranking_is_fused_with_bm25(tmp_path):
 
 def test_empty_query(tmp_path):
     assert KnowledgeIndex(tmp_path / "k.db", Path(tmp_path)).search("?") == []
+
+
+def test_context_notes_retrieve_for_english_and_polish_queries(tmp_path):
+    index = KnowledgeIndex(tmp_path / "k.db", KNOWLEDGE_DIR)
+    cases = {
+        "brak trade kolega": "Nearby trade outcomes and missed opportunities",
+        "strzelanie w ruchu pistolet": "Moving shots require an engagement and weapon context",
+        "crouch crab walk": "Crouched movement is not running",
+        "nearby trade opportunity": "Nearby trade outcomes and missed opportunities",
+    }
+    for query, title in cases.items():
+        hits = index.search(query, map_name="de_ancient", k=3)
+        assert hits[0].title == title
+        assert all(p.map in {"all", "de_ancient"} for p in hits)
+        assert all(p.file != "SOURCES.md" for p in hits)

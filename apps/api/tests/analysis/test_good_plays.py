@@ -1,5 +1,5 @@
 from app.analysis.detectors import good_plays
-from tests.analysis.builders import hurt, kill, match, round_
+from tests.analysis.builders import frames, hurt, kill, match, round_, w
 
 
 def _plays(rd, pid="t1"):
@@ -8,6 +8,7 @@ def _plays(rd, pid="t1"):
 
 def test_trade_kill_and_entry():
     rd = round_(winner="T", kills=[kill(10.0, "t1", "ct1"), kill(15.0, "ct2", "t2"), kill(17.0, "t1", "ct2")])
+    rd.frames = frames({"t1": w("A site"), "t2": w("A site")})
     plays = _plays(rd)
     assert plays["entry_kill"].evidence["victimName"] == "CT1"
     assert plays["trade_kill"].evidence["tradeTimeS"] == 2.0

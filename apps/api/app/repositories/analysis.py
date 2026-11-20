@@ -7,6 +7,7 @@ as JSON plus the columns the tools filter on (round, kind, detector).
 from __future__ import annotations
 
 import json
+import hashlib
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -104,6 +105,16 @@ class AnalysisRepository:
         return row[0] if row else None
 
     # --- analysis ---
+
+    def evidence_version(self, match_id: str, player_id: str) -> str:
+        """Content identity for answers whose F/m IDs may be reused after a rerun."""
+        with self._connect() as conn:
+            conn.execute('BEGIN')
+            payload = [match_id, player_id]
+            for table in ('findings', 'round_stats', 'moments'):
+                rows = conn.execute(f'SELECT json FROM {table} WHERE match_id=? AND player_id=?', (match_id, player_id)).fetchall()
+                payload.append(sorted(json.dumps(json.loads(r[0]), sort_keys=True) for r in rows))
+        return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
 
     def save(self, analysis: PlayerAnalysis) -> None:
         mid, pid = analysis.match_id, analysis.player_id

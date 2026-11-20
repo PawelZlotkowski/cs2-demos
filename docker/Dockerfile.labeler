@@ -23,8 +23,9 @@ FROM core AS test-core
 USER root
 RUN pip install --no-cache-dir pytest==9.1.1 httpx==0.28.1
 COPY tools/record_label_clips.py tools/test_record_label_clips.py /app/tools/
+COPY apps/api/tests /app/apps/api/tests
 USER labeler
-CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "eval/tests", "tools/test_record_label_clips.py"]
+CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "eval/tests", "apps/api/tests/analysis", "tools/test_record_label_clips.py"]
 
 FROM base AS voice
 USER root

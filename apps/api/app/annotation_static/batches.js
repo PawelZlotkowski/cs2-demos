@@ -1,5 +1,5 @@
 'use strict';
-const clipFlow={summary:null,items:[],queue:[],recorder:null,active:null,dirty:false,revision:null,timer:null,saving:Promise.resolve(),nav:0,conflict:false,verifying:null,advancing:false};
+const clipFlow={summary:null,items:[],queue:[],recorder:null,active:null,dirty:false,revision:null,timer:null,saving:Promise.resolve(),nav:0,conflict:false,verifying:null,advancing:false,signalRatings:{}};
 function batchKey(){return [state.demo,state.player,state.labeller].join('/');}
 function batchPath(){return `/api/demos/${state.demo}/players/${state.player}/clip-batch`;}
 function clipQuery(){return `?labeller=${encodeURIComponent(state.labeller)}`;}
@@ -29,10 +29,10 @@ $('useCoachExamples').onchange=guard(async()=>{
 function closeClipReview(){if(clipFlow.active){try{localStorage.removeItem('rr.annotation.clip');}catch{}}clipFlow.nav++;clipFlow.active=null;clipFlow.dirty=false;clearTimeout(clipFlow.timer);$('clipLabelPanel').hidden=true;document.body.classList.remove('clip-review','clip-setup-open');$('showClipSetup').hidden=true;$('showClipSetup').textContent='Change demo / player';$('radarPane').open=true;$('clipSelect').disabled=false;}
 function resetClipFlow(){closeClipReview();clipFlow.summary=null;clipFlow.items=[];clipFlow.queue=[];$('batchProgress').textContent='Prepare a player to record detected moments.';$('batchItems').replaceChildren();delete $('batchItems').dataset.version;$('batchMeter').hidden=true;$('recorderStatus').textContent='';renderBatchButtons();}
 function rememberClip(){try{localStorage.setItem('rr.annotation.clip',JSON.stringify({key:batchKey(),batch:clipFlow.summary.id,clip:clipFlow.active.id}));}catch{}}
-function renderBatchButtons(){const s=clipFlow.summary;$('recordAll').disabled=!state.replay;$('reviewClips').disabled=!s?.total;$('pauseBatch').disabled=!s;$('pauseBatch').textContent=s?.paused?'Resume recordings':'Pause recordings';$('retryBatch').disabled=!s?.counts.failed;}
+function renderBatchButtons(){const s=clipFlow.summary;$('recordAll').disabled=!state.replay||s?.stale;$('reviewClips').disabled=!s?.total||s?.stale;$('pauseBatch').disabled=!s||s.stale;$('pauseBatch').textContent=s?.paused?'Resume recordings':'Pause recordings';$('retryBatch').disabled=!s?.counts.failed||s?.stale;}
 function renderBatch(){
   const s=clipFlow.summary;renderBatchButtons();if(!s){$('batchProgress').textContent='No recording batch yet.';return;}
-  $('batchProgress').textContent=s.total?`${s.counts.ready||0}/${s.total} clips ready · ${s.counts.recording||0} in recording session · ${s.counts.queued||0} queued · ${s.counts.failed||0} failed · ${s.completed}/${s.total} labelled${s.paused?' · paused':''}. Context: ${s.before}s before / ${s.after}s after.`:'No detected moments for this player in the current snapshot.';
+  $('batchProgress').textContent=s.stale?'These clips use older rules. Choose Prepare player to recalculate before reviewing. Your earlier notes remain in history.':s.total?`${s.counts.ready||0}/${s.total} clips ready · ${s.counts.recording||0} in recording session · ${s.counts.queued||0} queued · ${s.counts.failed||0} failed · ${s.completed}/${s.total} labelled${s.paused?' · paused':''}. Context: ${s.before}s before / ${s.after}s after.`:'No detected moments for this player in the current snapshot.';
   $('batchMeter').hidden=!s.total;$('batchMeter').max=s.total||1;$('batchMeter').value=s.counts.ready||0;
   const worker=clipFlow.recorder,active=worker?.active;
   let status=worker?.connected?'Recorder connected.':'Recorder offline — no recent heartbeat. Start the host recorder on the PC with Steam and CS2.';
@@ -117,23 +117,43 @@ function renderActiveClip(loadFields){
   const findings=c.findings||[c.finding];
   $('clipSignal').textContent=findings.map(f=>`${(f.t-c.start).toFixed(1)} s: ${f.summary||f.detector}`).join('; ');
   $('clipEvidence').textContent=JSON.stringify(findings.length===1?findings[0].evidence:findings.map(f=>({id:f.id,detector:f.detector,secondsIntoClip:f.t-c.start,evidence:f.evidence})),null,2);
-  $('clipVerdictLabel').textContent=findings.length>1?'Detection signals (overall)':'Detection signal';
+  $('clipVerdictLabel').textContent='Detection signal';
+  $('clipVerdictLabel').hidden=$('clipVerdict').hidden=findings.length>1;
   $('clipRecordingState').textContent=c.state==='ready'?'':`Recording ${c.state}. ${c.error||'You can use the radar while waiting.'}`;
   const player=state.demos.find(d=>d.id===state.demo)?.players?.find(p=>p.id===state.player)?.name||state.player;
   $('clipVerifyHelp').textContent=`${player} · decision ${(c.anchor-c.start).toFixed(1)} s into the clip`;
   $('watchLabelClip').disabled=c.state!=='ready';
-  for(const id of ['clipVerdict','clipAssessment','clipNotes','clipLanguage','saveClipNext','saveClipDraft'])$(id).disabled=c.state!=='ready';
+  for(const id of ['clipVerdict','clipAssessment','clipNotes','clipLanguage','clipQuality','clipSelectionVerdict','saveClipNext','saveClipDraft'])$(id).disabled=c.state!=='ready';
   $('previousClip').disabled=index<=0;$('nextClip').disabled=index>=clipFlow.items.length-1;
   if(loadFields){
+    clipFlow.signalRatings=Object.fromEntries((c.label?.signalReviews||[]).map(r=>[r.findingId,r.verdict]));
+    $('clipQuality').value=c.label?.footageStatus||'';
+    $('clipSelectionVerdict').value=c.label?.selectionVerdict||'';
+    $('clipSignalReviews').replaceChildren();
+    if(findings.length>1)for(const f of findings){
+      const row=el('label',`${(f.t-c.start).toFixed(1)} s · ${f.summary||f.detector}`);
+      const select=el('select',null,{disabled:c.state!=='ready'});
+      for(const [value,text] of [['','Unrated'],['correct','Correct detection'],['wrong','Wrong detection'],['unsure','Unsure']])select.append(el('option',text,{value}));
+      select.value=clipFlow.signalRatings[f.id]||'';
+      select.oninput=()=>{clipFlow.signalRatings[f.id]=select.value;markClipDirty();};
+      row.append(select);$('clipSignalReviews').append(row);
+    }
     $('clipVerdict').value=c.label?.verdict||'';$('clipAssessment').value=c.label?.assessment||'';
     $('clipNotes').value=c.label?.notes||'';$('clipLanguage').value=c.label?.language||$('clipLanguage').value||'en';
     $('clipSaveState').textContent=c.label?(c.label.status==='complete'?'Saved note':'Draft restored'):'';
   }
   renderClipRequirements();
 }
-function clipPayload(status){return {previousRevision:clipFlow.revision,status,
-  inputMode:$('clipVerdict').value&&$('clipAssessment').value?'structured':'note',confirmFootage:status==='complete',verdict:$('clipVerdict').value||null,
-  assessment:$('clipAssessment').value||null,notes:$('clipNotes').value,language:$('clipLanguage').value};}
+function clipPayload(status){
+  const findings=clipFlow.active?.findings||[clipFlow.active?.finding];
+  const issue=$('clipQuality').value&&$('clipQuality').value!=='verified';
+  const signalReviews=findings.filter(f=>f?.id).map(f=>({findingId:f.id,verdict:findings.length===1?$('clipVerdict').value:clipFlow.signalRatings[f.id]})).filter(r=>r.verdict);
+  return {previousRevision:clipFlow.revision,status,
+    inputMode:!issue&&$('clipAssessment').value&&(findings.length===1?$('clipVerdict').value:signalReviews.length===findings.length)?'structured':'note',
+    confirmFootage:status==='complete'&&$('clipQuality').value==='verified',footageStatus:$('clipQuality').value||null,
+    selectionVerdict:issue?'unsure':$('clipSelectionVerdict').value||null,
+    signalReviews:issue?[]:signalReviews,verdict:!issue&&findings.length===1?$('clipVerdict').value||null:null,
+    assessment:issue?'uncertain':$('clipAssessment').value||null,notes:$('clipNotes').value,language:$('clipLanguage').value};}
 function markClipDirty(){clipFlow.dirty=true;$('clipError').hidden=true;renderClipRequirements();$('clipSaveState').textContent='Unsaved clip label';clearTimeout(clipFlow.timer);clipFlow.timer=setTimeout(()=>saveClipLabel('draft').catch(e=>message(e.message)),900);}
 async function saveClipLabel(status='draft',force=false){
   clearTimeout(clipFlow.timer);
@@ -158,12 +178,15 @@ async function saveClipLabel(status='draft',force=false){
 }
 async function leaveClip(){await saveClipLabel();if(clipFlow.dirty)await saveClipLabel();}
 function clipMissing(){
-  if($('clipNotes').value.trim()||($('clipVerdict').value&&$('clipAssessment').value))return [];
-  return [['clipNotes','write a note or choose both optional ratings']];
+  const missing=[];
+  if(!$('clipQuality').value)missing.push(['clipQuality','check the player, timing and context, or report a footage problem']);
+  if($('clipQuality').value==='verified'&&!$('clipSelectionVerdict').value)missing.push(['clipSelectionVerdict','say whether this moment was worth selecting']);
+  if(!$('clipNotes').value.trim()&&clipPayload('complete').inputMode!=='structured')missing.push(['clipNotes','write a note or rate every detection and the decision']);
+  return missing;
 }
 function renderClipRequirements(){
   const missing=clipMissing();
-  $('clipRequirements').textContent='Saving confirms you checked the player and event in this clip.';
+  $('clipRequirements').textContent='Check footage first. A footage problem is saved for repair and excluded from training examples.';
   $('clipNotes').setAttribute('aria-invalid',String(!$('clipError').hidden&&missing.length>0));
   $('saveClipNext').disabled=clipFlow.active?.state!=='ready'||clipFlow.advancing;
   const index=clipFlow.items.findIndex(c=>c.id===clipFlow.active?.id);
@@ -230,7 +253,7 @@ $('openReadyClip').onclick=guard(async()=>{
 });
 $('pauseBatch').onclick=guard(async()=>{if(!clipFlow.summary)return;await api(`/api/clip-batches/${clipFlow.summary.id}`,{method:'PUT',body:JSON.stringify({paused:!clipFlow.summary.paused})});await refreshBatch();});
 $('retryBatch').onclick=guard(async()=>{await api(`/api/clip-batches/${clipFlow.summary.id}/retry-failed`,{method:'POST'});await refreshBatch();});
-for(const id of ['clipVerdict','clipAssessment','clipNotes','clipLanguage'])$(id).oninput=markClipDirty;
+for(const id of ['clipVerdict','clipAssessment','clipNotes','clipLanguage','clipQuality','clipSelectionVerdict'])$(id).oninput=markClipDirty;
 $('saveClipDraft').onclick=clipGuard(()=>saveClipLabel('draft',true));$('saveClipNext').onclick=clipGuard(nextReadyClip);
 $('watchLabelClip').onclick=clipGuard(async()=>{const c=clipFlow.active;if(c?.state==='ready'){selectClip(c.id);seekReplay(c.start);await playReplay();}});
 $('showClipSetup').onclick=()=>{const open=document.body.classList.toggle('clip-setup-open');$('showClipSetup').textContent=open?'Hide setup':'Change demo / player';};

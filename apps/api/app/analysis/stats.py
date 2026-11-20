@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from app.analysis.detectors.common import (
-    TRADE_WINDOW_S,
     first_kill,
     is_team_kill,
     was_traded,
@@ -12,6 +11,7 @@ from app.analysis.detectors.common import (
 from app.analysis.detectors.good_plays import UTILITY_WEAPONS
 from app.analysis.match_data import MatchData, RoundData
 from app.models.contracts import RoundStats
+from app.analysis.trades import successful_trades
 
 
 def round_stats(match: MatchData, rd: RoundData, player_id: str) -> RoundStats:
@@ -24,14 +24,7 @@ def round_stats(match: MatchData, rd: RoundData, player_id: str) -> RoundStats:
     my_hurts = [h for h in rd.hurts if h.attacker == player_id and h.victim in enemies]
     blinds = [b for b in rd.blinds if b.attacker == player_id and b.duration > 1.0]
     eco = rd.economy.get(player_id)
-    trade_kills = sum(
-        1
-        for k in my_kills
-        if any(
-            p.attacker == k.victim and p.victim in mates and 0 < k.t - p.t <= TRADE_WINDOW_S
-            for p in rd.kills
-        )
-    )
+    trade_kills = len(successful_trades(rd, player_id))
     return RoundStats(
         round=rd.number,
         player_id=player_id,

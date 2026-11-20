@@ -1,9 +1,9 @@
 """Coach page Knowledge tab (doc 29 §2.3, R12): browse, flag and add knowledge passages.
 
 Passages come from ``data/knowledge`` as the retriever sees them. Notes added
-from the page go to ``data/knowledge/notes/<map>.md``, which sorts after every
-other folder, so adding one never renumbers the ``[K..]`` ids that stored
-explanations already cite (only later added notes move).
+from the page go to ``data/knowledge/notes/<map>.md``. Ingest places this folder
+last, so adding a note does not renumber curated passages (later notes can
+still move; ordinal ids are not a substitute for citation snapshots).
 """
 
 from __future__ import annotations

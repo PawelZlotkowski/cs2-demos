@@ -1,8 +1,7 @@
 """One review per overlapping play, scoped by the caller to one demo/player."""
 from copy import deepcopy
 
-GROUPING_VERSION = 'overlapping-plays-v1'
-MAX_GROUP_SECONDS = 60
+GROUPING_VERSION = 'overlapping-plays-v2'
 
 
 def review_key(footage, finding=None):
@@ -10,19 +9,16 @@ def review_key(footage, finding=None):
 
 
 def group_moments(moments):
-    """Merge padded windows, without chaining a whole round into one clip.
+    """Union overlapping contexts within a round, retaining all evidence.
 
-    A manually requested window longer than the cap is preserved, and may absorb
-    contained windows. Grouping never trims a finding's requested context.
+    A length cap can split a connected action into overlapping clips. Prefer a
+    longer review to showing that action twice; split only at real gaps.
     """
     groups = []
     for moment in sorted(moments, key=lambda m: (m['finding']['round'], m['startTick'], m['finding']['t'], m['finding']['id'])):
         previous = groups[-1] if groups else None
-        duration = moment['end'] - moment['start']
         if (previous and previous['finding']['round'] == moment['finding']['round']
-                and moment['startTick'] <= previous['endTick']
-                and max(previous['end'], moment['end']) - previous['start']
-                <= max(MAX_GROUP_SECONDS, previous['end'] - previous['start'], duration)):
+                and moment['startTick'] <= previous['endTick']):
             previous['end'] = max(previous['end'], moment['end'])
             previous['endTick'] = max(previous['endTick'], moment['endTick'])
             previous['findings'].append(moment['finding'])

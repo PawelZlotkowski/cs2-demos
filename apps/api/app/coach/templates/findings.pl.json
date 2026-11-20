@@ -20,5 +20,11 @@
  "good_plays.multi_kill": "Zabójstwa: {kills} w {spanS} s, ostatnie na {zone}.",
  "good_plays.clutch": "Wygrana runda jako ostatni żywy gracz drużyny przeciw {enemiesAlive} przeciwnikom, zabójstwa: {killsInClutch}.",
  "good_plays.flash_assist": "Flash na {victimName} przed zabójstwem {killerName} na {zone}.",
- "good_plays.utility_damage": "Obrażenia od granatów i ognia: {utilityDamage}, trafieni przeciwnicy: {enemiesHit}."
+ "good_plays.utility_damage": "Obrażenia od granatów i ognia: {utilityDamage}, trafieni przeciwnicy: {enemiesHit}.",
+ "untraded_death.not_traded": "{teammateName} zginął {teammateDistanceM} m od Ciebie; nie zabiłeś {killerName} w ciągu {tradeWindowS} s. Dane nie potwierdzają możliwości trade’a.",
+ "untraded_death.traded_by_teammate": "{teammateName} zginął {teammateDistanceM} m od Ciebie; inny kolega zrobił trade po {observedWindowS} s.",
+ "untraded_death.player_died": "{teammateName} zginął {teammateDistanceM} m od Ciebie; zginąłeś {observedWindowS} s później bez trade’a. To nie dowodzi zmarnowanej okazji.",
+ "untraded_death.window_incomplete": "{teammateName} zginął {teammateDistanceM} m od Ciebie; do końca rundy zostało {observedWindowS} s. Nie odnotowano Twojego trade’a.",
+ "untraded_death.killer_unavailable": "{teammateName} zginął {teammateDistanceM} m od Ciebie; zabójca zginął z innej przyczyny po {observedWindowS} s.",
+ "shot_while_moving.review": "Oddałeś {movingShots} z {shots} strzałów z {weapon} powyżej progu analizy {accurateSpeedUps} u/s podczas walki w {zone}. Sam ruch nie dowodzi błędu."
 }

@@ -28,6 +28,9 @@ def analysed(tmp_path, monkeypatch):
     repo.matches_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(pipe_mod._executor, "submit", lambda fn, *a: fn(*a))
     monkeypatch.setattr(settings, "llm_enabled", False)
+    # These verifier/tool fixtures deliberately exercise the legacy research kinds.
+    # Production defaults to local-v1; opt in here rather than weakening that default.
+    monkeypatch.setattr(settings, "analysis_profile", "all")
     monkeypatch.setattr(settings, "traces_dir", tmp_path / "traces")
     record = repo.create_upload("synthetic.dem", b"PBDEMS2\x00")
     mid = record["id"]

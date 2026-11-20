@@ -17,6 +17,7 @@ from app.admin.services import delete_match_everything
 from app.auth.deps import audit, current_user
 from app.auth.store import users
 from app.core.config import settings
+from app.coach.evidence import answer_evidence_version
 from app.models.contracts import (
     FeedbackRequest,
     MatchPatch,
@@ -74,12 +75,16 @@ def mark_seen(match_id: str, body: ReviewProgressRequest, user: dict = Depends(c
 @router.get("/matches/{match_id}/ask-history")
 def ask_history(match_id: str, user: dict = Depends(current_user)) -> list[dict[str, Any]]:
     _match(match_id)
-    return users().asks(user["id"], match_id, limit=50)
+    player = repo.analysis.get_player(match_id)
+    if not player:
+        return []
+    return users().asks(user["id"], match_id, limit=50, evidence_version=answer_evidence_version(match_id, player))
 
 
 @router.get("/players/{player_id}/ask-history")
 def ask_history_across(player_id: str, user: dict = Depends(current_user)) -> list[dict[str, Any]]:
-    return [a for a in users().asks(user["id"], limit=200) if a["matchId"] is None and a["playerId"] == player_id][:50]
+    return [a for a in users().asks(user["id"], limit=200, evidence_version=answer_evidence_version(None, player_id))
+            if a["matchId"] is None and a["playerId"] == player_id][:50]
 
 
 # --- feedback (A10) ---

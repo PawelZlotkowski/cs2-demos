@@ -6,10 +6,10 @@ from dataclasses import dataclass, field
 
 from app.analysis.match_data import MatchData, RoundData
 from app.maps.zones import zone_at
+from app.analysis.trades import TRADE_WINDOW_S
 
 # Seconds a teammate has to kill your killer for the death to count as traded.
 # Common coaching convention (3–5 s); 5 s is the generous end.
-TRADE_WINDOW_S = 5.0
 
 GRENADE_ITEMS = ("flashbang", "smoke", "high explosive", "he grenade", "molotov", "incendiary")
 

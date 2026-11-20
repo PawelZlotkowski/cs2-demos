@@ -1,107 +1,105 @@
-Get the updated labeller directly from GitHub.
+ROUND REVIEWER — OZNACZANIE WŁASNYCH DEM
 
-Repository: https://github.com/PawelZlotkowski/cs2-demos
-Branch: codex/labeller-recording
+Cel: wrzucasz własne demo, wybierasz gracza, oglądasz nagrane momenty i oceniasz,
+czy warto je było wybrać, co detektor wykrył poprawnie oraz co należy poprawić.
+Moment wybrany przez detektor nie jest automatycznie błędem gracza.
 
-If your tools are already installed, let any recording session finish and close the old recorder. In PowerShell, open your existing repository folder and run:
+1. INSTALACJA NA WINDOWS
 
-git fetch origin
-git switch codex/labeller-recording
-git pull --ff-only origin codex/labeller-recording
+Potrzebujesz Windows z działającym CS2, Docker Desktop (Linux containers / WSL 2),
+Python 3.11 lub nowszego, Steam, CS2, CS Demo Manager oraz jego narzędzi HLAE i FFmpeg.
+Nie potrzebujesz lokalnego modelu językowego ani płatnego klucza API.
+
+Docker: https://docs.docker.com/desktop/setup/install/windows-install/
+Python: https://www.python.org/downloads/windows/
+CS Demo Manager: https://cs-demo-manager.com/docs/installation
+Nagrywanie i instalacja HLAE/FFmpeg: https://cs-demo-manager.com/docs/guides/video
+
+Uruchom Docker Desktop, zaloguj się do Steam, zainstaluj i uruchom raz CS2.
+Zainstaluj CS Demo Manager. W jego ustawieniach wideo zainstaluj HLAE oraz FFmpeg.
+Po instalacji programów otwórz nowy terminal, żeby odświeżyć PATH.
+
+Pobierz gałąź labellera, nie main. W PowerShell:
+
+git clone --branch codex/labeller-recording --single-branch https://github.com/PawelZlotkowski/cs2-demos.git RoundReviewer
+cd RoundReviewer
 powershell -NoProfile -ExecutionPolicy Bypass -File .\labeler.ps1 update
-powershell -NoProfile -ExecutionPolicy Bypass -File .\labeler.ps1 record
 
-Open http://127.0.0.1:8765 and refresh. Select your demo and player, then prepare the player. Several remarks about the same play now share one clip and one note. Existing notes and recordings remain saved in Docker.
+Możesz też rozpakować całą paczkę źródłową otrzymaną od Pawła.
+Pierwsza instalacja buduje obraz Dockera i potrzebuje internetu.
+Wersja z poprawkami z 20 listopada pokazuje reviewSchemaVersion: 3 oraz
+policy.version: local-v1.1 pod http://127.0.0.1:8765/api/config.
+Jeżeli ich nie ma, masz starszy kod lub nieprzebudowany obraz.
 
-For a new Git checkout, run this first, then the two PowerShell launcher commands above:
+2. BAZA I NAGRYWANIE
 
-git clone --branch codex/labeller-recording --single-branch https://github.com/PawelZlotkowski/cs2-demos.git
-cd cs2-demos
+Otwórz „Open labeller.cmd”. Wybierz 1, aby otworzyć labeller.
+Wybierz D, aby przygotować bazę PostgreSQL dla CS Demo Managera.
+Launcher wyświetli połączenie; hasło znajdziesz w swoim labeler.env.
+W CS Demo Manager: Settings > Database > External, wpisz te dane i Connect.
+Zwykle host to 127.0.0.1, port 5432, użytkownik postgres, baza csdm.
+Jeśli masz już działającą bazę CS Demo Managera, launcher może jej użyć.
 
-Keep labeler.env from your existing installation if you use a custom project, port or database configuration. Git does not contain your local configuration, source demos or notes. Use a new checkout if Git reports conflicting local edits.
+Sprawdź ścieżkę do CS2 i wykonaj krótkie nagranie próbne w CS Demo Manager.
+W launcherze wybierz 2 — Record queued clips. W przeglądarce recorder ma być connected.
+Pozostaw Docker i Steam uruchomione, a Windows aktywny podczas nagrywania.
 
-The instructions below describe prerequisites and the optional offline ZIP installation. You do not need a ZIP or Google Drive for GitHub updates.
+3. TWOJE DEMO I TWOJE OCENY
 
-Please use the labeller to record clips from Counter-Strike 2 demos and write short observations about the selected player's decisions. When you finish, export your notes and send the JSON file back to Pawel.
+- Otwórz http://127.0.0.1:8765 i wpisz swój unikalny identyfikator, np. alex_v2.
+  Używaj go przy kolejnych sesjach. Nowy identyfikator oznacza nową serię ocen;
+  nie usuwa wcześniejszej pracy.
+- Zaimportuj własny plik .dem lub .dem.zst z Ancient albo Anubis.
+  ZIP/RAR najpierw rozpakuj. Poczekaj na listę graczy.
+- Wybierz dokładnie gracza, którego chcesz ocenić. Zostaw zaznaczone
+  Automatically record all detected moments i kliknij Prepare player.
+- Poczekaj na gotowy klip i wybierz Review next clip.
+- Footage check: potwierdź właściwego gracza, moment zdarzenia i wystarczający
+  kontekst. Wybierz problem, jeśli POV/czas jest błędny, brakuje kontekstu albo
+  wideo nie działa. Opisz go — taka ocena trafia do naprawy, nie do treningu.
+- Was this moment worth selecting for coaching?: wybierz, czy moment jest
+  przydatny, nieprzydatny, czy nie da się ocenić. Normalny ruch z bronią może być
+  prawidłowo wykryty, ale nie dawać użytecznej lekcji.
+- What did you notice?: napisz dlaczego, co gracz mógł poprawić i co program
+  powinien wykrywać inaczej. W Optional review details ustaw język notatki.
+- Opcjonalnie oceń każdy sygnał osobno: Correct / Wrong / Unsure. Następnie
+  osobno oceń decyzję gracza. Kilka detekcji w jednej akcji pozostaje jednym
+  klipem, ale może otrzymać różne oceny.
+- Kliknij Save note and next clip. Szkice zapisują się automatycznie.
+  Przy konflikcie zapisu skopiuj niezapisany tekst i użyj Reload saved note.
 
-These instructions assume a Windows PC with a 64-bit Intel or AMD processor that can run CS2. The installation ZIP is called round-labeler-portable.zip and is approximately 1.10 GB. It includes the labeller, PostgreSQL database image and local dictation model. Allow extra disk space for demos and recordings.
+Brak komunikacji głosowej lub widoczności przeciwnika oznacza niepewność.
+Nie zakładaj, że gracz wiedział wszystko, co pokazuje radar.
+Trade do 5 m opisuje bliskość i wynik; sam brak trade'a nie dowodzi złej decyzji.
+Strzelanie w ruchu zależy m.in. od broni i sytuacji. Nie oceniaj go automatycznie.
 
-Install these apps once.
+Labeller wybiera te klipy za pomocą detektorów, bez uruchamiania LLM.
+Oceny posłużą do ulepszenia detektorów oraz późniejszego wyboru momentów przez model.
+Aby zgłosić pominięty moment, użyj Review full round i dodaj własną obserwację.
+Przegląd po obejrzeniu kandydatów jest oznaczony jako candidate-exposed.
 
-1. Docker Desktop for Windows
-   Choose the x86_64 download. Use the WSL 2 backend and Linux containers. Follow any WSL installation prompts and restart Windows if requested. Open Docker Desktop and wait until its engine is running.
-   https://docs.docker.com/desktop/setup/install/windows-install/
+4. WYŚLIJ OCENY PAWŁOWI
 
-2. Python 3.13, 64-bit
-   Install Python from the Windows downloads page. If the installer offers "Add Python to PATH", tick it. Python runs the background recording worker.
-   https://www.python.org/downloads/windows/
+W launcherze wybierz 6 — Export my notes. Podaj pełną ścieżkę do pliku JSON
+w istniejącym folderze oraz ten sam identyfikator labellera co w przeglądarce.
+Wyślij ten JSON Pawłowi. Zawiera oceny, szkice, wersję detekcji i dane źródłowe;
+nie zawiera MP4 ani całego dema. Właściciel importuje go opcją 7.
+Dema i klipy do wizualnej weryfikacji przekaż osobno, jeśli się na to umówicie.
 
-3. Steam
-   Install Steam and sign in to your account.
-   https://store.steampowered.com/about/
+5. AKTUALIZACJA I POWRÓT
 
-4. Counter-Strike 2
-   Install CS2 through Steam and open it once to finish its initial setup, then close the game. Keep Steam signed in while recording.
-   https://store.steampowered.com/app/730/CounterStrike_2/
+Przed aktualizacją wyeksportuj notatki i zrób kopię opcją 8 — Back up workspace.
+Zatrzymaj recorder po zakończeniu bieżącej sesji. W folderze projektu:
 
-5. CS Demo Manager
-   Download and install the Windows version. It controls demo playback and recording. Its Windows installer also supplies the command-line tool used by the recorder.
-   https://cs-demo-manager.com/docs/installation
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\labeler.ps1 update
 
-6. HLAE and FFmpeg
-   Install these using the download/install buttons inside CS Demo Manager's video settings or Video view. HLAE captures the gameplay and FFmpeg creates the video files. Select HLAE as the recording system and FFmpeg as the encoder.
-   https://cs-demo-manager.com/docs/guides/video#installingupdating-required-software
+Odśwież przeglądarkę. Dla wcześniej analizowanych dem wybierz ponownie Prepare player.
+Stare reguły blokują nowe oceny do czasu przeliczenia, zachowując wcześniejsze notatki.
+Uruchom recorder ponownie opcją 2. Sam git pull nie aktualizuje kontenera ani
+już uruchomionego procesu recordera.
 
-7. A web browser
-   Use your existing Microsoft Edge, Chrome or Firefox to open the labeller.
-
-PostgreSQL 17 is supplied in the ZIP. The database setup option below starts it in Docker and creates a password for your PC.
-
-Set up the labeller after installing the apps.
-
-1. Right-click round-labeler-portable.zip and choose Extract All. Extract the entire folder somewhere writable, for example Documents\RoundReviewer.
-
-2. In the extracted folder, double-click "Open labeller.cmd". A menu opens. Type the option number or letter and press Enter. Reopen this launcher if it was already open while you installed the apps.
-
-3. Choose 1, "Start labeller and open browser". The first start loads the bundled Docker images and can take several minutes. Keep the window open until it says the labeller is ready. The browser should open http://127.0.0.1:8765.
-
-4. Return to the menu and choose D, "Set up recording database". Wait for it to finish. It prints the database connection settings. Open labeler.env from the extracted folder in Notepad and copy the value after CSDM_DB_PASSWORD=.
-
-5. In CS Demo Manager, go to Settings > Database. Disconnect from its current connection if necessary, choose External and enter the settings printed by the launcher. With the default setup, use the following values.
-
-   Host          127.0.0.1
-   Port          5432
-   User          postgres
-   Database      csdm
-   Password      The value copied from labeler.env
-
-   Press Connect and wait for setup to finish. If the launcher reports an existing configured database, check that CS Demo Manager connects to it successfully.
-
-6. Confirm CS Demo Manager has the correct CS2 installation path and that HLAE and FFmpeg are installed. Try one short video in CS Demo Manager to check game capture works on your PC.
-
-7. Return to the launcher and choose 2, "Record queued clips". The worker starts in the background. The labeller page should show the recorder as connected.
-
-Record and label your first demo.
-
-1. In the browser, enter your own labeller name, such as alex, and keep using that name when you return.
-2. Import an Ancient or Anubis demo with the extension .dem or .dem.zst. Ask Pawel which demos and players to review.
-3. Select the player, leave "Automatically record detected moments" enabled and click "Prepare player".
-4. Keep Docker and Steam running, stay signed in and keep the PC awake. CS2 will open to record the requested moments. Wait for a clip to become ready.
-5. Open a ready clip and check that it shows the selected player and the event you are judging.
-6. Write a short observation under "What did you notice?" Explain the decision, why it helped or hurt, and a better option if there was one. If the clip does not show enough context, say what is missing.
-7. Click "Save note and next clip".
-
-For example, "The grenade was thrown after the teammate had already entered. Throw it before the peek so it supports the entry." Use the example only when the footage supports those details.
-
-Send your notes back when you finish.
-
-1. Open the launcher and choose 6, "Export my notes".
-2. Enter a destination filename. If you extracted the kit into Documents\RoundReviewer, you can use that folder's full path followed by \alex-notes.json. Choose an existing folder and use your own name in the filename.
-3. Enter the same labeller name you used in the browser.
-4. Wait for the export to finish, then send the resulting JSON file to Pawel. It contains your notes and their source information. Pawel can import it into the project.
-
-Next time, start Docker Desktop, keep Steam signed in, open "Open labeller.cmd" and choose 1. Choose 2 when you want to record more clips. Your saved clips and notes persist between sessions. To finish recording for the day, pause the queue in the browser and let the current session finish before shutting down.
-
-If setup gets stuck, copy the exact error message and send it to Pawel. Choose 3 in the launcher to see service status. Recording errors are saved in .local\portable-recorder.stderr.log inside the extracted folder. If port 5432 is already occupied, the full guide in docs\LABELER-SETUP.md explains how to choose another port.
-
-This setup has been checked on Pawel's Windows Docker Desktop installation. Your first successful recording still needs a visual check of the selected player and event timing on your PC.
+Nie kasuj wolumenów Dockera. Git nie jest kopią Twoich dem ani notatek.
+Po błędzie zachowaj dokładny komunikat. Log nagrywania znajduje się w
+.local\portable-recorder.stderr.log. Szczegóły: docs\LABELER-SETUP.md.
+Pierwszy poprawny klip na Twoim PC trzeba sprawdzić wizualnie: gracz, zdarzenie i czas.

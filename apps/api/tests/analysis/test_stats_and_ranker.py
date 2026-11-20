@@ -1,7 +1,7 @@
 from app.analysis.ranker import MIN_GAP_S, rank_moments
 from app.analysis.stats import round_stats
 from app.models.contracts import Finding
-from tests.analysis.builders import blind, eco, grenade, hurt, kill, match, round_, w
+from tests.analysis.builders import frames, blind, eco, grenade, hurt, kill, match, round_, w
 
 
 def test_round_stats_numbers():
@@ -13,6 +13,7 @@ def test_round_stats_numbers():
         blinds=[blind(9.0, "t1", "ct1", 2.0), blind(9.0, "t1", "t3", 1.5), blind(9.0, "t1", "ct2", 0.3)],
         economy={"t1": eco(1200, 4700)},
     )
+    rd.frames = frames({"t1": w("A site"), "t2": w("A site")})
     s = round_stats(match(rd), rd, "t1")
     assert (s.side, s.won, s.kills, s.deaths, s.headshot_kills) == ("T", True, 2, 1, 1)
     assert s.damage == 240 and s.utility_damage == 40
@@ -64,3 +65,21 @@ def test_ranker_with_few_findings():
     assert rank_moments([]) == []
     one = rank_moments([_f(1, 1, 3, "good", "good_plays", 0.5)])
     assert len(one) == 1 and one[0].t0 == 0.0
+
+
+def test_mixed_kind_chain_is_one_clip_not_two_copies():
+    fs = [_f(1, 1, 10, "mistake", "team_flash", 0.7),
+          _f(2, 1, 16, "context", "opening_duel", 0.5),
+          _f(3, 1, 22, "good", "good_plays", 0.8)]
+    moments = rank_moments(fs)
+    assert len(moments) == 1
+    assert set(moments[0].finding_ids) == {"F1", "F2", "F3"}
+
+
+def test_long_chains_never_create_long_or_overlapping_clips():
+    fs = [_f(i, 1, 5 + i * 6, "mistake", "team_flash", 0.5) for i in range(1, 12)]
+    moments = rank_moments(fs)
+    assert all(m.t1 - m.t0 <= 30 for m in moments)
+    assert all(a.t1 <= b.t0 for a, b in zip(moments, moments[1:]))
+    assert len(rank_moments(fs, target=1)) == 1
+    assert rank_moments(fs, target=0) == []

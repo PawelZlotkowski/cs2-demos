@@ -19,7 +19,8 @@ from app.repositories.matches import repo
 
 
 def ids(mid, pid) -> dict[str, str]:
-    return {f.detector: f.id for f in repo.analysis.findings(mid, pid) if f.kind in ("mistake", "good")}
+    # Context can support a moment and an explanation, but cannot lead a pick.
+    return {f.detector: f.id for f in repo.analysis.findings(mid, pid)}
 
 
 def picks_json(mid, pid) -> str:
@@ -39,7 +40,7 @@ def picks_json(mid, pid) -> str:
 def good_text(mid, pid) -> str:
     i = ids(mid, pid)
     return (
-        f"You fired 1 of 1 shots with the ak47 while moving at 206 u/s in Mid [{i['shot_while_moving']}]. "
+        f"You fired 2 of 2 shots with the ak47 while moving at 206 u/s in Mid [{i['shot_while_moving']}]. "
         f"You died 0.16 s after first contact with no flash from the team, so wait for support next time [{i['dry_peek']}]."
     )
 
@@ -101,7 +102,7 @@ def test_selection_stores_agent_moments(analysed, tmp_path, tools):
     assert req["thinking"] is True and req["response_format"]["type"] == "json_schema"
     assert "id | kind | detector" in req["messages"][1]["content"]
     t = traces(tmp_path)[0]
-    assert t["job"] == "select_moments" and t["source"] == "agent" and t["promptVersion"] == "select_moments.v1"
+    assert t["job"] == "select_moments" and t["source"] == "agent" and t["promptVersion"] == "select_moments.v2"
     assert t["attempts"][0]["reasoningChars"] == len("weighing")
 
 
@@ -156,7 +157,7 @@ def test_explain_moment_with_tools(analysed, tmp_path):
     )
     expl = asyncio.run(jobs.explain(mid, pid, "m1", "en"))
     assert expl.source == "agent" and expl.verifier_errors == []
-    assert i["dry_peek"] in expl.finding_ids and expl.prompt_version == "explain_moment.v3"
+    assert i["dry_peek"] in expl.finding_ids and expl.prompt_version == "explain_moment.v5"
     assert repo.analysis.explanation(mid, pid, "m1", "en") == expl
     assert llm.requests[0]["thinking"] is False
     t = traces(tmp_path)[0]
@@ -254,7 +255,7 @@ def test_explanation_can_cite_knowledge_it_looked_up(analysed, tmp_path):
     passage = default_index().search("moving while shooting", k=1)[0]
     i = ids(mid, pid)
     text = (
-        f"You fired 1 of 1 shots while moving at 206 u/s in Mid [{i['shot_while_moving']}]. "
+        f"You fired 2 of 2 shots while moving at 206 u/s in Mid [{i['shot_while_moving']}]. "
         f"Stop before you shoot, because running shots spread widely [{passage.id}]."
     )
     jobs, _ = jobs_with(

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import sqlite3
 import threading
 import time
@@ -264,6 +265,47 @@ def test_export_and_delete_account(people):
     assert repo.get(mid) is None
     assert not (repo.matches_dir / mid).exists()
     assert "alice" not in [u["username"] for u in admin.get("/admin/users").json()]
+
+
+def test_ask_history_does_not_rebind_old_finding_ids_after_reanalysis(people):
+    from app.auth.store import users
+    mid, pid, _admin, alice, *_ = people
+    response = alice.post(f'/matches/{mid}/players/{pid}/ask', json={'question':'What happened?'})
+    assert 'event: answer' in response.text
+    [saved] = alice.get(f'/matches/{mid}/ask-history').json()
+    assert saved['evidenceVersion']
+    with repo.analysis._connect() as con:
+        row = con.execute('SELECT finding_id,json FROM findings WHERE match_id=? AND player_id=? LIMIT 1', (mid,pid)).fetchone()
+        value = json.loads(row[1]); value['summary'] = 'A different observation after reanalysis.'
+        con.execute('UPDATE findings SET json=? WHERE match_id=? AND player_id=? AND finding_id=?', (json.dumps(value),mid,pid,row[0]))
+    assert alice.get(f'/matches/{mid}/ask-history').json() == []
+    assert users().asks(saved['userId'], mid)[0]['id'] == saved['id']  # Export/history retains it.
+    users().add_ask(saved['userId'],mid,pid,'Legacy question','Unversioned answer',['F1'],'agent','en')
+    assert alice.get(f'/matches/{mid}/ask-history').json() == []
+
+
+def test_ask_rejects_answer_if_analysis_changes_while_it_runs(people, monkeypatch):
+    mid, pid, _admin, alice, *_ = people
+    versions = iter(['before-reanalysis', 'after-reanalysis'])
+    monkeypatch.setattr('app.api.routes.answer_evidence_version', lambda *args: next(versions))
+    response = alice.post(f'/matches/{mid}/players/{pid}/ask', json={'question':'What happened?'})
+    assert 'event: error' in response.text and 'analysis changed' in response.text
+    assert 'event: answer' not in response.text
+
+
+def test_ask_history_is_bound_to_knowledge_sources_too(people, monkeypatch, tmp_path):
+    from app.rag.index import KnowledgeIndex
+    mid, pid, _admin, alice, *_ = people
+    sources = tmp_path / 'sources'
+    sources.mkdir()
+    document = sources / 'principle.md'
+    document.write_text('## Trading\n\nProximity alone does not prove an opportunity.')
+    index = KnowledgeIndex(tmp_path / 'knowledge-history.db', sources)
+    monkeypatch.setattr('app.coach.evidence.default_index', lambda: index)
+    assert 'event: answer' in alice.post(f'/matches/{mid}/players/{pid}/ask', json={'question':'What happened?'}).text
+    assert len(alice.get(f'/matches/{mid}/ask-history').json()) == 1
+    document.write_text('## Visibility\n\nSight lines need evidence.\n\n## Trading\n\nProximity needs context.')
+    assert alice.get(f'/matches/{mid}/ask-history').json() == []
 
 
 def test_share_link(people, monkeypatch):

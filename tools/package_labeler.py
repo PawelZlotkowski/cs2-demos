@@ -23,6 +23,8 @@ def source_files():
         'eval/tests/test_annotation_voice.py',
         'eval/tests/test_clip_export.py', 'eval/tests/test_cloud_notes.py',
         'eval/tests/test_grouped_clips.py',
+        'eval/tests/test_clip_review_quality.py', 'eval/tests/test_annotation_cache.py',
+        'eval/tests/test_snapshot_refresh.py',
         'eval/tests/fixtures/labeller/clips-manifest.json',
         'eval/tests/fixtures/labeller/cloud-notes-1-initial.json',
         'eval/tests/fixtures/labeller/cloud-notes-2-later-revision.json',
@@ -34,11 +36,16 @@ def source_files():
         'tools/test_label_navigation.cjs', 'tools/test_labeler_launcher.ps1', 'tools/test_labeler_launcher.sh',
         'docs/LABELER-SETUP.md', 'docs/LABELER-FRIEND-INSTRUCTIONS.txt',
         'docs/LABEL-TOOL.md', 'docs/planning/ROUND-LABELLING-GUIDE.md',
+        'docs/coach/LABELLER-HANDOFF-2026-11-20.md',
         'docs/planning/LOCAL-LABELLING-TOOL-PLAN.md', 'docs/planning/FINAL-DELIVERY-PLAN.md',
     )]
     source = ROOT / 'apps' / 'api' / 'app'
     files.extend(p for p in source.rglob('*') if p.is_file() and '__pycache__' not in p.parts
                  and p.suffix in ('.py', '.json', '.md', '.html', '.js', '.css', '.png'))
+    for name in ('builders', 'synthetic_demo', 'test_local_policy', 'test_untraded_death',
+                 'test_shot_while_moving', 'test_good_plays', 'test_stats_and_ranker',
+                 'test_unused_utility', 'test_team_flash', 'test_opening_duel', 'test_extract'):
+        files.append(ROOT / f'apps/api/tests/analysis/{name}.py')
     return sorted(set(files))
 
 
@@ -67,10 +74,13 @@ def package(output, image=None, target='runtime'):
                     'postgresImage': 'postgres:17', 'postgresImageId': info[1]['Id'],
                 }
             with ZipFile(partial, 'w', ZIP_DEFLATED, compresslevel=1, allowZip64=True) as archive:
+                manifest = {'format': 'round-reviewer-source-v1', 'files': {}}
                 for file in files:
                     archive.write(file, file.relative_to(ROOT).as_posix())
+                    manifest['files'][file.relative_to(ROOT).as_posix()] = hashlib.sha256(file.read_bytes()).hexdigest()
+                archive.writestr('source-manifest.json', json.dumps(manifest, indent=2)+'\n')
                 readme = (ROOT / 'docs' / 'LABELER-SETUP.md').read_text('utf-8')
-                archive.writestr('README.md', readme.replace('(LABEL-TOOL.md', '(docs/LABEL-TOOL.md'))
+                archive.writestr('README.md', readme.replace('(LABEL-TOOL.md', '(docs/LABEL-TOOL.md').replace('(LABELLER-CLOUD.md', '(docs/LABELLER-CLOUD.md'))
                 archive.write(ROOT / 'docs/LABELER-FRIEND-INSTRUCTIONS.txt', 'START-HERE.txt')
                 if release:
                     archive.write(image_archive, image_archive.name)

@@ -13,8 +13,10 @@ Each file starts with a small front matter block::
     license: CC BY-SA 3.0 # only for copied text
     ---
 
-Passage ids ``K1``, ``K2``… follow the sorted (file, heading) order, so they
-stay the same while the files do not change. The coach cites them as ``[K7]``.
+Passage ids ``K1``, ``K2``… follow the sorted (file, heading) order, with
+user ``notes/`` last. Appending a user note does not renumber curated passages.
+Other additions/removals can still change these ordinal ids; snapshot citations
+remain necessary. The coach cites them as ``[K7]``.
 """
 
 from __future__ import annotations
@@ -56,8 +58,13 @@ def parse_front_matter(text: str) -> tuple[dict[str, str], str]:
 def load_passages(directory: Path | None = None) -> list[Passage]:
     directory = directory or KNOWLEDGE_DIR
     raw: list[tuple[str, str, dict[str, str], str]] = []
-    for path in sorted(directory.rglob("*.md"), key=lambda p: p.relative_to(directory).as_posix()):
-        if path.name.lower() == "readme.md":
+    # Keep the Knowledge tab's append-only notes after all curated folders,
+    # including newer folders such as research/, rather than relying on names.
+    paths = sorted(directory.rglob("*.md"), key=lambda p: (
+        p.relative_to(directory).parts[0] == "notes", p.relative_to(directory).as_posix(),
+    ))
+    for path in paths:
+        if path.name.lower() in {"readme.md", "sources.md"}:
             continue
         meta, body = parse_front_matter(path.read_text(encoding="utf-8"))
         for title, text in _sections(body):

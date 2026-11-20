@@ -25,9 +25,9 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 300 * 1024 * 1024
     max_decompress_bytes: int = 2 * 1024 * 1024 * 1024
     parse_timeout_seconds: float = 120.0
-    # Local V1 uses only the explicitly reviewed detector subset. Preserve the
-    # legacy profile for existing evaluations; the local launcher selects V1.
-    analysis_profile: Literal["all", "local-v1"] = "all"
+    # Fresh API/Docker starts use the conservative delivery profile too.
+    # Legacy research evaluations must opt in with RR_ANALYSIS_PROFILE=all.
+    analysis_profile: Literal["all", "local-v1"] = "local-v1"
     load_saved_settings: bool = True
 
     # Coach model (AI Coach plan §6.1): self-hosted llama.cpp, OpenAI-compatible.

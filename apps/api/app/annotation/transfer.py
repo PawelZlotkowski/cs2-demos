@@ -110,9 +110,15 @@ def validate_notes(payload):
             if not re.fullmatch(r'[a-f0-9]{32}', label['footage']['id']):
                 raise ValueError('Invalid clip identity.')
             validate_clip_group(label['finding'], label['footage'], label['round'])
-            if request.status == 'complete' and (
+            members = label['footage'].get('findings') or [label['finding']]
+            if not {r.findingId for r in request.signalReviews} <= {f['id'] for f in members}:
+                raise ValueError('A detection rating does not belong to this clip.')
+            footage_issue = request.footageStatus not in (None, 'verified')
+            if footage_issue and (label['footage'].get('alignmentConfirmed') or (request.status == 'complete' and not request.notes.strip())):
+                raise ValueError('A footage issue needs an explanation and cannot be confirmed for training.')
+            if request.status == 'complete' and not footage_issue and (
                 label['footage'].get('alignmentConfirmed') is not True
-                or (not request.notes.strip() and not (request.verdict and request.assessment))
+                or (not request.notes.strip() and not ((request.verdict or len(request.signalReviews) == len(members)) and request.assessment))
             ):
                 raise ValueError('A completed note needs confirmed footage and a note or both ratings.')
         else:

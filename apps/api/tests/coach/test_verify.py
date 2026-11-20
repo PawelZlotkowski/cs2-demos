@@ -53,6 +53,21 @@ def test_good_answer_passes():
     assert r.finding_ids == ["F12"] and "t:34.5" in r.citations
 
 
+@pytest.mark.parametrize('text,lang', [
+    ('Your movement and shooting were effective because you won the opening duel [F13].', 'en'),
+    ('Your aim was poor despite the kill [F13].', 'en'),
+    ('Twój ruch był skuteczny, co pokazuje zabójstwo [F13].', 'pl'),
+    ('Ta akcja pokazuje trzy ciosy w A site [F13].', 'pl'),
+])
+def test_outcome_does_not_prove_technique_or_mean_melee_hits(text, lang):
+    assert not check(text, lang).ok
+
+
+def test_uncertainty_about_technique_is_allowed():
+    result = check('You won the opening duel [F13]. This does not prove that your movement was correct.')
+    assert result.ok, result.errors
+
+
 def test_round_stats_numbers_and_rounding_are_allowed():
     assert check("You dealt 87 damage in round 7 before dying alone, 25 m from help [F12].").ok
 
@@ -259,3 +274,22 @@ def test_tool_calls_written_as_text_fail(text):
 
 def test_words_close_to_tool_names_pass():
     assert verify_text("You were not traded in Palace [F12], so search for knowledge of trades.", CTX, "en").ok
+
+
+def test_non_adjacent_leads_cannot_reuse_overlapping_video():
+    fs = [finding("F1", round=1, t=10), finding("F2", round=1, t=25)]
+    picks = [{"round": 1, "t0": 5, "t1": 22, "findingIds": ["F1"],
+              "kind": "mistake", "pickedBecause": "[F1] reason"},
+             {"round": 1, "t0": 20, "t1": 28, "findingIds": ["F2"],
+              "kind": "mistake", "pickedBecause": "[F2] reason"}]
+    assert any("overlaps" in e for e in verify_moments(picks, fs).errors)
+
+
+def test_repeated_finding_is_rejected_even_with_different_leads():
+    fs = [finding("F1", round=1, t=10), finding("F2", round=1, t=25),
+          finding("F3", round=1, t=18, kind="context")]
+    picks = [{"round": 1, "t0": 5, "t1": 19, "findingIds": ["F1", "F3"],
+              "kind": "mistake", "pickedBecause": "[F1] reason"},
+             {"round": 1, "t0": 17, "t1": 28, "findingIds": ["F2", "F3"],
+              "kind": "mistake", "pickedBecause": "[F2] reason"}]
+    assert any("repeats findings" in e for e in verify_moments(picks, fs).errors)

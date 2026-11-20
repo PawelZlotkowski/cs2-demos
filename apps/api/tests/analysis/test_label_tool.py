@@ -7,6 +7,7 @@ sys.path.insert(0, str(ROOT))
 
 from eval import label_tool as lt  # noqa: E402
 from app.analysis.run import detect_findings  # noqa: E402
+from app.core.config import settings  # noqa: E402
 from tests.analysis.builders import kill, match, round_, shot  # noqa: E402
 
 
@@ -40,7 +41,8 @@ def test_score_precision_recall():
     assert (s["precision"], s["recall"], s["unsure"]) == (0.5, 0.5, 1)
 
 
-def test_label_round_with_scripted_answers(tmp_path):
+def test_label_round_with_scripted_answers(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "analysis_profile", "all")
     m = match(round_(2, shots=[shot(10.0, "t1", 200)], kills=[kill(11.0, "ct1", "t1")]))
     findings = [f for f in detect_findings(m, "t1") if f.round == 2]
     assert len(findings) >= 2

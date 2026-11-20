@@ -2,6 +2,40 @@
 
 Each person gets a local browser labeller, Docker storage, a PostgreSQL database for CS Demo Manager, and a Windows recording worker. The everyday workflow is to open a clip, write an observation and press **Save note and next clip**.
 
+## Get the correct source from GitHub
+
+Use the **`codex/labeller-recording`** branch, not the older `main` application.
+This is the local Windows workflow for **your own demos**, with your choice of player.
+Git contains the program; demos, MP4s, database credentials and personal annotations stay on your PC.
+
+```powershell
+git clone --branch codex/labeller-recording --single-branch https://github.com/PawelZlotkowski/cs2-demos.git RoundReviewer
+cd RoundReviewer
+powershell -NoProfile -ExecutionPolicy Bypass -File .\labeler.ps1 update
+```
+
+Install the recording prerequisites below before choosing **Record queued clips**.
+The Git checkout is a source kit, so the first Docker build needs internet access.
+You do not need a GPU model, an API key, a hosted account or the Studio frontend to label.
+Check `http://127.0.0.1:8765/api/config`: this revision reports `reviewSchemaVersion: 3`
+and detector policy `local-v1.1`. If those fields are absent, rebuild the updated source.
+The 20 November update is delivered on this branch. Keep the branch selected when updating an existing installation.
+
+## Start a new annotation pass safely
+
+For an independent new pass, use a new handle, for example `alex_v2`. That handle
+starts with no completed reviews; older notes remain available under the old handle.
+For a completely empty installation, before starting copy `labeler.env.example`
+to `labeler.env` in a new folder and set `LABELER_PROJECT=round-labeler-alex-v2`.
+Use a different `LABELER_PORT` if the old installation is still running. Stop the
+old recorder before starting the new one. Do not remove Docker volumes to reset labels.
+
+When updating an existing installation, export your notes and back up the workspace
+first. Stop the recorder after its current session, `git pull --ff-only`, run
+`labeler.ps1 update`, refresh the browser, and **Prepare player** again for existing
+demos. Older detector snapshots cannot be reviewed until refreshed. Start the recorder
+again so it loads the new recording code; a running Python process cannot update itself.
+
 ## First installation on Windows
 
 1. Install and open Docker Desktop using Linux containers. Allow approximately 8 GB RAM for Docker and sufficient free disk space for game files, images, demos and recordings. Windows must meet Docker Desktop's current WSL 2 requirements. [Docker installation](https://docs.docker.com/desktop/setup/install/windows-install/)
@@ -21,7 +55,29 @@ If this PC already has a reachable database configured in CS Demo Manager, the l
 2. Import an Ancient or Anubis `.dem` or `.dem.zst` file.
 3. Select the player, keep **Automatically record detected moments** enabled, and press **Prepare player**.
 4. Leave Steam signed in and Windows awake while recordings run. The launcher uses sessions of up to eight clips so results arrive in smaller groups.
-5. Open a ready clip, verify the player and event, write what you noticed, then press **Save note and next clip**. The note can describe a mistake, a good decision or missing context.
+5. Open a ready clip and complete **Footage check**. Check the player, event timing and enough context. If the POV is wrong, the event is off, or the clip is unusable, choose that issue and describe it. The issue is exported for repair and excluded from training examples.
+6. Answer **Was this moment worth selecting for coaching?** A correct factual signal can still be an unhelpful moment. Explain what should change in **What did you notice?**; Polish or English notes are supported. Set the matching note language.
+7. In **Optional review details**, judge each detector signal separately and then the player's decision. A factual detection does not prove a mistake. Choose **Unsure** when visibility, communication or context is missing.
+8. Press **Save note and next clip**. Drafts autosave; a completed save preserves the source player, round, detector version and all signal IDs. Use **Review full round** to record important moments that the detector missed; candidate-exposed reviews are marked accordingly.
+
+### What is being evaluated
+
+This labeller proposes moments with the deterministic `local-v1.1` detectors.
+It does not run a language model to select clips. The exported feedback can improve
+the detectors and subsequent model selection separately; it is not a model-quality score.
+
+| Signal | What to check | What it cannot establish alone |
+|---|---|---|
+| Nearby trade | Selected player alive and within 5 m at teammate death; correct killer and outcome in the following 5 s | Whether a safe, visible trade opportunity existed |
+| Rifle movement | At least two moving rifle shots, at least half of the burst, linked to actual combat; check weapon and timing | That moving caused a miss or was a bad decision; pistols/SMGs are not automatic mistakes |
+| Unused utility | Grenades in inventory at death | That the player had a safe earlier chance to use them |
+| Team/self flash | Actual friendly blind longer than the configured threshold | Intention, comms or whether enemy blindness justified the flash |
+| Opening duel | Correct first kill/death and player | Whether taking the duel was strategically right |
+| Good-play candidates | Actual kills, trade or other stated event | That the outcome proves good aim, movement or positioning |
+
+All six enabled detector families produce candidates for human judgement. More
+speculative visibility/rotation/economy detectors remain outside this delivery profile.
+An empty set of clips is a valid result, not proof that the round had no useful lesson.
 
 For subsequent sessions, open **Open labeller.cmd**, choose **1**, then **2** when you want new recordings. Completed clips remain available for review. The **Stop labeller** action stops the browser service. The background recorder waits for it to return. Pause the recording queue in the browser and allow the current session to finish before shutting down Windows.
 
@@ -129,10 +185,10 @@ and local configuration. A plain `git pull` does not rebuild the running contain
 
 Before the owner commits a release, run `python tools/package_labeler.py --check-git`.
 It lists required source-kit files that are still untracked. Include those files
-in the eventual commit, together with
+in the eventual commit, together with the web labeller changes and
 `.github/workflows/labeler.yml`. The check does not stage, commit or push anything.
-On this branch the GitHub workflow tests an extracted source kit in Linux and the
-recorder and launcher in Windows. The cloud web contract suite runs separately.
+On GitHub the workflow tests an extracted source kit in Linux, the recorder and
+launcher in Windows, and the web contracts against disposable PostgreSQL.
 Actual CS2 rendering still requires a Windows capture smoke check.
 
 ## One player and one clip per play
@@ -146,13 +202,14 @@ If the roster cannot be verified, recording fails instead of choosing another pl
 Overlapping requested contexts in the same round now become one review clip.
 For example, four signals around one death produce one MP4 containing all four
 findings and one note. Write several observations on separate lines in that note.
-The optional detection rating applies to the group overall; the coach does not
-treat it as proof that each individual signal was correct. Exports retain all
-finding IDs, evidence and the selected player's identity.
+Each signal has its own optional detection verdict. Selection usefulness and the
+player's decision are separate fields. Older shared ratings remain historical and
+are never expanded into invented individual ratings. Exports retain all finding IDs,
+evidence, footage issues and the selected player's identity.
 
 Separate rounds and non-overlapping plays remain separate. A chain of overlaps
-is capped at 60 seconds so it does not swallow an entire round; an explicitly
-requested longer context is preserved. Existing individual clips and notes are
+is kept together even when longer than 60 seconds, so a boundary does not repeat
+the same action in two clips. Existing individual clips and notes are
 retained. Prepare/record the moments again to create the new grouped batch;
 unstarted work in its previous batch is paused.
 
@@ -167,7 +224,7 @@ labeller instance and run the script with its URL and the exact roster name or
 Steam ID. It writes a clearly marked technical draft, never a completed training label:
 
 ```powershell
-python tools/check_labeler.py "C:\Demos\match.dem.zst" --player 76561198000000001 --url http://127.0.0.1:18765
+python tools/check_labeler.py "C:\Demos\match.dem.zst" --player 76561198176358539 --url http://127.0.0.1:18765
 ```
 
 The script requires `httpx` (included in the development API environment). A
@@ -181,22 +238,22 @@ missing or ambiguous player is an error; it never substitutes the first name.
 - All **28 web labeller tests** passed against disposable PostgreSQL 17. Type
   checking and the production web build passed. PowerShell and Bash launcher
   checks and JavaScript review/navigation checks passed.
-- Fresh uploads into an empty labeller analysed the explicitly selected player
-  on the reported Ancient demo (21 rounds, 23 findings →
-  15 clips) and a selected player on Anubis (24 rounds, 46 findings → 26 clips).
+- Fresh uploads into an empty labeller analysed the explicitly selected zock9
+  on `borracheiros-vs-red-canids-academy-m2-ancient` (21 rounds, 23 findings →
+  15 clips) and pawcio_ on Anubis (24 rounds, 46 findings → 26 clips).
 - The real Windows recorder captured and uploaded three Ancient groups and one
   Anubis group with zero failures. The Ancient session took 63.8 seconds and
   Anubis 33.4 seconds on this PC. Sampled frames matched the selected player's
   parsed weapon, health and balance. The browser showed two findings in one
-  selected-player clip with one note field.
+  zock9 clip with one note field.
 - The running local labeller was rebuilt and its recorder reconnected. The five
   existing demos remained unchanged. Test captures and technical drafts used a
   separate workspace, with no completed training labels created.
 
 This verifies the tested demos and installation on this Windows PC. Hosted GitHub
 Actions and a second physical PC have not been run in this change. The source
-release check identified required untracked files during development; they are
-included in the `codex/labeller-recording` release branch.
+release check currently identifies required untracked files; include them in the
+eventual commit before sharing a GitHub revision.
 
 ## Build a distributable kit
 

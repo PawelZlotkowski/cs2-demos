@@ -262,7 +262,7 @@ def captured_sequence(output, group):
     return candidates[0] if candidates else output / name
 
 
-def record_session(base, jobs, args, csdm, ffmpeg, *, _retry=False):
+def record_session(base, jobs, args, csdm, ffmpeg, *, _retry=False, _native=False):
     first = jobs[0]
     for job in jobs:
         if (not re.fullmatch(r'[a-f0-9]{32}', job['lease'])
@@ -277,7 +277,7 @@ def record_session(base, jobs, args, csdm, ffmpeg, *, _retry=False):
     groups = group_windows(jobs)
     root = args.cache.resolve()
     root.mkdir(parents=True, exist_ok=True)
-    output = root / 'sessions' / (first['lease'] + ('-retry1' if _retry else ''))
+    output = root / 'sessions' / (first['lease'] + ('-native' if _native else '-retry1' if _retry else ''))
     output.mkdir(parents=True, exist_ok=False)
     pending = {j['id']: j for j in jobs}
     stop = threading.Event()
@@ -357,7 +357,11 @@ def record_session(base, jobs, args, csdm, ffmpeg, *, _retry=False):
                                '--ffmpeg-executable-path', ffmpeg],
                               timeout=max(900, int(duration*8+len(groups)*45+180)), env=capture_env,
                               log_path=output/'capture.log',
-                              startup_ready=lambda: any(capture_window_started(output, g['number']) for g in groups))
+                              # Native CS writes frames in the game folder and only
+                              # moves them here after capture. A HLAE-directory
+                              # watchdog would kill a healthy native session.
+                              startup_ready=(None if args.recording_system == 'CS' else
+                                  lambda: any(capture_window_started(output, g['number']) for g in groups)))
         except Exception as exc:
             capture_error = exc
             capture_log = ((output/'capture.log').read_text('utf-8', errors='replace')
@@ -373,6 +377,13 @@ def record_session(base, jobs, args, csdm, ffmpeg, *, _retry=False):
             stop.set()
             print('Capture did not start. Retrying once with a clean CS2 session.', flush=True)
             return record_session(base, jobs, args, csdm, ffmpeg, _retry=True)
+        if isinstance(capture_error, CaptureStartupError) and args.recording_system == 'HLAE':
+            # Same demo/player/ticks and upload validation, but no HLAE hooks.
+            # Each attempt owns and closes its process tree before the next one.
+            stop.set()
+            native_args = argparse.Namespace(**{**vars(args), 'recording_system': 'CS'})
+            print('HLAE did not start after two attempts. Trying native CS capture once.', flush=True)
+            return record_session(base, jobs, native_args, csdm, ffmpeg, _native=True)
         progress('encoding')
         failures = 0
         prepared = {}
@@ -385,12 +396,12 @@ def record_session(base, jobs, args, csdm, ffmpeg, *, _retry=False):
                     key = (group['number'], job['startTick'], job['endTick'])
                     ready = prepared.get(key, output/f"{job['id']}.mp4")
                     exact = (job['startTick'], job['endTick']) == (group['startTick'], group['endTick'])
+                    length = (job['endTick']-job['startTick'])/group['tickRate']
                     if exact:
                         # CS:DM already produced H.264/AAC. Only move the MP4 index for browser seeking.
-                        options = ['-i', str(source), '-map', '0:v:0', '-map', '0:a?', '-c', 'copy']
+                        options = ['-i', str(source), '-t', f'{length:.8f}', '-map', '0:v:0', '-map', '0:a?', '-c', 'copy']
                     else:
                         offset = (job['startTick']-group['startTick'])/group['tickRate']
-                        length = (job['endTick']-job['startTick'])/group['tickRate']
                         # Decode at the cut to retain exact context, rather than rounding to a keyframe.
                         options = ['-ss', f'{offset:.8f}', '-i', str(source), '-t', f'{length:.8f}',
                                    '-map', '0:v:0', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'fast',

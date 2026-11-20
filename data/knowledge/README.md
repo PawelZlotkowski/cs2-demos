@@ -2,6 +2,10 @@
 
 Markdown the coach searches with the `search_knowledge` tool (plan §7, T30–T32). It is indexed by `python -m app.rag.index` from `apps/api` (`app/rag/ingest.py`), and the index also rebuilds itself when these files change.
 
+## Detection quality update
+
+See the [20 November research](../../docs/coach/DETECTION-QUALITY-RESEARCH-2026-11-20.md) and [source inventory](research-sources-2026-11-20.json). Eight conditional interpretation passages were added in `research/detection-context.md`. They are source-reviewed, pending gameplay validation. `README.md` and `SOURCES.md` are excluded from the text index; the JSON inventory is not coaching content. Existing review metadata is not yet enforced at retrieval time. Ancient coverage and reviewed EN/PL retrieval remain open work under RR11/RR16.
+
 ## Layout
 
 ```
@@ -38,7 +42,7 @@ Three to six sentences about one idea...
 - Text before the first `##` is not indexed. `###` stays inside its passage. Keep a passage to one idea and under about 150 words.
 - The first line of a passage names its zones (`Zones: …`, exactly as in `apps/api/app/maps/zones/*.json`) or detectors (`Detectors: …`, the `Finding.detector` values). This helps BM25 match a finding to the right notes.
 - Write in English. The coach answers in en, pl or nl; bge-m3 embeddings are multilingual.
-- Passage ids (`K1`, `K2`, …) follow the sorted file path and heading order, so adding a file renumbers them. Citations are resolved per run.
+- Passage ids (`K1`, `K2`, …) follow the sorted file path and heading order, with user `notes/` explicitly last. Appending user notes preserves curated passage ids; other additions/removals can still renumber them. Store citation snapshots per run before relying on long-lived references.
 - The coach may quote a number only from a passage it cited, so check every number you write.
 - No exact grenade lineups: they change with patches and belong in-game.
 
@@ -55,7 +59,7 @@ Three to six sentences about one idea...
 
 ## Review status
 
-Everything here is a first draft written from general CS2 knowledge, not checked in-game. Before relying on it in evaluation, a player should read each map file, fix callouts that differ from how the team talks, and set `review: checked`. The Stairs section on Mirage notes a likely error in the draft zone polygon.
+The original map/general corpus is a first draft written from general CS2 knowledge, not checked in-game. The November detection-context notes have source review, but also need gameplay validation. Before relying on the corpus in evaluation, a player should read each map file, fix callouts that differ from how the team talks, and set `review: checked`. The Stairs section on Mirage notes a likely error in the draft zone polygon.
 
 ## Liquipedia
 

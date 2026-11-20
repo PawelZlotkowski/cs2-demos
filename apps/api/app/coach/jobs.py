@@ -75,6 +75,7 @@ LANGUAGE_NOTES = {
         "\n- Polish: write correct Polish grammar with the right case endings (dobrej wymiany, szybkiej śmierci)."
         "\n- Polish: avoid gendered past-tense verbs (zginąłeś/zginęłaś); use noun phrases such as"
         " 'śmierć od P5' or 'twoja śmierć'. A player killed in the game 'ginie', never 'umiera' or 'zmarł'."
+        "\n- Polish: kills are 'zabójstwa' or 'eliminacje', never 'ciosy' or 'uderzenia'."
     ),
     "nl": "\n- Dutch: address the player as 'je', and keep callout names in English.",
 }

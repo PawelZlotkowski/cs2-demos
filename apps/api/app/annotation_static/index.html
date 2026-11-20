@@ -35,12 +35,15 @@
 <h2 id="clipHeading" tabindex="-1">Review clip</h2>
 <p id="clipRecordingState" role="status"></p>
 <p id="clipVerifyHelp"></p>
+<label>Footage check<select id="clipQuality"><option value="">Check the clip first</option><option value="verified">Correct player and event timing, enough context</option><option value="wrong_player">Wrong player / POV</option><option value="wrong_timing">Wrong event timing</option><option value="missing_context">Not enough context</option><option value="unplayable">Video cannot be reviewed</option></select></label>
+<label>Was this moment worth selecting for coaching?<select id="clipSelectionVerdict"><option value="">Choose after watching</option><option value="useful">Useful moment</option><option value="not_useful">Not useful / poor selection</option><option value="unsure">Unsure / need more context</option></select></label>
 <button id="watchLabelClip" class="secondary">Replay clip</button>
 <label>What did you notice?
 <textarea id="clipNotes" rows="4" aria-describedby="noteHelp" placeholder="Describe what went wrong, what worked, or what you couldn’t tell."></textarea></label>
-<p class="clipHint" id="noteHelp">Keep all observations about this play in this note, on separate lines if helpful. Drafts save as you type.</p>
+<p class="clipHint" id="noteHelp">Explain why this moment was or was not useful, what the player could improve, and what the detector missed or misunderstood. A normal action can be a correct detection but a poor coaching selection. Drafts save as you type.</p>
 <details id="clipDetails"><summary>Optional review details</summary>
-<p id="clipSignal"></p><label id="clipVerdictLabel" for="clipVerdict">Detection signal</label><select id="clipVerdict"><option value="">Unrated</option><option value="correct">Correct detection</option><option value="wrong">Wrong detection</option><option value="unsure">Unsure</option></select>
+<p>A detector proposes a factual signal, not a proven mistake. Judge each signal separately. Missing visibility or communication remains unknown.</p>
+<p id="clipSignal"></p><label id="clipVerdictLabel" for="clipVerdict">Detection signal</label><select id="clipVerdict"><option value="">Unrated</option><option value="correct">Correct detection</option><option value="wrong">Wrong detection</option><option value="unsure">Unsure</option></select><div id="clipSignalReviews"></div>
 <label for="clipAssessment">Player’s decision</label><select id="clipAssessment"><option value="">Unrated</option><option value="mistake">Bad decision / mistake</option><option value="good">Good decision</option><option value="neutral">Neutral</option><option value="uncertain">Uncertain / cannot assess</option></select>
 <label>Note language<select id="clipLanguage"><option value="en">English</option><option value="pl">Polish</option></select></label>
 <details><summary>Detector evidence</summary><pre id="clipEvidence"></pre></details></details>

@@ -18,7 +18,7 @@ function guard(fn){return async(...args)=>{try{message();await fn(...args);}catc
 function reviewPath(){return `/api/demos/${state.demo}/players/${state.player}/rounds/${state.round}?labeller=${encodeURIComponent(state.labeller)}`;}
 function validName(){if(!state.replay)state.labeller=$('labeller').value.trim();if(!/^[A-Za-z0-9_]{1,40}$/.test(state.labeller))throw new Error('Enter your labeller name using letters, digits or underscores.');}
 function markDirty(){if(!state.replay)return;state.dirty=true;$('status').value='draft';$('saveState').textContent='Unsaved changes';clearTimeout(state.timer);state.timer=setTimeout(()=>save().catch(e=>message(e.message)),900);}
-function payload(){return {previousRevision:state.revision,status:$('status').value,fullRoundReviewed:$('fullRoundReviewed').checked,
+function payload(){return {previousRevision:state.revision,snapshotId:state.snapshotId,status:$('status').value,fullRoundReviewed:$('fullRoundReviewed').checked,
   independentComplete:state.independent,language:$('language').value,notes:$('notes').value,moments:state.moments,candidates:state.candidates};}
 async function save(force=false){
   clearTimeout(state.timer);
@@ -71,7 +71,7 @@ async function loadRounds(preferred=null){
   if(selection!==[state.demo,state.player,state.labeller].join('/'))return;
   state.rounds=data.rounds;state.progress=data.progress;state.policy=data.policy;
   const target=data.rounds.find(r=>r.number===preferred)||data.rounds.find(r=>data.progress[String(r.number)]?.status!=='complete')||data.rounds[0];
-  if(target)await loadRound(target.number);$('parseState').textContent=`Ready · ${state.rounds.length} rounds · local-v1`;renderRounds();
+  if(target)await loadRound(target.number);$('parseState').textContent=data.stale?'Saved analysis uses older rules. Choose Prepare/resume to refresh it; earlier labels stay in history.':`Ready · ${state.rounds.length} rounds`;renderRounds();
 }
 function renderRounds(){
   const box=$('rounds');box.replaceChildren();let completed=0;
@@ -85,6 +85,7 @@ async function loadRound(number,clipMode=false){
   resetReplay();clearTimeout(state.timer);state.round=number;const generation=++state.generation;
   state.replay=null;$('reviewPanel').hidden=true;$('saveState').textContent='Loading round…';
   const data=await api(reviewPath());if(generation!==state.generation)return;
+  state.snapshotId=data.snapshotId;
   state.replay=data.replay;state.exposed=data.candidateExposed||false;state.revision=data.review?.revision??null;
   state.independent=data.review?.independentComplete??false;
   state.moments=(data.review?.moments||[]).map(({ticks,...m})=>m);state.candidates=data.review?.candidates||{};state.findings=data.candidates;

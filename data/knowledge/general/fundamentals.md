@@ -15,12 +15,12 @@ General rules the coach can cite on any map. Each section names the detector it 
 ## Trading
 
 Detectors: untraded_death, good_plays.
-A trade is a kill on the enemy who just killed your teammate, within a few seconds. Trading keeps rounds even: if every death is traded, a team never falls behind in numbers. To be tradeable, stay close enough to a teammate that one of you can swing on the killer at once, but not so close that one spray or grenade hits both.
+A trade is retaliation against the enemy who killed a teammate. Separate the outcome from whether a viable opportunity existed. Spacing should let the supporting player respond without exposing both players to one spray; distance alone cannot establish visibility. The project uses an explicit nearby-death policy rather than treating any untraded death as a personal mistake.
 
 ## Untraded deaths
 
 Detectors: untraded_death.
-Dying alone, where nobody is near enough to trade the kill, gives the enemy a free man advantage. A death is traded when a teammate kills your killer within a few seconds; an untraded death means nobody could. Common causes are lurking without a plan, pushing ahead of the team, and holding an angle alone that the team cannot reach. If a position cannot be traded, play it for information and fall back after first contact rather than taking a duel.
+The current detector reviews a teammate dying near the living selected player. No personal retaliation is an observation, not proof of refusal or poor teamwork. The killer may be behind cover, another teammate may already have traded, or the selected player may be blinded or interrupted. For older saved findings about the selected player dying, assess support and role before inferring a mistake.
 
 ## Refrag spacing
 
@@ -35,7 +35,7 @@ A crossfire is two players watching the same area from different angles, so an e
 ## Counter-strafing and shooting while moving
 
 Detectors: shot_while_moving.
-Rifles, snipers and pistols are only accurate when the player is almost standing still (about a third of the weapon's top speed or less). Counter-strafing means tapping the opposite movement key to stop instantly before shooting. Shots fired while running go wide; if you must move, stop first, shoot, then move again. SMGs and shotguns are more forgiving on the move.
+Stopping before a precision rifle shot often helps control movement inaccuracy, but weapon, stance, firing mode and range matter. Crouched movement and close-range pistol or SMG fights need separate treatment. A speed threshold does not establish target visibility or prove that movement caused a miss. See the conditional movement notes in ../research/detection-context.md and the linked Refrag guide before interpreting a candidate.
 
 ## Spray control and bursts
 
@@ -45,7 +45,7 @@ At long range, taps and short bursts are more accurate than a full spray. Full s
 ## Using utility before dying
 
 Detectors: unused_utility.
-Grenades only help if they are thrown. Dying with a smoke, flash or molotov in hand means the team fought with fewer tools than it bought. Before taking a risky duel, use the grenade that makes it safer, or pass it to a teammate who can use it. A molotov kept for the post-plant is the one exception, but only if the player stays alive to use it.
+Unused inventory is a factual observation. Review whether an earlier safe and useful throw was available before calling it wasted utility. Planned post-plant use, an unexpected death or saving resources can change the judgement. Name the supported alternative and its timing rather than instructing the player to throw every grenade before fighting.
 
 ## Dry peeks
 
@@ -95,7 +95,7 @@ Saving means avoiding fights to keep weapons for the next round when the current
 ## Rotations and timing
 
 Detectors: late_rotation.
-Rotators should move when the enemy commits to a site (several players or a lot of utility), not after the bomb is planted. A late rotation arrives after the site is lost and players come in one at a time. Rotating too early on a fake is the opposite mistake, so good rotations depend on teammates calling what they see.
+Review rotations against the information available, site commitments, teammates, bomb timing and viable routes. An arrival later than the team median does not establish a late decision. Holding against a fake, anchoring, saving or waiting for a coordinated retake can be reasonable. Missing communications or knowledge should lower confidence.
 
 ## Retakes
 
@@ -110,7 +110,7 @@ After the plant, attackers should play from positions that cross the bomb from d
 ## Varying positions
 
 Detectors: repeated_death_zone.
-Dying in the same place several rounds in a row means the enemy has read the position. Change the angle, the timing or the spot, or bring utility to that position. Good players play the same spot differently from round to round.
+Repeated deaths in one zone are a pattern worth inspecting, not proof that opponents read the position. Compare timings, angles, weapons, support and available information before attributing one cause. A change of angle or support plan is useful only when it addresses evidence shared by those episodes.
 
 ## Clutches
 

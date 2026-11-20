@@ -44,6 +44,7 @@ class CandidateVerdict(StrictModel):
 
 class ReviewSave(StrictModel):
     previousRevision: int | None = None
+    snapshotId: str | None = Field(default=None, max_length=128)
     status: Literal['draft', 'complete', 'blocked', 'excluded'] = 'draft'
     fullRoundReviewed: bool = False
     independentComplete: bool = False

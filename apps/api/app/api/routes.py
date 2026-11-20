@@ -45,6 +45,7 @@ from app.processing.pipeline import PlayerSelectionError, pipeline
 from app.processing.moment_clips import list_moment_clips, moment_clip_file, moment_recorder
 from app.processing.video_clips import clip_file, find_clip, get_or_init_manifest
 from app.coach.tools import player_match_refs
+from app.coach.evidence import answer_evidence_version
 from app.repositories.matches import repo
 from app.services.coach import coach_service
 
@@ -450,7 +451,8 @@ async def ask_coach(match_id: str, player_id: str, body: AskRequest, request: Re
     return _ask_stream(
         lambda on_step: pipeline_module.coach_jobs(repo).ask(match_id, player_id, body, on_step=on_step),
         f"{match_id} / {player_id}",
-        job=AskJob("ask", current_user(request), match_id, player_id, body.question, body.language),
+        job=AskJob("ask", current_user(request), match_id, player_id, body.question, body.language,
+                   answer_evidence_version(match_id, player_id)),
     )
 
 
@@ -474,7 +476,8 @@ async def ask_coach_across(player_id: str, body: CoachAskRequest, request: Reque
         lambda on_step: pipeline_module.coach_jobs(repo).ask_across(player_id, body, on_step=on_step),
         player_id,
         extra,
-        job=AskJob("ask_across", current_user(request), None, player_id, body.question, body.language),
+        job=AskJob("ask_across", current_user(request), None, player_id, body.question, body.language,
+                   answer_evidence_version(None, player_id)),
     )
 
 
@@ -486,6 +489,7 @@ class AskJob:
     player_id: str
     question: str
     language: str
+    evidence_version: str
 
 
 def _ask_stream(run, label: str, extra=None, *, job: AskJob) -> StreamingResponse:
@@ -504,10 +508,13 @@ def _ask_stream(run, label: str, extra=None, *, job: AskJob) -> StreamingRespons
                 if slot.started_at and slot.started_at - slot.created_at > 1:
                     await on_step({"tool": "queue", "ms": int((slot.started_at - slot.created_at) * 1000), "error": None})
                 outcome = await run(on_step)
+            if job.evidence_version != answer_evidence_version(job.match_id, job.player_id):
+                await queue.put(_sse('error', {'detail': 'The analysis changed while answering. Reload the review and ask again.'}))
+                return
             message_id = None
             try:
                 message_id = users().add_ask(user_id, job.match_id, job.player_id, job.question, outcome.answer,
-                                             list(outcome.citations), outcome.source, job.language)
+                                             list(outcome.citations), outcome.source, job.language, job.evidence_version)
             except Exception:  # noqa: BLE001 - history is best effort
                 pass
             await queue.put(

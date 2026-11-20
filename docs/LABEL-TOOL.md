@@ -2,6 +2,13 @@
 
 Import CS2 `.dem` or `.dem.zst` files, select a player, label rounds and resume saved work in a browser. This annotation mode reuses Round Reviewer's Python parser, normaliser and detectors. Supported maps are Ancient and Anubis. There is no Node, GPU, model or Steam dependency for the tool itself.
 
+**20 November handoff:** the clip form now separates selection usefulness,
+individual detection verdicts, the player's decision and footage problems.
+Old detector snapshots must be refreshed before further labelling, and unusable
+footage is excluded from training exports. For the own-demo workflow and a safe
+fresh annotation pass, read [the current setup](LABELER-SETUP.md). The audits below
+describe earlier versions; [current verification](coach/LABELLER-HANDOFF-2026-11-20.md).
+
 ## Clip workflow audit, 17 November 2026
 
 | Area checked | Finding and outcome |
@@ -124,9 +131,9 @@ An idle worker now polls every half-second and drains pending sessions immediate
 
 **Local verification, 30 October 2026:** the active 46-clip batch completed and all 46 server records were `ready`. A 15-second test clip took 37.3 seconds including startup/upload; the subsequent 27-clip and 18-clip sessions took 240.5 and 188.9 seconds with zero failed clips. The sample was H.264/AAC, 1280×720 at 30 fps, duration 14.967 seconds, and its image was inspected. Nine host-recorder checks and 28 media/queue API tests passed. The initially stalled game launch recovered after a clean restart; a game/plugin incompatibility was suspected but not established. The separate older 32-clip batch was left paused. These are local observations, not a general speed guarantee or a manual alignment confirmation for every clip.
 
-**Selected-player recording fix, 18 November 2026:** reproduced the wrong POV on the reported Ancient SourceTV demo for the explicitly selected player. CS:DM could not detect this SourceTV demo's source, reported failed analysis with a zero exit status, and generated capture actions without any player selection. The worker now rejects those failures. For an unrecognised source only, it tries CS:DM's Valve parser to populate the recording roster; this does not change the labeller's parser, round windows, findings or research provenance. It exports and verifies the selected Steam ID in that roster before opening CS2, and selects the player half a second before each capture. Missing/ambiguous players stop recording. An account-lock-only experiment did not fix an absent roster and is not the implemented solution.
+**Selected-player recording fix, 18 November 2026:** reproduced the wrong POV on `borracheiros-vs-red-canids-academy-m2-ancient`, selecting **zock9**. CS:DM could not detect this SourceTV demo's source, reported failed analysis with a zero exit status, and generated capture actions without any player selection. The worker now rejects those failures. For an unrecognised source only, it tries CS:DM's Valve parser to populate the recording roster; this does not change the labeller's parser, round windows, findings or research provenance. It exports and verifies the selected Steam ID in that roster before opening CS2, and selects the player half a second before each capture. Missing/ambiguous players stop recording. An account-lock-only experiment did not fix an absent roster and is not the implemented solution.
 
-The worker also recognises CS:DM 3.21's per-video output subfolder, matching each exact sequence number and tick range. A real run of the patched worker produced four 15-second selected-player clips across different rounds and both sides in **72.7 seconds**, with no failed clips. Sampled frames were compared with parsed weapon/health/money data; all four matched the selected player. Delivery used a local audit sink, not a production batch. Evidence, videos and game-action logs are in ignored `.local/recording-pov-audit/final-worker/`. **30 recorder/media tests passed, plus 3 subtests.** Existing recordings are not automatically corrected: an already-ready wrong clip must be regenerated. Rebuilding the Docker image alone does not update the host recorder; restart it after updating `tools/record_label_clips.py`.
+The worker also recognises CS:DM 3.21's per-video output subfolder, matching each exact sequence number and tick range. A real run of the patched worker produced four 15-second zock9 clips across different rounds and both sides in **72.7 seconds**, with no failed clips. Sampled frames were compared with parsed weapon/health/money data; all four matched the selected player. Delivery used a local audit sink, not a production batch. Evidence, videos and game-action logs are in ignored `.local/recording-pov-audit/final-worker/`. **30 recorder/media tests passed, plus 3 subtests.** Existing recordings are not automatically corrected: an already-ready wrong clip must be regenerated. Rebuilding the Docker image alone does not update the host recorder; restart it after updating `tools/record_label_clips.py`.
 
 If CS2 produces no first capture window within 90 seconds, the worker stops its capture process tree and retries once in a fresh attempt directory. A second stall becomes a retryable compatibility/setup error. Windows Job Objects also clean up CS2 when the HLAE launcher has already exited. `capture.log` is written while CS:DM runs. A playing demo is not proof of recording: CS:DM's control plugin must execute its actions and create media. Check [official playback compatibility](https://cs-demo-manager.com/docs/guides/playback#cs2-plugin-compatibility) after game updates.
 
@@ -258,8 +265,10 @@ The earlier recorder merged capture windows for efficiency but cut them back int
 one clip per finding. Grouping now happens before those recording jobs exist.
 Batch identities include a grouping version, so existing clips/reviews are not
 silently replaced. Preparing a new grouped batch pauses its predecessor's queued
-work. Groups are bounded to 60 seconds, while preserving a manually requested
-longer context, and never cross round or player boundaries.
+work. The 20 November correction keeps complete chains of overlapping windows
+together, including groups longer than 60 seconds, and never crosses round or
+player boundaries. Group-level historical verdicts are retained; new structured
+group reviews require separate signal ratings.
 
 See [GitHub setup and update instructions](LABELER-SETUP.md#run-from-a-github-checkout).
 `tools/package_labeler.py --check-git` detects omitted required source files;

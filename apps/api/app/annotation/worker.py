@@ -26,6 +26,28 @@ def write(path: Path, value):
     temp.replace(path)
 
 
+def version_info():
+    """Track extraction separately from judgement/template changes."""
+    code_root = Path(__file__).resolve().parents[1]
+    def fingerprint(files):
+        value = hashlib.sha256()
+        for file in sorted(set(files)):
+            value.update(file.relative_to(code_root).as_posix().encode())
+            value.update(file.read_bytes())
+        return value.hexdigest()
+    extraction = [p for folder in ('processing', 'maps') for p in (code_root / folder).rglob('*')
+                  if p.suffix in ('.py', '.json')]
+    extraction.append(code_root / 'analysis' / 'extract.py')
+    judgement = [p for folder in ('analysis', 'coach/templates') for p in (code_root / folder).rglob('*')
+                 if p.suffix in ('.py', '.json')]
+    return {'parser': importlib.metadata.version('demoparser2'), 'extraction': 'annotation-2',
+            'extractCode': fingerprint(extraction), 'code': fingerprint(judgement)}
+
+
+def same_extraction(saved, current):
+    return all(saved.get(k) == current[k] for k in ('parser', 'extraction', 'extractCode'))
+
+
 def inspect(root: Path, payload: dict, work: Path):
     import zstandard
     from app.processing.parse_demo import inspect_demo_roster
@@ -79,21 +101,20 @@ def parse(root: Path, payload: dict, work: Path):
     match_id, player = payload['demo'], payload['player']
     folder = root / 'matches' / match_id
     cache = folder / 'cache.json'
-    parser_version = importlib.metadata.version('demoparser2')
-    code_root = Path(__file__).resolve().parents[1]
-    code_hash = hashlib.sha256()
-    for subfolder in ('processing', 'analysis', 'maps', 'coach/templates'):
-        for file in sorted((code_root / subfolder).rglob('*')):
-            if file.suffix in ('.py', '.json'):
-                code_hash.update(file.relative_to(code_root).as_posix().encode())
-                code_hash.update(file.read_bytes())
-    version = {'parser': parser_version, 'code': code_hash.hexdigest(), 'extraction': 'annotation-1'}
+    version = version_info()
     if cache.exists():
         saved = json.loads(cache.read_text('utf-8'))
-        if saved['version'] != version:
-            raise ValueError('Cached parser version differs. Keep this workspace for its existing reviews; use a new workspace to reparse with changed code.')
         analysis = json.loads((folder / 'analysis.json').read_text('utf-8'))
         replays = {r['id']: json.loads((folder / 'rounds' / (r['id'] + '.json')).read_text('utf-8')) for r in saved['rounds']}
+        if not same_extraction(saved['version'], version):
+            # Legacy caches hashed detectors together with extraction. Prove
+            # compatibility once from the source; never overwrite reviewed clocks.
+            normal = normalize_parsed(match_id, parse_demo_file(str(folder / 'source.dem')))
+            if (normal['analysis'] != analysis or normal['round_replays'] != replays
+                    or normal['rounds'] != saved['rounds'] or normal['match'] != saved['match']):
+                raise ValueError('New parser output differs from reviewed telemetry. Existing reviews are preserved; use a separate workspace for this parser version.')
+            saved['version'] = version
+            write(cache, saved)
     else:
         parsed = parse_demo_file(str(folder / 'source.dem'))
         normal = normalize_parsed(match_id, parsed)
@@ -122,7 +143,16 @@ def parse(root: Path, payload: dict, work: Path):
     if not rounds:
         raise ValueError('No reviewable rounds were found for this player.')
     drafts.sort(key=lambda d: (d.round, d.t, d.detector))
-    findings = [to_finding(d, f'F{i}').model_dump(by_alias=True, mode='json') for i, d in enumerate(drafts, 1)]
+    # Never recycle ordinal IDs from any earlier snapshot, including an empty
+    # intermediate snapshot. Stale tabs and exports keep their original meaning.
+    from app.annotation.store import Store
+    store = Store(root)
+    with store.connect() as con:
+        previous = con.execute('SELECT payload FROM snapshots WHERE demo=? AND player=? UNION ALL '
+                               'SELECT payload FROM snapshot_history WHERE demo=? AND player=?',
+                               (match_id, player, match_id, player)).fetchall()
+    offset = max((int(f['id'][1:]) for row in previous for f in json.loads(row['payload'])['findings']), default=0)
+    findings = [to_finding(d, f'F{i}').model_dump(by_alias=True, mode='json') for i, d in enumerate(drafts, offset + 1)]
     snapshot = {'playerId': player, 'rounds': rounds, 'findings': findings, 'policy': policy_description('local-v1'),
                 'version': version, 'warnings': saved['warnings'], 'analysisSha256': digest(folder / 'analysis.json')}
     snapshot['id'] = hashlib.sha256(encode(snapshot).encode()).hexdigest()

@@ -159,3 +159,37 @@ def test_analysis_opens_while_recordings_are_still_queued(recording, analysed, m
     stage = next(s for s in status["stages"] if s["id"] == "recording")
     assert stage["state"] == "active"
     assert stage["progress"] == {"done": 0, "total": len(clips)}
+
+
+def test_csdm_record_finds_the_clip_in_a_per_video_subfolder(tmp_path, monkeypatch):
+    """CS:DM 3.21 writes <output>/<uuid>/sequence-1-tick-A-to-B.mp4, not <output>/*.mp4."""
+    from app.processing import video_clips
+
+    def fake_run(cmd, timeout):
+        out_dir = Path(cmd[cmd.index("--output") + 1])
+        nested = out_dir / "5b076575-36d4-49e2-8059-2d9ae8224866"
+        nested.mkdir(parents=True)
+        (nested / "sequence-1-tick-100-to-200.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42")
+
+    monkeypatch.setattr(video_clips, "resolve_csdm_bin", lambda: "csdm")
+    monkeypatch.setattr(video_clips, "run_csdm", fake_run)
+    out = tmp_path / "c30.tmp" / "c30.mp4"
+    video_clips.csdm_record(tmp_path / "m.dem", 100, 200, "765", out)
+    assert out.read_bytes().startswith(b"\x00\x00\x00\x18ftyp")
+
+
+def test_csdm_record_never_takes_an_older_clip_when_nothing_was_recorded(tmp_path, monkeypatch):
+    from app.processing import video_clips
+    import os
+
+    clips = tmp_path / "clips"
+    clips.mkdir()
+    older = clips / "r3.mp4"
+    older.write_bytes(b"round three")
+    os.utime(older, (1_000_000, 1_000_000))
+    monkeypatch.setattr(video_clips, "resolve_csdm_bin", lambda: "csdm")
+    monkeypatch.setattr(video_clips, "run_csdm", lambda cmd, timeout: None)
+    with pytest.raises(RuntimeError, match="did not produce an MP4"):
+        video_clips.csdm_record(tmp_path / "m.dem", 100, 200, "765", clips / "r4.mp4")
+    assert older.read_bytes() == b"round three"
+    assert not (clips / "r4.mp4").exists()

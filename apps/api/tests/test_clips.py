@@ -77,6 +77,7 @@ def _seed_fake_match(match_id: str = "match-clipstest01") -> dict:
             "status": "complete",
             "clipDuration": 40,
             "tickRate": 64,
+            "selectedPlayerId": "76561198000000001",
             "players": [
                 {"id": "76561198000000001", "name": "Alice", "team": "CT"},
                 {"id": "76561198000000002", "name": "Bob", "team": "T"},
@@ -121,6 +122,21 @@ def _seed_fake_match(match_id: str = "match-clipstest01") -> dict:
 
 def test_public_clip_url():
     assert public_clip_url("match-abc", "r3") == "/matches/match-abc/clips/r3.mp4"
+
+
+def test_round_video_uses_selected_player_and_never_relabels_old_pov(client):
+    from app.processing.video_clips import choose_focus_steamid, get_or_init_manifest
+    mid = 'match-pov-audit'; record = _seed_fake_match(mid)
+    record['match']['selectedPlayerId'] = '76561198000000002'
+    assert choose_focus_steamid(record) == '76561198000000002'
+    VideoWorker(repo).process(mid)
+    assert get_or_init_manifest(mid).focus_steamid == '76561198000000002'
+    record['match']['selectedPlayerId'] = '76561198000000001'
+    changed = get_or_init_manifest(mid)
+    assert changed.focus_steamid == '76561198000000001'
+    assert all(c.status != ClipStatus.ready for c in changed.clips)
+    record['match']['selectedPlayerId'] = 'missing'
+    assert choose_focus_steamid(record) is None
 
 
 def test_stub_worker_writes_clips_and_status(client: TestClient):

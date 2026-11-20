@@ -28,7 +28,13 @@ class RecorderTests(unittest.TestCase):
     def test_csdm_321_nested_output_is_detected_and_uploaded(self):
         self.exercise_session(nested=True)
 
-    def exercise_session(self, fail_one=False, duplicate=False, stall_first=False, nested=False):
+    def test_native_capture_does_not_require_hlae_startup_directory(self):
+        self.exercise_session(native=True)
+
+    def test_repeated_hlae_startup_failure_uses_one_native_attempt(self):
+        self.exercise_session(native_fallback=True)
+
+    def exercise_session(self, fail_one=False, duplicate=False, stall_first=False, nested=False, native=False, native_fallback=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = b'QA demo bytes, not real gameplay'
@@ -38,7 +44,7 @@ class RecorderTests(unittest.TestCase):
                        round=2, start=5., end=20., startTick=5551, endTick=6511)
             jobs = [job, {**job, 'id':'c'*32, 'start':10., 'end':25., 'startTick':5871, 'endTick':6831},
                     {**job, 'id':'d'*32, 'start':30., 'end':45., 'startTick':7151, 'endTick':8111}]
-            args = SimpleNamespace(cache=root, recording_system='HLAE')
+            args = SimpleNamespace(cache=root, recording_system='CS' if native else 'HLAE')
             if duplicate:
                 jobs.append({**job, 'id': 'e'*32})
             commands = []
@@ -51,6 +57,11 @@ class RecorderTests(unittest.TestCase):
                 elif command[1] == 'video':
                     config = json.loads(Path(command[command.index('--config-file')+1]).read_text('utf-8'))
                     output = Path(config['outputFolderPath'])
+                    native_output = config['recordingSystem'] == 'CS'
+                    if native_fallback and not native_output:
+                        raise recorder.CaptureStartupError('QA incompatible HLAE hook')
+                    if native_fallback:
+                        assert output.name.endswith('-native')
                     if stall_first and sum(c[1] == 'video' for c, _ in commands) == 1:
                         raise recorder.CaptureStartupError('QA capture startup stalled')
                     if stall_first:
@@ -64,10 +75,14 @@ class RecorderTests(unittest.TestCase):
                         assert sequence['playerCameras'][0]['playerSteamId'] == job['player']
                         assert sequence['playerCameras'][0]['tick'] == sequence['startTick']-32
                         assert not sequence['showXRay'] and not sequence['showOnlyDeathNotices']
-                        (output/f"{sequence['number']}-sequence").mkdir()
+                        if not native_output:
+                            (output/f"{sequence['number']}-sequence").mkdir()
                         name = f"sequence-{sequence['number']}-tick-{sequence['startTick']}-to-{sequence['endTick']}.mp4"
                         (output/name).write_bytes(b'Q'*2048)
-                    assert options['startup_ready']()
+                    if native_output:
+                        assert options['startup_ready'] is None and options['timeout'] >= 900
+                    else:
+                        assert options['startup_ready']()
                 elif command[0] == 'ffmpeg':
                     Path(command[-1]).write_bytes(b'Q'*2048)
                 return 'mock success'
@@ -79,7 +94,7 @@ class RecorderTests(unittest.TestCase):
             with patch.object(recorder, 'run', side_effect=fake_run), patch.object(recorder, 'call', side_effect=fake_call) as upload:
                 assert recorder.record_session('http://127.0.0.1:8765', jobs, args, 'csdm', 'ffmpeg') is not fail_one
             command, options = next((c, o) for c, o in commands if c[1] == 'video')
-            assert len([c for c, _ in commands if c[1] == 'video']) == (2 if stall_first else 1)
+            assert len([c for c, _ in commands if c[1] == 'video']) == (3 if native_fallback else 2 if stall_first else 1)
             assert int(options['env']['CSDM_WS_PORT']) > 0
             assert options['env']['CSDM_WS_PORT'] != '4574'
             uploads = [c for c in upload.call_args_list if '/upload?' in c.args[1]]
@@ -93,6 +108,7 @@ class RecorderTests(unittest.TestCase):
             assert cuts[1][cuts[1].index('-ss')+1] == '5.00000000'
             assert cuts[1][cuts[1].index('-t')+1] == '15.00000000'
             assert '-ss' not in cuts[2] and cuts[2][cuts[2].index('-c')+1] == 'copy'
+            assert cuts[2][cuts[2].index('-t')+1] == '15.00000000'
 
     def test_grouping_never_merges_across_rounds(self):
         jobs = [dict(id='a', round=1, startTick=640, endTick=1280, start=0, end=10),

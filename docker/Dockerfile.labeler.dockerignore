@@ -3,6 +3,10 @@
 !apps/api/
 !apps/api/app/
 !apps/api/app/**
+!apps/api/tests/
+!apps/api/tests/__init__.py
+!apps/api/tests/analysis/
+!apps/api/tests/analysis/*.py
 !eval/
 !eval/label_tool.py
 !eval/__init__.py
@@ -19,6 +23,9 @@
 !eval/tests/test_clip_export.py
 !eval/tests/test_cloud_notes.py
 !eval/tests/test_grouped_clips.py
+!eval/tests/test_clip_review_quality.py
+!eval/tests/test_annotation_cache.py
+!eval/tests/test_snapshot_refresh.py
 !tools/
 !tools/record_label_clips.py
 !tools/test_record_label_clips.py

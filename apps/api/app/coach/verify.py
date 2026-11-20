@@ -146,6 +146,20 @@ def verify_text(
         errors.append(f"Use at most {max_sentences} sentences (found {len(sentences)}).")
     for s in sentences:
         body = CITATION_RE.sub(" ", s)
+        # Outcome findings do not measure technique. This deliberately narrow
+        # guard covers a failure observed in the live Qwen audit; it is not a
+        # general semantic-entailment verifier.
+        technique = re.search(
+            r"\b(?:your|twoj\w*|twój|je|jouw)\s+(?:movement|aim|accuracy|positioning|ruch\w*|celno\w*|ustawieni\w*|beweging\w*)"
+            r"[^.!?]{0,100}\b(?:effective|correct|good|poor|bad|skuteczn\w*|poprawn\w*|błędn\w*|goed|slecht)\b", body, re.I)
+        qualified = re.search(r"cannot|can't|does not prove|not automatically|not necessarily|nie można|nie oznacza|nie dowodzi|niet automatisch", body, re.I)
+        if technique and not qualified:
+            errors.append('Do not infer movement, aim or positioning quality from kills or outcomes. State the observed outcome and say technique cannot be established from these findings.')
+        if lang == 'pl' and re.search(r'\b(?:cios\w*|uderze\w*)\b', body, re.I) and any(
+            ctx.findings[c].detector == 'good_plays' and 'kill' in ctx.findings[c].template
+            for c in citations_in(s) if c in ctx.findings
+        ):
+            errors.append('A kill finding records zabójstwa/eliminacje, not ciosy or uderzenia. Use correct Polish game terminology.')
         numbers = NUMBER_RE.findall(CLOCK_RE.sub(" ", body))
         names_zone = any(z in body for z in ctx.zones)
         states_fact = bool(numbers) or names_zone
@@ -327,7 +341,7 @@ def verify_moments(picks: list[dict[str, Any]], findings: list[Finding]) -> Mome
     if len(picks) < need or len(picks) > TARGET:
         errors.append(f"Pick {need}-{TARGET} moments; got {len(picks)}.")
 
-    placed: list[tuple[int, float, int]] = []
+    placed: list[tuple[int, float, int, float, float, set[str]]] = []
     kinds = {"mistake": 0, "good": 0}
     for i, p in enumerate(picks, start=1):
         label = f"Moment {i}"
@@ -368,12 +382,18 @@ def verify_moments(picks: list[dict[str, Any]], findings: list[Finding]) -> Mome
             errors.append(f"{label}: pickedBecause must cite one of its findings, e.g. [{ids[0]}].")
             continue
         lead = min((f for f in cited if f.kind == kind), key=lambda f: -f.severity)
-        for other_round, other_t, j in placed:
+        for other_round, other_t, j, other_t0, other_t1, other_ids in placed:
+            if set(ids) & other_ids:
+                errors.append(f"{label}: repeats findings from moment {j}.")
+                break
             if other_round == rnd and abs(other_t - lead.t) < MIN_GAP_S:
                 errors.append(f"{label}: too close to moment {j} (same round, under {MIN_GAP_S:.0f} s apart).")
                 break
+            if other_round == rnd and max(t0, other_t0) < min(t1, other_t1):
+                errors.append(f"{label}: overlaps the clip window of moment {j}.")
+                break
         else:
-            placed.append((rnd, lead.t, i))
+            placed.append((rnd, lead.t, i, t0, t1, set(ids)))
             kinds[kind] += 1
             moments.append(
                 SelectedMoment(

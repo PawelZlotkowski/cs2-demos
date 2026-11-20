@@ -67,6 +67,10 @@ class KnowledgeIndex:
             if not row or row[0] != fp:
                 self._build(fp)
 
+    def evidence_version(self) -> str:
+        """Fingerprint sources without rebuilding or invoking an embedding model."""
+        return self._fingerprint()
+
     def rebuild(self) -> int:
         with self._lock:
             return self._build(self._fingerprint())
