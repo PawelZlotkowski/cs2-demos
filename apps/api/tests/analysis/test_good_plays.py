@@ -26,7 +26,8 @@ def test_multi_kill_and_clutch():
     rd = round_(winner="T", kills=kills)
     plays = _plays(rd)
     assert plays["multi_kill"].evidence["kills"] == 3
-    assert plays["clutch"].evidence == {"play": "clutch", "enemiesAlive": 5, "killsInClutch": 3}
+    assert plays["clutch"].evidence == {"play": "clutch", "enemiesAlive": 5, "killsInClutch": 3,
+                                        "contextStartS": 8., "contextEndS": rd.duration}
     assert plays["clutch"].severity == 0.95
 
 
@@ -43,3 +44,16 @@ def test_flash_assist_and_utility_damage():
     plays = _plays(rd)
     assert plays["flash_assist"].evidence["killerName"] == "T2"
     assert plays["utility_damage"].evidence["utilityDamage"] == 55  # team damage ignored
+
+
+def test_aggregate_context_includes_distant_support_and_clutch_result():
+    rd = round_(winner="T", kills=[kill(t, "ct1", p) for t, p in zip((5,10,15,20), ("t2","t3","t4","t5"))]
+                + [kill(t, "t1", p) for t, p in zip((40,50,70,75,80), ("ct1","ct2","ct3","ct4","ct5"))],
+                hurts=[hurt(60, "t1", "ct2", 25, "inferno"), hurt(2, "t1", "ct1", 25, "hegrenade")])
+    plays = _plays(rd)
+    def span(play):
+        return (plays[play].evidence["contextStartS"], plays[play].evidence["contextEndS"])
+    assert span("multi_kill") == (40, 80)
+    assert span("clutch") == (20, rd.duration)
+    assert span("utility_damage") == (2, 60)
+    assert plays["utility_damage"].t == 2

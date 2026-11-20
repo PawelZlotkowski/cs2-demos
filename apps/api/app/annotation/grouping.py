@@ -1,7 +1,7 @@
 """One review per overlapping play, scoped by the caller to one demo/player."""
 from copy import deepcopy
 
-GROUPING_VERSION = 'overlapping-plays-v2'
+GROUPING_VERSION = 'evidence-context-v3'
 
 
 def review_key(footage, finding=None):

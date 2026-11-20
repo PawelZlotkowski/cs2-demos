@@ -2,6 +2,21 @@
 
 Concise log for the next engineer or agent. British spelling.
 
+## 20 November 2026 — labeller parsing, context and video validation
+
+Owner requested the three audit fixes and explicitly kept recording unchanged.
+Prepared on `codex/labeller-recording` in `.local/git-labeller-branch`, based on
+`6882f6f`; the owner subsequently authorised committing and pushing these tested
+fixes. Canonical Porcelain working tree and existing labels were preserved.
+Full Windows suite: 488 passed; Docker core: 241 passed; all 102
+training demos have non-overlapping round windows. Fresh Ancient/Anubis round
+boundaries match CS:DM and aggregate supporting events are included. Read-only
+media validation passed 185/186 historical clips; one is short at its final event.
+The isolated HTTP API rejects an audio-extended short video and accepts a matching
+existing CS2 capture. No new game capture or capture-tool update was performed.
+See [the handoff correction](../coach/LABELLER-HANDOFF-2026-11-20.md#parser-context-and-video-correction)
+for the test scope, workspace migration and remaining external compatibility gate.
+
 ## 26 September 2026 — Knowledge search, clip queue and the coach in the Studio (T30–T32, T40, T43, T45), same branch
 
 Owner asked to finish the MCP tools and the rest of the coach UI. The coordinator moved the Ask tab, the Analysis explanation and the language setting to this thread.

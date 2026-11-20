@@ -2,6 +2,9 @@ from app.analysis.match_data import build_match_data
 from app.analysis.run import analyse_player
 from app.processing.normalize import normalize_parsed
 from tests.analysis import synthetic_demo as sd
+import pandas as pd
+import pytest
+from app.processing.parse_demo import ParseError
 
 
 def _normalised():
@@ -51,3 +54,42 @@ def test_end_to_end_analysis_on_synthetic_demo():
     assert all(f.summary and "{" not in f.summary for f in result.findings)
     assert len(result.round_stats) == 2
     assert result.moments and all(set(m.finding_ids) <= {f.id for f in result.findings} for m in result.moments)
+
+
+def test_restart_does_not_create_a_round_or_duplicate_kills():
+    parsed = sd.build()
+    parsed.round_ends = pd.concat([parsed.round_ends, pd.DataFrame([
+        {"tick": 8000, "winner": None, "round": 2, "reason": None},
+        {"tick": 7000, "winner": "CT", "round": 1, "reason": "t_killed"},
+    ])], ignore_index=True)
+    normal = normalize_parsed("restart", parsed)
+    assert [(r["startTick"], r["endTick"]) for r in normal["rounds"]] == [(1000, 7000), (9000, 15000)]
+    assert [[k["tick"] for k in r["kills"]] for r in normal["analysis"]["rounds"]] == [[2000, 2100], [10000]]
+
+
+def test_missing_freeze_end_uses_this_round_start():
+    parsed = sd.build()
+    parsed.freeze_ends = parsed.freeze_ends.iloc[:1]
+    normal = normalize_parsed("missing-freeze", parsed)
+    assert normal["rounds"][1]["startTick"] == 7100
+    assert [k["tick"] for k in normal["analysis"]["rounds"][1]["kills"]] == [10000]
+
+
+def test_missing_boundaries_fail_instead_of_inventing_a_clock():
+    parsed = sd.build()
+    parsed.freeze_ends = parsed.freeze_ends.iloc[:1]
+    parsed.round_starts = parsed.round_starts.iloc[:1]
+    with pytest.raises(ParseError, match="missing round boundaries"):
+        normalize_parsed("missing-start", parsed)
+
+
+def test_aborted_round_freeze_is_not_reused_after_restart():
+    parsed = sd.build()
+    parsed.round_ends = pd.concat([parsed.round_ends, pd.DataFrame([
+        {"tick": 8500, "winner": None, "round": 2, "reason": None},
+    ])], ignore_index=True)
+    parsed.freeze_ends = pd.DataFrame({"tick": [1000, 8000]})
+    parsed.round_starts = pd.DataFrame({"tick": [0, 7100, 8500]})
+    # round_start may share the restart tick; there is no completed round there.
+    normal = normalize_parsed("restart-without-freeze", parsed)
+    assert normal["rounds"][1]["startTick"] >= 8500

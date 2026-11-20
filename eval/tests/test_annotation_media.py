@@ -10,6 +10,7 @@ import pytest
 from test_annotation import client, store, seed, DEMO, PLAYER, HEADERS, path
 from app.annotation.media import ClipRequest, Media, probe_video
 from app.annotation.media import validate_recording_duration
+from app.annotation.media import validate_video_frames
 from app.annotation.store import Conflict, Store
 from app.models.annotation import ReviewSave
 
@@ -80,6 +81,42 @@ def test_bad_uploads_leave_no_partial_files(client, store):
     assert client.post(BASE+'/upload', content=b'not an mp4', headers=HEADERS).status_code == 422
     assert client.post(BASE+'/upload?start=nan', content=b'bad', headers=HEADERS).status_code == 422
     assert client.get(BASE).json() == []
+    assert list((store.root/'footage').iterdir()) == []
+
+
+def test_audio_cannot_hide_truncated_video(client, store, tmp_path):
+    ffmpeg = shutil.which('ffmpeg') or str(Path.home()/'.csdm/ffmpeg/bin/ffmpeg.exe')
+    target = tmp_path/'short-video-long-audio.mp4'
+    subprocess.run([ffmpeg, '-v', 'error', '-f', 'lavfi', '-i', 'color=s=160x90:r=30:d=1',
+                    '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo', '-t', '10',
+                    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', str(target)], check=True, timeout=30)
+    assert probe_video(target)['duration'] == 1
+    assert validate_video_frames(target)['decodedDuration'] == 1
+    clip = client.post(BASE, headers=HEADERS, json={'anchor': 5}).json()
+    claimed = client.post('/api/recordings/claim', headers=HEADERS).json()
+    response = client.post(f"/api/recordings/{clip['id']}/upload?lease={claimed['lease']}",
+                           content=target.read_bytes(), headers=HEADERS)
+    assert response.status_code == 422 and 'duration differs' in response.text
+    assert client.get(BASE).json()[0]['state'] == 'recording'
+    assert not list((store.root/'footage').glob('*.mp4'))
+    assert not list((store.root/'footage').glob('*.upload'))
+
+
+def test_delayed_video_cannot_claim_earlier_event_coverage(client, tmp_path):
+    ffmpeg = shutil.which('ffmpeg') or str(Path.home()/'.csdm/ffmpeg/bin/ffmpeg.exe')
+    target = tmp_path/'late-video.mp4'
+    subprocess.run([ffmpeg, '-v', 'error', '-itsoffset', '2', '-f', 'lavfi',
+                    '-i', 'color=s=160x90:r=30:d=8', '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo',
+                    '-t', '10', '-fps_mode', 'passthrough', '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+                    '-c:a', 'aac', str(target)], check=True, timeout=30)
+    assert client.post(BASE+'/upload', headers=HEADERS, content=target.read_bytes()).status_code == 422
+
+
+def test_decoded_video_must_reach_the_declared_end(client, store, video, monkeypatch):
+    monkeypatch.setattr('app.annotation.media.validate_video_frames',
+                        lambda _: {'decodedFrames': 30, 'decodedDuration': 1.})
+    response = client.post(BASE+'/upload', headers=HEADERS, content=video)
+    assert response.status_code == 422 and 'declared duration' in response.text
     assert list((store.root/'footage').iterdir()) == []
 
 

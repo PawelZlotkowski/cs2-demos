@@ -1,5 +1,11 @@
 # 18 Current state
 
+20 November 2026 labeller follow-up: corrected parsing, supporting clip
+context and video validation on `codex/labeller-recording`. Recorder unchanged;
+CS2/HLAE compatibility still needs a recipient capture check. See the
+[tested handoff correction](../coach/LABELLER-HANDOFF-2026-11-20.md#parser-context-and-video-correction).
+This update does not change the historical Studio milestone status below.
+
 Related: [15 Implementation](./15-IMPLEMENTATION-ARCHITECTURE.md), [17 Testing](./17-TESTING-QA.md), [19 Decisions](./19-DECISIONS.md), [24 MVP Architecture](./24-MVP-ARCHITECTURE.md), [replay architecture](../replay/replay-architecture.md), [demo parser](../replay/demo-parser.md), [csdm video](../replay/csdm-video.md)
 
 As of 26 September 2026 (AI Coach phase 1 on branch `claude/coach-phase-1-hrt6pm` and phase 2 on `claude/coach-phase-2-r2gzvt`, both in review; CS:DM gameplay clips merged on `development`; Demo Replay milestone verified 25 Sep). Runnable monorepo: `apps/web`, `apps/api`, `apps/mcp`. UI reference remains [`prototype/analysis-studio.html`](../../prototype/analysis-studio.html) — do not treat it as the live app.

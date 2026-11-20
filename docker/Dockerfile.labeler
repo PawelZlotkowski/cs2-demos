@@ -25,7 +25,9 @@ RUN pip install --no-cache-dir pytest==9.1.1 httpx==0.28.1
 COPY tools/record_label_clips.py tools/test_record_label_clips.py /app/tools/
 COPY apps/api/tests /app/apps/api/tests
 USER labeler
-CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "eval/tests", "apps/api/tests/analysis", "tools/test_record_label_clips.py"]
+# These two tests boot the separate Studio account/API stack; the standalone
+# labeller core does not install that stack. They remain in the full API suite.
+CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "eval/tests", "apps/api/tests/analysis", "tools/test_record_label_clips.py", "--ignore=apps/api/tests/analysis/test_player_selection.py", "--ignore=apps/api/tests/analysis/test_review_setup.py"]
 
 FROM base AS voice
 USER root

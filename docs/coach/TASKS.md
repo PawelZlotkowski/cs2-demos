@@ -14,6 +14,11 @@ Sizes: S ≈ half a day, M ≈ 1–2 days, L ≈ 3–5 days. Status: `todo`, `do
 
 ## Phase 0 — setup
 
+20 November 2026, owner-assigned T15/T17 reliability follow-up: corrected round
+boundaries, aggregate clip context and video validation on the labeller branch.
+[Verification and limits](LABELLER-HANDOFF-2026-11-20.md#parser-context-and-video-correction).
+No new human labels or agreement study were produced; T15/T17 statuses are unchanged.
+
 | ID | Task | Depends | Paths | Done when | Size | Owner | Status |
 |---|---|---|---|---|---|---|---|
 | T00 | Merge or rebase `cursor/csdm-gameplay-video` into main (clips worker, clock sync) | – | branch | PR merged; `pytest` + `npm run typecheck` green; stub clips play in Studio | M | | todo |

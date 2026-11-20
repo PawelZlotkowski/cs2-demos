@@ -49,6 +49,37 @@ again so it loads the new recording code; a running Python process cannot update
 
 If this PC already has a reachable database configured in CS Demo Manager, the launcher reuses it. If port 5432 belongs to another service, set `CSDM_DB_PORT=5433` in `labeler.env`, repeat database setup and enter that port in CS Demo Manager. Keep the generated password with the local installation. Changing the environment value after database initialisation requires changing the PostgreSQL role's password too.
 
+## Parser and footage correction — 20 November 2026
+
+This correction removes restart rows from played rounds, includes the supporting
+events in aggregate good-play clips, and checks actual video-stream coverage and
+decoded frames before accepting new footage. The Windows recorder, capture method,
+launcher and CS2/HLAE configuration are unchanged.
+
+For an existing installation, back up the workspace first. Old reviews remain
+historical records; do not treat old clips as having the corrected context.
+Prepare the selected player again after rebuilding. If the app reports
+"New parser output differs from reviewed telemetry", use a separate empty
+workspace: set a new `LABELER_PROJECT`, for example `round-labeler-fixed`, in
+`labeler.env` before starting. Use a different `LABELER_PORT` when running both
+instances. Import the demo there and prepare fresh batches. Keep the previous
+project and its volumes to retain its reviews; restoring the old cache into the
+new workspace does not migrate its round numbers.
+
+Parsing success does not establish game-playback compatibility. Before sending a
+large queue, play the intended demo and record a short clip in CS Demo Manager on
+the recipient's PC. A CS2 "demo incompatible with this game version" message
+requires a compatible game build for that demo. Follow CS Demo Manager's
+[playback compatibility guide](https://cs-demo-manager.com/docs/guides/playback).
+The reported `AfxHookSource2/ViewModel.cpp:75` warning is a separate HLAE/game-hook
+compatibility issue; these application fixes do not repair that external hook.
+The current combination has not been certified for unattended recording after
+the recent game update. Check the selected POV, event timing and context in the
+first result before continuing.
+
+Verification for this correction is recorded in the kit's
+`docs/coach/LABELLER-HANDOFF-2026-11-20.md`.
+
 ## Label your first demo
 
 1. Enter a unique labeller handle, such as `alex`. Use that handle consistently on this PC.

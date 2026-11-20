@@ -81,6 +81,12 @@ Callout polygons per map in `apps/api/app/maps/zones/de_mirage.json` and `de_anu
 
 ### 4.3 Detectors
 
+Labeller correction, 20 November 2026: D10 evidence includes `contextStartS` and
+`contextEndS` for aggregate plays so clip requests cover the counted events.
+Detector thresholds and judgement policy are unchanged. Parser and media checks,
+verification and recording compatibility limits are in the
+[handoff correction](LABELLER-HANDOFF-2026-11-20.md#parser-context-and-video-correction).
+
 Each detector is a pure function `(match_data, round, player_id) -> list[Finding]`, with unit tests on real hand-labelled rounds.
 
 | # | Detector | Signal | Kind |

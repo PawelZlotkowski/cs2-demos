@@ -5,6 +5,63 @@ candidate moments locally and sends feedback back as JSON. This is the owner's
 confirmed workflow. Existing personal annotations are retained; a new reviewer
 handle starts an independent pass without deleting any database or Docker volume.
 
+## Parser, context and video correction
+
+This later correction supersedes the readiness assessment below. This revision
+on `codex/labeller-recording`, based on `6882f6f`, contains the tested parser,
+context and video-validation fixes. The owner authorised committing and pushing
+the correction. Use this revision or the tested source kit; the earlier
+`6882f6f` revision does not contain these fixes.
+
+- Completed rounds now use their own observed boundaries. Restart rows and
+  duplicate ends cannot reuse an earlier freeze end and duplicate live events.
+  A missing freeze end falls back to that round's start; missing both fails
+  visibly instead of inventing a 90-second interval.
+- Good-play evidence carries its supporting time range. Multi-kills include the
+  first and last kill; utility damage includes all counted damage; trades include
+  the teammate death; clutch clips extend to the round result. Padding is applied
+  to that range and ticks round outwards. Normal round-end clamping still applies.
+- New video uploads use video-stream duration and decoded video coverage, rather
+  than an audio-extended container duration. Unreadable frames, a delayed video
+  track, incomplete decode and an insufficient requested window are rejected.
+- Windows recording code, launchers, capture method and installed game/HLAE tools
+  are unchanged. No fresh game recording was started for this correction.
+
+Verification on this revision:
+
+| Check | Result |
+|---|---|
+| Full Windows API/eval/unchanged-recorder suite | 488 passed, 4 skipped, 3 subtests |
+| Full checkout, standalone Docker test-core | 241 passed, 2 skipped, 3 subtests |
+| Extracted distributable source kit, Docker test-core | 201 passed, 1 skipped, 3 subtests; 190 source-file hashes verified |
+| JavaScript and Windows launcher checks | Passed |
+| Training corpus round-boundary check | 102/102 demos; hashes match; no overlapping rounds; no held-out files opened |
+| Fresh selected-player Ancient / Anubis parse | 48 / 36 rounds; every freeze-end and live-round-end matches independent CS Demo Manager output |
+| Duplicate live kills | None; 341 Ancient / 231 Anubis. CS:DM additionally retains 4 / 3 post-round deaths, outside the replay contract |
+| Aggregate good-play context on those demos | All supporting events in the seven checked aggregate findings are inside their new clip windows |
+| Existing footage, read-only validation | 185/186 pass decode and duration checks; one historical 299-frame clip is short at its end-of-round finding |
+| Real HTTP upload and playback | 1 s video with 15 s audio rejected (422); existing matching CS2 clip accepted (200), served byte-identically |
+
+The Docker core target excludes two tests that boot the separate Studio account
+API, whose dependencies are absent from the standalone labeller. Those tests are
+included in the full Windows suite. A Starlette/httpx deprecation warning remains.
+Revalidation checks media integrity and timing coverage, not the human meaning or
+POV of every historical clip. Existing labelled data was not edited or replaced.
+Technical drafts and new batches used an isolated container with no recorder.
+
+**Handoff decision:** the corrected application can be sent for a controlled
+labelling trial with compatible demos. Unattended recording of arbitrary old
+demos is not signed off: the observed game-version rejection and HLAE
+`ViewModel.cpp:75` warning remain external compatibility issues. The recipient
+must pass a short recording on their own game/tool versions before a full queue.
+Existing workspaces need backup and refresh, or a new workspace when the corrected
+rounds differ; see [setup](../LABELER-SETUP.md#parser-and-footage-correction--20-november-2026).
+
+Private evidence: `.local/labeller-fixes-20261120/` in the canonical Studio folder
+contains test logs, corpus results, independent round/event comparisons, media
+validation and the isolated API results. No raw demos or player data are added
+to Git or the distributable source kit.
+
 ## Changes
 
 - Distinct selection usefulness, individual signal verdicts and player-decision

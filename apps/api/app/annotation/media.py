@@ -63,11 +63,14 @@ def probe_video(path: Path):
     try:
         data = json.loads(result.stdout)
         streams = [s for s in data['streams'] if s.get('codec_type') == 'video']
-        duration = float(data['format']['duration'])
         video = streams[0]
+        # Container duration can be extended by audio after the picture stops.
+        duration = float(video['duration'])
+        video_start = float(video.get('start_time', 0)) - float(data['format'].get('start_time', 0))
         fps = float(Fraction(video.get('avg_frame_rate', '0/1')))
         if (result.returncode or not math.isfinite(duration) or duration <= 0
                 or not math.isfinite(fps) or not 0 < fps <= 1000
+                or not math.isfinite(video_start) or abs(video_start) > 1 / fps
                 or video['width'] <= 0 or video['height'] <= 0 or video['codec_name'] != 'h264'
                 or video.get('pix_fmt') not in ('yuv420p', 'yuvj420p')
                 or 'mp4' not in data['format'].get('format_name', '')):
@@ -90,7 +93,7 @@ def validate_recording_duration(metadata, info):
 
 
 def validate_video_frames(path: Path):
-    """A readable MP4 header is insufficient: reject corrupt video frames too."""
+    """Decode video only and measure its end time without audio or frame filling."""
     ffmpeg = os.getenv('RR_FFMPEG_BIN') or shutil.which('ffmpeg')
     bundled = Path.home() / '.csdm/ffmpeg/bin/ffmpeg.exe'
     if not ffmpeg and bundled.is_file():
@@ -98,14 +101,24 @@ def validate_video_frames(path: Path):
     if not ffmpeg:
         raise ValueError('FFmpeg is required to validate all video frames before labelling.')
     try:
-        result = subprocess.run([ffmpeg, '-v', 'error', '-xerror', '-protocol_whitelist', 'file,pipe',
-                                 '-i', str(path), '-map', '0:v:0', '-f', 'null', '-'],
-                                capture_output=True, timeout=180,
+        result = subprocess.run([ffmpeg, '-v', 'error', '-xerror', '-nostats', '-progress', 'pipe:1',
+                                 '-protocol_whitelist', 'file,pipe', '-i', str(path),
+                                 '-map', '0:v:0', '-fps_mode', 'passthrough', '-f', 'null', '-'],
+                                capture_output=True, text=True, timeout=180,
                                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
     except (OSError, subprocess.TimeoutExpired):
         raise ValueError('Video frame validation could not finish. Try a shorter clip or record it again.') from None
     if result.returncode:
         raise ValueError('The video contains unreadable frames. Record or export this clip again.')
+    try:
+        progress = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+        frames = int(progress['frame'])
+        duration = int(progress['out_time_us']) / 1_000_000
+        if progress.get('progress') != 'end' or frames <= 0 or duration <= 0:
+            raise ValueError()
+    except (KeyError, ValueError):
+        raise ValueError('Could not establish decoded video coverage. Record or export this clip again.') from None
+    return {'decodedFrames': frames, 'decodedDuration': duration}
 
 
 class Media:
@@ -172,20 +185,25 @@ class Media:
                 result.append(self.public(row))
             return result
 
-    def prepare(self, demo, player, rnd, value):
+    def prepare(self, demo, player, rnd, value, *, support=None):
         replay = self.round(demo, player, rnd)
         if value.anchor > replay['durationSec']:
             raise ValueError('The decision is outside this round.')
-        start = max(0., value.anchor - value.before)
-        end = min(replay['durationSec'], value.anchor + value.after)
-        ticks = [min(replay['endTick'], replay['startTick'] + round(t * replay['tickRate'])) for t in (start, end)]
+        support_start, support_end = support or (value.anchor, value.anchor)
+        if (not all(isinstance(t, (float, int)) and math.isfinite(t) for t in (support_start, support_end))
+                or not 0 <= support_start <= value.anchor <= support_end <= replay['durationSec']):
+            raise ValueError('The supporting events are outside this round. Prepare the player again.')
+        start = max(0., support_start - value.before)
+        end = min(replay['durationSec'], support_end + value.after)
+        ticks = [max(replay['startTick'], replay['startTick'] + math.floor(start * replay['tickRate'])),
+                 min(replay['endTick'], replay['startTick'] + math.ceil(end * replay['tickRate']))]
         if ticks[1] <= ticks[0]:
             raise ValueError('Choose a non-empty context window.')
         metadata = {'source': 'csdm', 'anchor': value.anchor, 'requestedBefore': value.before,
                     'requestedAfter': value.after, 'startTick': ticks[0], 'endTick': ticks[1],
                     'start': (ticks[0] - replay['startTick']) / replay['tickRate'],
                     'end': (ticks[1] - replay['startTick']) / replay['tickRate'], 'createdAt': now(),
-                    'contextClamped': start > value.anchor - value.before or end < value.anchor + value.after,
+                    'contextClamped': start > support_start - value.before or end < support_end + value.after,
                     'alignmentConfirmed': False}
         return metadata
 
@@ -267,8 +285,12 @@ def install_media(app, store):
                     target.write(chunk)
                     digest.update(chunk)
             info = await run_in_threadpool(probe_video, path)
-            await run_in_threadpool(validate_video_frames, path)
-            return path, {**info, 'sha256': digest.hexdigest(), 'bytes': total, 'frameValidation': 'full-decode-v1'}
+            decoded = await run_in_threadpool(validate_video_frames, path)
+            if abs(info['duration'] - decoded['decodedDuration']) > max(.1, 2 / float(Fraction(info['fps']))):
+                raise ValueError('Decoded video does not cover its declared duration. Record or export this clip again.')
+            info['duration'] = min(info['duration'], decoded['decodedDuration'])
+            return path, {**info, **decoded, 'sha256': digest.hexdigest(), 'bytes': total,
+                          'frameValidation': 'video-coverage-v2'}
         except BaseException:
             path.unlink(missing_ok=True)
             raise

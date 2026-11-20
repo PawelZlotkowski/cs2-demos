@@ -93,8 +93,11 @@ class Batches:
         identity = hashlib.sha256(encode([demo, player, snapshot['id'], float(value.before), float(value.after), GROUPING_VERSION]).encode()).hexdigest()[:32]
         moments = []
         for finding in sorted(snapshot['findings'], key=lambda f: (f['round'], f['t'], f['id'])):
+            evidence = finding.get('evidence', {})
             metadata = self.media.prepare(demo, player, finding['round'],
-                                          ClipRequest(anchor=finding['t'], before=value.before, after=value.after))
+                                          ClipRequest(anchor=finding['t'], before=value.before, after=value.after),
+                                          support=(evidence.get('contextStartS', finding['t']),
+                                                   evidence.get('contextEndS', finding['t'])))
             metadata.update(batchId=identity, snapshotId=snapshot['id'], finding=finding)
             moments.append(metadata)
         grouped = group_moments(moments)

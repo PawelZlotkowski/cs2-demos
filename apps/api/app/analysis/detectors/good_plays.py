@@ -43,7 +43,10 @@ def detect(match: MatchData, round_no: int, player_id: str) -> list[FindingDraft
         k for k in kills if k.attacker == player_id and k.victim != player_id and not is_team_kill(rd, player_id, k.victim)
     ]
 
-    def add(play: str, k_t: float, tick: int, severity: float, evidence: dict, others: list[str], pos) -> None:
+    def add(play: str, k_t: float, tick: int, severity: float, evidence: dict, others: list[str], pos,
+            *, support_start: float | None = None, support_end: float | None = None) -> None:
+        if support_start is not None:
+            evidence = {**evidence, "contextStartS": support_start, "contextEndS": support_end}
         out.append(
             FindingDraft(
                 detector="good_plays",
@@ -73,6 +76,7 @@ def detect(match: MatchData, round_no: int, player_id: str) -> list[FindingDraft
                  "tradeOutcome": "traded"},
                 [k.victim, traded.victim],
                 k.attacker_pos,
+                support_start=traded.t, support_end=k.t,
             )
 
     fk = first_kill(rd)
@@ -89,6 +93,7 @@ def detect(match: MatchData, round_no: int, player_id: str) -> list[FindingDraft
             {"kills": len(my_kills), "spanS": round(last.t - my_kills[0].t, 1)},
             [k.victim for k in my_kills],
             last.attacker_pos,
+            support_start=my_kills[0].t, support_end=last.t,
         )
 
     # Clutch: the moment the last teammate died with the player still alive
@@ -113,6 +118,7 @@ def detect(match: MatchData, round_no: int, player_id: str) -> list[FindingDraft
                         {"enemiesAlive": len(enemies_alive), "killsInClutch": len(later)},
                         enemies_alive,
                         None,
+                        support_start=k.t, support_end=rd.duration,
                     )
                 break
 
@@ -121,7 +127,8 @@ def detect(match: MatchData, round_no: int, player_id: str) -> list[FindingDraft
             add("flash_assist", k.t, k.tick, 0.4, {"victimName": match.name(k.victim), "killerName": match.name(k.attacker)}, [k.attacker, k.victim], k.victim_pos)
 
     enemies = set(rd.enemies(player_id))
-    util = [h for h in rd.hurts if h.attacker == player_id and h.victim in enemies and weapon_key(h.weapon) in UTILITY_WEAPONS]
+    util = sorted((h for h in rd.hurts if h.attacker == player_id and h.victim in enemies
+                   and weapon_key(h.weapon) in UTILITY_WEAPONS), key=lambda h: h.tick)
     dmg = sum(h.damage for h in util)
     if dmg >= MIN_UTILITY_DAMAGE:
         add(
@@ -132,5 +139,6 @@ def detect(match: MatchData, round_no: int, player_id: str) -> list[FindingDraft
             {"utilityDamage": dmg, "enemiesHit": len({h.victim for h in util})},
             sorted({h.victim for h in util}),
             None,
+            support_start=util[0].t, support_end=util[-1].t,
         )
     return sorted(out, key=lambda d: d.t)

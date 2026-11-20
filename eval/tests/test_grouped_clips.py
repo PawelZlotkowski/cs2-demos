@@ -10,6 +10,7 @@ from test_clip_export import ready_with_file, probe
 from app.annotation.batches import Batches, BatchRequest
 from app.annotation.clip_export import export_clips
 from app.annotation.grouping import group_moments
+from app.annotation.media import Media
 from app.annotation.store import Store, encode
 from app.annotation.transfer import export_notes, import_notes, validate_notes
 from app.models.annotation import ClipManifest
@@ -131,3 +132,30 @@ def test_grouping_upgrade_reuses_an_equivalent_ready_batch(client, store, monkey
     monkeypatch.setattr('app.annotation.batches.GROUPING_VERSION', 'current-grouping')
     updated = batch(client)
     assert updated['id'] == old['id'] and updated['counts'] == {'ready': 1}
+
+
+def test_batch_covers_support_even_when_longer_than_context_padding_limit(client, store):
+    snapshot = store.snapshot(DEMO, PLAYER)
+    snapshot['id'] = 'context-snapshot'
+    snapshot['findings'] = [dict(id='F1', round=1, t=80., detector='good_plays',
+                               evidence=dict(play='multi_kill', contextStartS=2., contextEndS=80.))]
+    snapshot['rounds'][0].update(endTick=7040, durationSec=100.)
+    with store.connect() as con:
+        con.execute('UPDATE snapshots SET payload=?', (encode(snapshot),))
+    replay = store.root/'matches'/DEMO/'rounds'/'r1.json'
+    data = json.loads(replay.read_text())
+    data.update(endTick=7040, durationSec=100.)
+    replay.write_text(json.dumps(data))
+    current = batch(client, before=1, after=2)
+    [clip] = items(client, current['id'])
+    assert (clip['start'], clip['end']) == (1., 82.)
+    assert (clip['startTick'], clip['endTick']) == (704, 5888)
+    assert clip['anchor'] == 80 and clip['requestedBefore'] == 1
+
+
+def test_context_tick_rounding_never_cuts_off_support(client, store):
+    media = Media(store)
+    from app.annotation.media import ClipRequest
+    value = media.prepare(DEMO, PLAYER, 1, ClipRequest(anchor=5.016, before=0, after=0),
+                          support=(2.015, 5.016))
+    assert value['start'] <= 2.015 and value['end'] >= 5.016

@@ -9,7 +9,7 @@ import pandas as pd
 
 from app.analysis.extract import extract_analysis, steam_id
 from app.maps.metadata import display_map_name, get_map_meta, world_to_radar
-from app.processing.parse_demo import ParsedDemo
+from app.processing.parse_demo import ParsedDemo, ParseError
 from app.processing.time_utils import tick_to_seconds
 
 
@@ -22,45 +22,61 @@ def team_side(team_num: int) -> str:
     return "T"
 
 
+def round_windows(parsed: ParsedDemo) -> list[tuple[int, pd.Series]]:
+    """Pair completed rounds with starts from the same event interval.
+
+    Restart/draw rows still bound the next interval, but are not played rounds.
+    Missing freeze-end falls back to an observed round_start, never a previous
+    round's freeze-end or an invented 90-second window.
+    """
+    starts = sorted(int(t) for t in parsed.round_starts.get("tick", []))
+    freezes = sorted(int(t) for t in parsed.freeze_ends.get("tick", []))
+    windows = []
+    previous_end = -1
+    accepted_end = -1
+    if parsed.round_ends.empty:
+        return windows
+    for _, end in parsed.round_ends.sort_values("tick", kind="stable").iterrows():
+        end_tick = int(end["tick"])
+        if end_tick <= previous_end:
+            continue  # Duplicate round_end event.
+        lower = max(previous_end, accepted_end + 1, 0)
+        previous_end = end_tick
+        if end_tick <= 1 or _normalize_winner(end.get("winner")) not in ("T", "CT"):
+            continue
+        round_starts = [t for t in starts if lower <= t < end_tick]
+        if round_starts:
+            lower = round_starts[-1]
+        freeze_ends = [t for t in freezes if lower <= t < end_tick]
+        if freeze_ends:
+            start_tick = freeze_ends[-1]
+        elif round_starts:
+            start_tick = round_starts[-1]
+        else:
+            raise ParseError(f"Could not establish the start of the round ending at tick {end_tick}. "
+                             "This demo is missing round boundaries; try a complete recording.")
+        windows.append((start_tick, end))
+        accepted_end = end_tick
+    return windows
+
+
 def normalize_parsed(match_id: str, parsed: ParsedDemo) -> dict[str, Any]:
     map_raw = str(parsed.header.get("map_name") or "unknown")
     meta = get_map_meta(map_raw)
     tick_rate = parsed.tick_rate
 
-    # Prefer freeze_end ticks as round starts; pair with round_end rows that have a winner
-    ends = parsed.round_ends.copy()
-    if len(ends):
-        ends = ends[ends["winner"].notna() | ((ends["round"] > 0) & (ends["tick"] > 1))].copy()
-        ends = ends[ends["tick"] > 1].reset_index(drop=True)
-
-    freeze = parsed.freeze_ends.copy() if len(parsed.freeze_ends) else pd.DataFrame(columns=["tick"])
-    freeze_ticks = sorted(int(t) for t in freeze["tick"].tolist()) if len(freeze) else []
-
     rounds_meta: list[dict[str, Any]] = []
-    round_replays: dict[str, dict[str, Any]] = []
-    round_replays = {}
+    round_replays: dict[str, dict[str, Any]] = {}
 
     # Build player roster with best-known team from tick mid-match
     roster = _build_roster(parsed)
 
-    for idx, end_row in ends.iterrows():
+    for start_tick, end_row in round_windows(parsed):
         end_tick = int(end_row["tick"])
         winner_raw = end_row.get("winner")
         winner = _normalize_winner(winner_raw)
         reason = end_row.get("reason")
         reason_s = str(reason) if pd.notna(reason) else None
-
-        # Start: last freeze_end before this end_tick, else previous end
-        start_tick = 0
-        for ft in freeze_ticks:
-            if ft < end_tick:
-                start_tick = ft
-            else:
-                break
-        if start_tick <= 0 and rounds_meta:
-            start_tick = rounds_meta[-1]["endTick"]
-        if start_tick <= 0:
-            start_tick = max(0, end_tick - tick_rate * 90)
 
         round_number = len(rounds_meta) + 1
         round_id = f"r{round_number}"

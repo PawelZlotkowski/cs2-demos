@@ -26,6 +26,11 @@ cd RoundReviewer
 powershell -NoProfile -ExecutionPolicy Bypass -File .\labeler.ps1 update
 
 Możesz też rozpakować całą paczkę źródłową otrzymaną od Pawła.
+Ta wersja zawiera poprawki parsera, kontekstu i walidacji wideo z końcowego
+audytu. Starsza rewizja 6882f6f ich nie zawiera. Przy aktualizacji istniejącego
+klonu pobierz najnowszą wersję gałęzi i przebuduj obraz poleceniem powyżej.
+reviewSchemaVersion i policy.version nie rozróżniają tej poprawki od
+wcześniejszej wersji z tego samego dnia.
 Pierwsza instalacja buduje obraz Dockera i potrzebuje internetu.
 Wersja z poprawkami z 20 listopada pokazuje reviewSchemaVersion: 3 oraz
 policy.version: local-v1.1 pod http://127.0.0.1:8765/api/config.
@@ -41,8 +46,21 @@ Zwykle host to 127.0.0.1, port 5432, użytkownik postgres, baza csdm.
 Jeśli masz już działającą bazę CS Demo Managera, launcher może jej użyć.
 
 Sprawdź ścieżkę do CS2 i wykonaj krótkie nagranie próbne w CS Demo Manager.
+Sprawdź odtwarzanie konkretnego dema przed uruchomieniem całej kolejki.
+Komunikat o niezgodności dema z wersją gry wymaga zgodnej wersji CS2;
+udane parsowanie w labellerze nie oznacza, że bieżąca gra odtworzy demo.
+Ostrzeżenie AfxHookSource2/ViewModel.cpp:75 dotyczy zgodności HLAE z grą.
+Ta poprawka nie zmienia nagrywania ani konfiguracji CS2/HLAE.
+Po aktualizacji sprawdź gracza, czas zdarzenia i kontekst pierwszego klipu.
 W launcherze wybierz 2 — Record queued clips. W przeglądarce recorder ma być connected.
 Pozostaw Docker i Steam uruchomione, a Windows aktywny podczas nagrywania.
+
+Jeżeli aktualizujesz istniejącą instalację, najpierw wykonaj kopię (opcja 8).
+Ponownie przygotuj gracza. Jeżeli parser zgłosi zmianę danych już ocenianych,
+zachowaj starą instalację i ustaw nowy LABELER_PROJECT w labeler.env, np.
+round-labeler-fixed. Zaimportuj demo do nowej, pustej przestrzeni i przygotuj
+nowe klipy. Nie usuwaj poprzednich wolumenów ani ocen. Przy dwóch działających
+instancjach ustaw także różne LABELER_PORT. Szczegóły: docs/LABELER-SETUP.md.
 
 3. TWOJE DEMO I TWOJE OCENY
 
