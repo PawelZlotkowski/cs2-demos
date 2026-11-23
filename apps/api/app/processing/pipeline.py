@@ -184,6 +184,24 @@ class ProcessingPipeline:
             )
             raise exc
 
+    def retry(self, match_id: str) -> None:
+        """Run a failed match again from its stored upload. A confirmed player, focus and language are kept."""
+        with self._lock:
+            record = self.repo.get(match_id)
+            if not record or record.get("is_sample"):
+                raise PlayerSelectionError("Match not found.", 404)
+            if record["status"] != MatchStatus.failed:
+                raise PlayerSelectionError("Only a match whose processing failed can be retried.", 409)
+            if not record.get("path") or not Path(record["path"]).is_file():
+                raise PlayerSelectionError(
+                    "The uploaded demo is no longer on the server. Upload the demo again to review it.", 410
+                )
+            # The unpacked demo may be partial or the cause of the failure, so the retry unpacks it again.
+            (settings.resolved_work_dir() / f"{match_id}.dem").unlink(missing_ok=True)
+            logger.info("Retrying %s after: %s", match_id, record.get("error"))
+            self.repo.set_status(match_id, MatchStatus.uploaded)
+        self.enqueue(match_id)
+
     def _auto_pick(self, match_id: str) -> None:
         """A06: the owner's linked SteamID is in the demo, so coach them without asking."""
         if not settings.auth_enabled:
@@ -262,6 +280,7 @@ class ProcessingPipeline:
             focus = self.repo.review_options(match_id).get("focus", "overall")
             result = analyse_player(match, player_id, focus=focus)
             self.repo.analysis.save(result)
+            self.repo.refresh_score(match_id)
             logger.info(
                 "Analysed %s for %s: %d findings, %d moments in %.2f s",
                 match_id,

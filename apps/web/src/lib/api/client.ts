@@ -121,19 +121,30 @@ export const api = {
   baseUrl: API_URL,
   health: () => request<{ status: string }>("/health"),
   /** XHR rather than fetch, because fetch cannot report upload progress. */
-  upload: (file: File, onProgress?: (sent: number, total: number) => void) =>
+  upload: (file: File, onProgress?: (sent: number, total: number) => void, signal?: AbortSignal) =>
     new Promise<UploadResponse>((resolve, reject) => {
       const form = new FormData();
       form.append("file", file);
       const xhr = new XMLHttpRequest();
       xhr.open("POST", `${API_URL}/matches/upload`);
       xhr.responseType = "json";
+      const abort = () => xhr.abort();
+      if (signal?.aborted) {
+        reject(new DOMException("Upload cancelled", "AbortError"));
+        return;
+      }
+      signal?.addEventListener("abort", abort, { once: true });
+      xhr.onloadend = () => signal?.removeEventListener("abort", abort);
+      xhr.onabort = () => reject(new DOMException("Upload cancelled", "AbortError"));
       xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) onProgress?.(e.loaded, e.total);
+        if (e.lengthComputable && e.total > 0) onProgress?.(e.loaded, e.total);
       };
       xhr.onload = () => {
         const body = xhr.response as (UploadResponse & { detail?: string }) | null;
-        if (xhr.status >= 200 && xhr.status < 300 && body) resolve(body);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          if (typeof body?.id === "string" && body.id.trim()) resolve(body);
+          else reject(new Error("The server did not confirm the match. Check your match library before trying again."));
+        }
         else reject(new Error(body?.detail ?? (xhr.statusText || "Unable to upload the demo. Check it is a .dem or .dem.zst file and try again.")));
       };
       xhr.onerror = () => reject(new Error("The upload stopped. Check that the API is running."));
@@ -168,6 +179,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ playerId, language, focus }),
     }),
+  retryProcessing: (matchId: string) => request<StatusResponse>(`/matches/${matchId}/retry`, { method: "POST" }),
   getFindings: (
     matchId: string,
     playerId: string,
@@ -359,6 +371,9 @@ export const api = {
   share: (id: string) => request<{ token: string; path: string }>(`/matches/${id}/share`, { method: "POST" }),
   unshare: (id: string) => request<void>(`/matches/${id}/share`, { method: "DELETE" }),
   shared: (token: string) => request<SharedReview>(`/shared/${encodeURIComponent(token)}`),
+  sharedRounds: (token: string) => request<RoundSummary[]>(`/shared/${encodeURIComponent(token)}/rounds`),
+  sharedReplay: (token: string, roundId: string) =>
+    request<RoundReplay>(`/shared/${encodeURIComponent(token)}/rounds/${encodeURIComponent(roundId)}/replay`),
 
   // Admin panel (doc 30)
   admin: {

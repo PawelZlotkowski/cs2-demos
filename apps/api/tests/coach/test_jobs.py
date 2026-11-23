@@ -19,7 +19,8 @@ from app.repositories.matches import repo
 
 
 def ids(mid, pid) -> dict[str, str]:
-    return {f.detector: f.id for f in repo.analysis.findings(mid, pid) if f.kind in ("mistake", "good")}
+    # Context can support a moment and an explanation, but cannot lead a pick.
+    return {f.detector: f.id for f in repo.analysis.findings(mid, pid)}
 
 
 def picks_json(mid, pid) -> str:
@@ -39,7 +40,7 @@ def picks_json(mid, pid) -> str:
 def good_text(mid, pid) -> str:
     i = ids(mid, pid)
     return (
-        f"You fired 1 of 1 shots with the ak47 while moving at 206 u/s in Mid [{i['shot_while_moving']}]. "
+        f"You fired 2 of 2 shots with the ak47 while moving at 206 u/s in Mid [{i['shot_while_moving']}]. "
         f"You died 0.16 s after first contact with no flash from the team, so wait for support next time [{i['dry_peek']}]."
     )
 
@@ -52,6 +53,92 @@ def jobs_with(responses, tmp_path, tools="inprocess") -> tuple[CoachJobs, MockLL
 
 def traces(tmp_path) -> list[dict]:
     return [json.loads(line) for p in (tmp_path / "traces").glob("*.jsonl") for line in p.read_text().splitlines()]
+
+
+def test_local_clip_note_reaches_contextual_ask_and_explanation(analysed, tmp_path, monkeypatch):
+    import hashlib
+    import httpx
+
+    mid, pid = analysed
+    jobs, llm = jobs_with([good_text(mid, pid)] * 2, tmp_path)
+    monkeypatch.setattr(jobs, "_map", lambda match_id: "Ancient")
+    monkeypatch.setattr(settings, "work_dir", tmp_path)
+    monkeypatch.setattr(settings, "labeler_url", "http://127.0.0.1:8765")
+    monkeypatch.setattr(settings, "auth_enabled", False)
+    (tmp_path / f"{mid}.dem").write_bytes(b"different reviewed demo")
+    note = "Look for cover before suggesting a change."
+    lookups = []
+
+    def lookup(request):
+        assert request.url.path == "/api/coach-examples"
+        data = json.loads(request.content)
+        assert data["map"] == "de_ancient" and data["language"] == "en"
+        assert data["demoHash"] == hashlib.sha256(b"different reviewed demo").hexdigest()
+        lookups.append(data)
+        return httpx.Response(200, json=[{"revision":19, "detector":"shot_while_moving",
+            "language":"en","signal":None,"decision":None,"note":note}])
+
+    client = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: client(transport=httpx.MockTransport(lookup), **kw))
+    result = asyncio.run(jobs.ask(mid, pid, AskRequest(question="How was that round?", round=1, language="en")))
+    explanation = asyncio.run(jobs.explain(mid, pid, "r1", "en", store=False))
+    assert result.source == explanation.source == "agent"
+    assert len(lookups) == 2 and all("shot_while_moving" in q["detectors"] for q in lookups)
+    assert all(note in r["messages"][1]["content"] for r in llm.requests)
+    assert all(t["clipExampleRevisions"] == [19] for t in traces(tmp_path))
+
+
+def test_exported_notes_reach_ask_without_a_labeller(analysed, tmp_path, monkeypatch):
+    import hashlib
+
+    from app.coach import examples
+
+    mid, pid = analysed
+    jobs, llm = jobs_with([good_text(mid, pid)], tmp_path)
+    monkeypatch.setattr(jobs, "_map", lambda match_id: "Anubis")
+    monkeypatch.setattr(settings, "work_dir", tmp_path)
+    monkeypatch.setattr(settings, "labeler_url", None)
+    monkeypatch.setattr(settings, "auth_enabled", False)
+    monkeypatch.setattr(examples, "_note_folders", lambda: {tmp_path})
+    (tmp_path / f"{mid}.dem").write_bytes(b"current demo")
+    current = "demo-" + hashlib.sha256(b"current demo").hexdigest()
+
+    def demo(split, permitted):
+        return {"metadata": {"id": "x", "map": "de_ancient", "players": [{"name": "zock9"}]},
+                "provenance": {"split": split, "trainingPermitted": permitted, "sourceMatchId": ""}}
+
+    def entry(match, finding, revision, saved, note, status="complete"):
+        return {"kind": "clip", "revision": revision, "savedAt": saved, "label": {
+            "status": status, "notes": note, "language": "en", "matchId": match, "playerId": "1",
+            "snapshotId": "s", "labeller": "Aleksander", "verdict": "correct", "assessment": "mistake",
+            "finding": {"id": finding, "detector": "shot_while_moving", "evidence": {}},
+            "footage": {"alignmentConfirmed": True}}}
+
+    export = {"format": "round-reviewer-notes-v1", "labeller": "Aleksander",
+              "demos": {"demo-train": demo("train", True), "demo-held": demo("unassigned", False), current: demo("train", True)},
+              "labels": [entry("demo-train", "F1", 3, "1", "zock9 should have waited for the flash"),
+                         entry("demo-train", "F2", 5, "1", "old note"),
+                         entry("demo-train", "F2", 9, "2", "old note", status="draft"),  # withdrawn
+                         entry("demo-held", "F1", 20, "1", "held-out note"),
+                         entry(current, "F1", 30, "1", "own demo note")]}
+    (tmp_path / "Aleksander-notes.json").write_text(json.dumps(export))
+
+    out = asyncio.run(jobs.ask(mid, pid, AskRequest(question="What should I have done?", round=1, language="en")))
+    prompt = llm.requests[0]["messages"][1]["content"]
+    assert out.source == "agent"
+    assert "player should have waited for the flash" in prompt and "zock9" not in prompt
+    assert not any(n in prompt for n in ("old note", "held-out note", "own demo note"))
+    assert traces(tmp_path)[0]["clipExamplesFrom"] == "files" and traces(tmp_path)[0]["clipExampleRevisions"] == [3]
+
+
+def test_ask_about_a_round_gets_the_round_data(analysed, tmp_path):
+    """Live models answered without calling a tool, so the coach gets the round looked up already."""
+    mid, pid = analysed
+    jobs, llm = jobs_with([good_text(mid, pid)], tmp_path)
+    asyncio.run(jobs.ask(mid, pid, AskRequest(question="What should I have done?", round=1, language="en")))
+    prompt = llm.requests[0]["messages"][1]["content"]
+    assert all(f"{label}: {{" in prompt for label in ("Round timeline", "Your numbers this round", "Everyone just before the moment"))
+    assert '"buy":' in prompt and "get_round_timeline" not in prompt
 
 
 # --- selection ---
@@ -68,7 +155,7 @@ def test_selection_stores_agent_moments(analysed, tmp_path, tools):
     assert req["thinking"] is True and req["response_format"]["type"] == "json_schema"
     assert "id | kind | detector" in req["messages"][1]["content"]
     t = traces(tmp_path)[0]
-    assert t["job"] == "select_moments" and t["source"] == "agent" and t["promptVersion"] == "select_moments.v1"
+    assert t["job"] == "select_moments" and t["source"] == "agent" and t["promptVersion"] == "select_moments.v3"
     assert t["attempts"][0]["reasoningChars"] == len("weighing")
 
 
@@ -123,7 +210,7 @@ def test_explain_moment_with_tools(analysed, tmp_path):
     )
     expl = asyncio.run(jobs.explain(mid, pid, "m1", "en"))
     assert expl.source == "agent" and expl.verifier_errors == []
-    assert i["dry_peek"] in expl.finding_ids and expl.prompt_version == "explain_moment.v3"
+    assert i["dry_peek"] in expl.finding_ids and expl.prompt_version == "explain_moment.v6"
     assert repo.analysis.explanation(mid, pid, "m1", "en") == expl
     assert llm.requests[0]["thinking"] is False
     t = traces(tmp_path)[0]
@@ -170,6 +257,21 @@ def test_ask_reports_steps_and_verifies(analysed, tmp_path):
     )
     assert out.source == "agent" and out.answer == answer
     assert [s["tool"] for s in steps] == ["list_findings"]
+
+
+def test_ask_about_a_round_only_sees_that_round(analysed, tmp_path):
+    """A Studio question gets round tools only, with the round bound: the model cannot ask about round 3."""
+    mid, pid = analysed
+    i = ids(mid, pid)
+    answer = f"You opened round 2 by killing P6 in Mid with the ak47 [{i['good_plays']}]."
+    jobs, llm = jobs_with([ChatResult(content="", tool_calls=[call("list_findings", {"round": 3})]), answer], tmp_path)
+    out = asyncio.run(jobs.ask(mid, pid, AskRequest(question="What went well?", round=2, language="en")))
+    assert out.source == "agent"
+    offered = {t["function"]["name"]: t["function"]["parameters"] for t in llm.requests[0]["tools"]}
+    assert "get_player_history" not in offered and "get_match_totals" not in offered
+    assert "round" not in offered["list_findings"].get("properties", {})
+    listed = json.loads(next(m["content"] for m in llm.requests[1]["messages"] if m.get("role") == "tool"))
+    assert listed["findings"] and {f["round"] for f in listed["findings"]} == {2}
 
 
 def test_ask_falls_back_with_findings_in_view(analysed, tmp_path):
@@ -221,7 +323,7 @@ def test_explanation_can_cite_knowledge_it_looked_up(analysed, tmp_path):
     passage = default_index().search("moving while shooting", k=1)[0]
     i = ids(mid, pid)
     text = (
-        f"You fired 1 of 1 shots while moving at 206 u/s in Mid [{i['shot_while_moving']}]. "
+        f"You fired 2 of 2 shots while moving at 206 u/s in Mid [{i['shot_while_moving']}]. "
         f"Stop before you shoot, because running shots spread widely [{passage.id}]."
     )
     jobs, _ = jobs_with(
@@ -240,3 +342,14 @@ def test_citing_knowledge_that_was_not_looked_up_fails(analysed, tmp_path):
     jobs, _ = jobs_with([text, text], tmp_path)
     expl = asyncio.run(jobs.explain(mid, pid, "m1", "en"))
     assert expl.source == "template" and any("K3" in e for e in expl.verifier_errors)
+
+
+def test_polish_kill_words_reach_only_polish_prompts():
+    # 22 Nov: with the rule in every language, Gemma wrote "eliminacje" in English answers
+    from app.coach.jobs import LANGUAGE_NOTES
+    from app.coach.prompts import load_prompt
+
+    for name in ("explain_moment", "answer_question", "answer_across"):
+        prompt = load_prompt(name)
+        assert "eliminacje" not in prompt.render(language="English", language_notes=LANGUAGE_NOTES["en"])
+        assert "eliminacje" in prompt.render(language="Polish", language_notes=LANGUAGE_NOTES["pl"])

@@ -1,5 +1,7 @@
 "use client";
 
+import { PillBubble } from "@/components/PillBubble";
+
 import { useEffect, useState } from "react";
 import { ConfirmButton, useLoad } from "@/components/admin/ui";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -30,6 +32,7 @@ export function CoachPrefs() {
           </span>
           <span className="setting-v">
             <span className="seg seg-plain" role="group" aria-labelledby="lang-l">
+              <PillBubble value={lang} />
               {COACH_LANGUAGES.map((l) => (
                 <button key={l.id} type="button" aria-pressed={lang === l.id} onClick={() => setLang(l.id)}>
                   {l.label}
@@ -45,6 +48,7 @@ export function CoachPrefs() {
           </span>
           <span className="setting-v">
             <span className="seg seg-plain" role="group" aria-labelledby="rate-l">
+              <PillBubble value={rate} />
               {RATES.map((r) => (
                 <button
                   key={r}
@@ -112,7 +116,7 @@ export function Profile() {
       >
         <label>
           Name shown in the app
-          <input className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={40} required />
+          <input className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={40} autoComplete="nickname" required />
         </label>
         <label>
           Username
@@ -214,7 +218,8 @@ export function Sessions() {
               {s.current ? <span className="tag">This browser</span> : null}
             </span>
             <span className="meta">
-              {s.ip ?? "no address"} · active {ago(s.lastSeenAt)}
+              Active {ago(s.lastSeenAt)}
+              {s.ip ? ` from ${s.ip}` : ""}
             </span>
             {s.current ? (
               <span />

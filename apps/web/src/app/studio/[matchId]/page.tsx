@@ -1,5 +1,9 @@
 "use client";
 
+import { LoadingState } from "@/components/LoadingState";
+import { ModelNotice, useSystemStatus } from "@/components/SystemNotice";
+import { PillBubble } from "@/components/PillBubble";
+
 import {
   useCallback,
   useEffect,
@@ -39,12 +43,13 @@ import {
   type Box,
 } from "@/lib/replay/camera";
 import {
-  LANE_ORDER,
   aliveSteps,
   eventTitle,
   glyphForEvent,
   laneMarks,
   makeRosterLookup,
+  playerRoundScore,
+  matchRating,
   reasonLabel,
   typeLabel,
   type LaneMark,
@@ -57,9 +62,10 @@ import {
   kindLabel,
   leadFinding,
   pickedBecause,
-  splitCitations,
 } from "@/lib/coach/findings";
 import { RadarView } from "@/components/replay/RadarView";
+import { TeamHud } from "@/components/replay/TeamHud";
+import { EvidenceTiles } from "@/components/review/EvidenceTiles";
 import { ReplayTimeline } from "@/components/replay/ReplayTimeline";
 import { CoachExplanation } from "@/components/coach/CoachExplanation";
 import { CoachPanel } from "@/components/coach/CoachPanel";
@@ -76,7 +82,6 @@ import { fadeIn, flipFrom } from "@/lib/motion";
 const RATES: PlaybackRate[] = [1, 2, 4, 0.5];
 /** The two stage surfaces that trade places when Gameplay and Radar swap. */
 const SWAP_SURFACES = [".stage .pov", '.stage .surface[data-mode="radar"]'];
-const LANE_BASE = 22;
 const LIVE_SEC = 2.5;
 
 function scorePhrase(score: string): string {
@@ -95,12 +100,6 @@ type PlayerAnalysisView = {
   stats: RoundStats[];
 };
 
-function ordinal(n: number): string {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
-}
-
 function focusKey(matchId: string) {
   return `rr.focus.${matchId}`;
 }
@@ -114,6 +113,12 @@ const Chev = () => (
 export default function StudioPage() {
   const params = useParams<{ matchId: string }>();
   const matchId = params.matchId;
+  return <StudioMatch key={matchId} matchId={matchId} />;
+}
+
+function StudioMatch({ matchId }: { matchId: string }) {
+  const system = useSystemStatus();
+  const recorder = system?.checks.find((check) => check.name === "csdm")?.state;
   const [debug, setDebug] = useState(false);
 
   const [match, setMatch] = useState<Match | null>(null);
@@ -121,6 +126,12 @@ export default function StudioPage() {
   const [roundId, setRoundId] = useState<string | null>(null);
   const [replay, setReplay] = useState<RoundReplay | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [matchAttempt, setMatchAttempt] = useState(0);
+  const [roundAttempt, setRoundAttempt] = useState(0);
+  const [analysisFailed, setAnalysisFailed] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const [clipListFailed, setClipListFailed] = useState(false);
+  const [povListFailed, setPovListFailed] = useState(false);
   const [loadingMatch, setLoadingMatch] = useState(true);
   const [loadingReplay, setLoadingReplay] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -136,6 +147,9 @@ export default function StudioPage() {
   const insightRef = useRef<HTMLDivElement>(null);
   const railPrev = useRef<{ top: number; left: number; w: number; h: number } | null>(null);
   const swapFirst = useRef<Map<string, DOMRect> | null>(null);
+  const [highlightedFinding, setHighlightedFinding] = useState<string | null>(null);
+  const [lens, setLens] = useState(true);
+  const pendingFinding = useRef<string | null>(null);
   const [whole, setWhole] = useState(false);
   const [asking, setAsking] = useState(false);
   // The Round and Notes tabs (doc 29 R04, R08) take the panel's place; the ask bar stays under them
@@ -153,6 +167,7 @@ export default function StudioPage() {
   const [stageMode, setStageMode] = useState<StageView>("radar");
   const [clipManifest, setClipManifest] = useState<ClipManifest | null>(null);
   const [povClips, setPovClips] = useState<MomentClip[]>([]);
+  const [retryError, setRetryError] = useState<{ id: string; text: string } | null>(null);
   const [povPoll, setPovPoll] = useState(0);
   const clock = usePlaybackClock(0);
   const wasPlaying = useRef(false);
@@ -167,6 +182,8 @@ export default function StudioPage() {
   useEffect(() => {
     let cancelled = false;
     setLoadingMatch(true);
+    setAnalysisFailed(false);
+    setMatch(null);
     setLoadError(null);
     setRounds([]);
     setRoundId(null);
@@ -176,6 +193,8 @@ export default function StudioPage() {
     setMomentId(null);
     setReview(null);
     setSeenMoments(new Set());
+    pendingFinding.current = null;
+    pendingSeek.current = null;
     try {
       setFocusId(window.localStorage.getItem(focusKey(matchId)));
     } catch {
@@ -189,14 +208,16 @@ export default function StudioPage() {
         const pid = m.selectedPlayerId;
         if (pid && m.status === "complete") {
           try {
-            const [moments, findings, stats] = await Promise.all([
+            const [moments, findings, stats, progress] = await Promise.all([
               api.getPlayerMoments(matchId, pid),
               api.getFindings(matchId, pid),
               api.getRoundStats(matchId, pid),
+              api.getReviewProgress(matchId).catch(() => []),
             ]);
+            if (!cancelled) setSeenMoments(new Set(moments.filter((m) => progress.some((p) => p.momentId === m.id)).map((m) => m.id)));
             view = { playerId: pid, moments, findings, stats };
           } catch {
-            view = null; // no analysis stored: the replay still works
+            if (!cancelled) setAnalysisFailed(true);
           }
         }
         if (cancelled) return;
@@ -204,7 +225,7 @@ export default function StudioPage() {
         setRounds(rs);
         setAnalysis(view);
         if (pid) setFocusId(pid);
-        // Deep link (?m=m3&t=41.5) opens that moment; otherwise the overview, with moment 1 behind it.
+        // Open the linked evidence or the first selected moment.
         // ?f=F3 (from the Coach page) opens the moment holding that finding at its time, or else its round.
         const q = new URLSearchParams(window.location.search);
         const linkedFinding = view?.findings.find((x) => x.id === q.get("f"));
@@ -214,14 +235,16 @@ export default function StudioPage() {
         if (linkedFinding && !findingMoment) {
           const fRound = rs.find((r) => r.number === linkedFinding.round);
           if (fRound) {
-            pendingSeek.current = linkedFinding.t;
+            pendingFinding.current = linkedFinding.id;
+            pendingSeek.current = Math.max(0, linkedFinding.t - 3);
             setRoundId(fRound.id);
             return;
           }
         }
         if (linkedFinding && findingMoment) {
           q.set("m", findingMoment.id);
-          q.set("t", String(linkedFinding.t));
+          pendingFinding.current = linkedFinding.id;
+          if (!q.get("t") || !Number.isFinite(Number(q.get("t")))) q.set("t", String(Math.max(0, linkedFinding.t - 3)));
         }
         const linked = view?.moments.find((x) => x.id === q.get("m"));
         const first = linked ?? view?.moments[0];
@@ -231,10 +254,9 @@ export default function StudioPage() {
           pendingSeek.current = linked && Number.isFinite(linkedT) && q.get("t") ? linkedT : first.t0;
           setMomentId(first.id);
           setRoundId(firstRound.id);
-          setReview(linked ? null : "overview");
+          setReview(null);
         } else if (rs.length) setRoundId(rs[0].id);
-        else if (!REPLAY_READY_STATUSES.has(m.status)) setLoadError("Match is still processing.");
-        else setLoadError("No round replays for this match.");
+
       } catch (e) {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : "Failed to load.");
       } finally {
@@ -244,11 +266,14 @@ export default function StudioPage() {
     return () => {
       cancelled = true;
     };
-  }, [matchId]);
+  }, [matchId, matchAttempt]);
 
   useEffect(() => {
     if (!roundId) return;
     let cancelled = false;
+    setReplay(null);
+    setLoadError(null);
+    clock.pause();
     setLoadingReplay(true);
     setSeen((s) => (s.has(roundId) ? s : new Set(s).add(roundId)));
     (async () => {
@@ -261,7 +286,8 @@ export default function StudioPage() {
           clock.seek(pendingSeek.current);
           pendingSeek.current = null;
         }
-        setSelectedEventId(null);
+        setSelectedEventId(pendingFinding.current);
+        pendingFinding.current = null;
         setLoadError(null);
       } catch (e) {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : "Failed to load replay.");
@@ -273,24 +299,26 @@ export default function StudioPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, roundId]);
+  }, [matchId, roundId, roundAttempt]);
 
   // Poll clip manifest so Gameplay enables as rounds finish recording
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
+    if (!match || !rounds.length) return;
     async function poll() {
       try {
         const man = await api.getClips(matchId);
         if (cancelled) return;
         setClipManifest(man);
+        setClipListFailed(false);
         const pending = man.clips.some(
           (c) => c.status === "queued" || c.status === "recording",
         );
         if (pending) timer = setTimeout(poll, 2000);
       } catch {
-        if (!cancelled) timer = setTimeout(poll, 4000);
+        if (!cancelled) { setClipListFailed(true); timer = setTimeout(poll, 4000); }
       }
     }
 
@@ -299,7 +327,7 @@ export default function StudioPage() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [matchId]);
+  }, [matchId, match, rounds.length]);
 
   // Poll the coached player's POV clips while any are queued or recording.
   // Re-runs on round change: explaining a round on demand queues a clip for it.
@@ -316,9 +344,10 @@ export default function StudioPage() {
         const list = await api.getPlayerClips(matchId, analysedPlayer!);
         if (cancelled) return;
         setPovClips(list);
+        setPovListFailed(false);
         if (list.some((c) => c.status === "queued" || c.status === "recording")) timer = setTimeout(poll, 3000);
       } catch {
-        if (!cancelled) timer = setTimeout(poll, 6000);
+        if (!cancelled) { setPovListFailed(true); timer = setTimeout(poll, 6000); }
       }
     }
     poll();
@@ -330,10 +359,15 @@ export default function StudioPage() {
 
   // ---- Derived replay state ----
 
-  const roster = useMemo<ReplayPlayer[]>(
-    () => replay?.players ?? match?.players ?? [],
-    [replay, match],
-  );
+  const roundNumber = replay?.roundNumber ?? null;
+  const roundStats = analysis?.stats.find((r) => r.round === roundNumber);
+  const roster = useMemo<ReplayPlayer[]>(() => {
+    const players = replay?.players ?? match?.players ?? [];
+    const coached = players.find((p) => p.id === analysis?.playerId);
+    // Older replays store the starting roster on every round, including after a side swap.
+    if (!coached || !roundStats?.side || coached.team === roundStats.side) return players;
+    return players.map((p) => ({ ...p, team: p.team === "CT" ? "T" : "CT" }));
+  }, [replay, match, analysis?.playerId, roundStats?.side]);
   const lookup = useMemo(() => makeRosterLookup(roster), [roster]);
   const focus = useMemo(
     () => lookup(focusId) ?? roster.find((p) => p.team === "CT") ?? roster[0],
@@ -366,7 +400,6 @@ export default function StudioPage() {
     () => new Map((analysis?.findings ?? []).map((f) => [f.id, f])),
     [analysis],
   );
-  const roundNumber = replay?.roundNumber ?? null;
   const roundFindings = useMemo(
     () => (analysis?.findings ?? []).filter((f) => f.round === roundNumber).sort((a, b) => a.t - b.t),
     [analysis, roundNumber],
@@ -409,31 +442,33 @@ export default function StudioPage() {
   const retryPov = useCallback(
     (clipId: string) => {
       if (!analysedPlayer) return;
+      setRetryError(null);
       void api
         .retryPlayerClip(matchId, analysedPlayer, clipId)
-        .catch(() => undefined)
+        .catch(() => setRetryError({ id: clipId, text: "The recording could not be queued. Check the recorder and try again." }))
         .finally(() => setPovPoll((n) => n + 1));
     },
     [matchId, analysedPlayer],
   );
-  const roundStats = analysis?.stats.find((r) => r.round === roundNumber);
 
-  useEffect(() => {
-    if (momentId && !review) setSeenMoments((s) => (s.has(momentId) ? s : new Set(s).add(momentId)));
-  }, [momentId, review]);
+  const markMomentSeen = useCallback((id: string) => {
+    setSeenMoments((seen) => seen.has(id) ? seen : new Set(seen).add(id));
+  }, []);
 
   // Keep ?m=&t= in the address so a moment can be sent to a teammate (design plan item 3).
   const pausedAt = clock.playing ? null : Math.round(clock.t * 10) / 10;
   useEffect(() => {
-    if (loadingMatch) return;
+    if (loadingMatch || loadingReplay || replay?.roundId !== roundId) return;
     const url = new URL(window.location.href);
     const inMoment = Boolean(momentId && !review && activeMoment);
     if (inMoment) url.searchParams.set("m", momentId!);
     else url.searchParams.delete("m");
-    if (inMoment && pausedAt != null && pausedAt > 0) url.searchParams.set("t", String(pausedAt));
+    if (selectedEventId && findingsById.has(selectedEventId) && !review) url.searchParams.set("f", selectedEventId);
+    else url.searchParams.delete("f");
+    if (inMoment && pausedAt != null) url.searchParams.set("t", String(pausedAt));
     else url.searchParams.delete("t");
     if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
-  }, [loadingMatch, momentId, review, activeMoment, pausedAt]);
+  }, [loadingMatch, loadingReplay, replay?.roundId, roundId, momentId, review, activeMoment, pausedAt, selectedEventId, findingsById]);
 
   const momentRounds = useMemo(
     () =>
@@ -448,7 +483,6 @@ export default function StudioPage() {
     for (const e of events) if (e.t <= clock.t + 0.05) last = e;
     return last;
   }, [events, clock.t]);
-  const nowEvent = liveEvent && clock.t - liveEvent.t < LIVE_SEC ? liveEvent : null;
   const selectedFinding = selectedEventId ? findingsById.get(selectedEventId) : undefined;
   const selected =
     (selectedEventId && events.find((e) => e.id === selectedEventId)) || (selectedFinding ? null : liveEvent);
@@ -472,13 +506,23 @@ export default function StudioPage() {
   const roundClipReady = activeClip?.status === "ready" && Boolean(activeClip.url);
   const gameplayReady = Boolean(povSrc) || roundClipReady;
   const gameplaySrc = !povSrc && roundClipReady && roundId ? api.clipUrl(matchId, roundId) : null;
-  const povMain = stageMode === "gameplay" && Boolean(povSrc);
+  const currentMedia = povSrc ?? gameplaySrc;
+  const mediaFailed = Boolean(currentMedia && mediaError === currentMedia);
+  const povMain = stageMode === "gameplay" && Boolean(povSrc) && !mediaFailed;
   const gameplayDisabledReason = useMemo(() => {
     if (gameplayReady) return null;
+    if (retryError && retryError.id === povClip?.id) return retryError.text;
+    if (povClip?.status === "failed") return povClip.error || "Recording this moment failed. Follow it on the radar.";
+    if (activeClip?.status === "failed" && !povClip) return activeClip.error || "Recording this round failed. Follow it on the radar.";
+    if (recorder === "off") return "The clip recorder is off on this PC. The radar shows the same moment.";
+    if (recorder === "problem") return "The clip recorder is unavailable. Follow this moment on the radar.";
     if (povClip?.status === "queued" || povClip?.status === "recording") return "Recording this moment's clip…";
-    if (povClip?.status === "failed") return povClip.error ?? "Recording this moment's clip failed.";
-    if (analysis && !povClip) return "No clip for this round. Pick a moment to watch its clip.";
-    if (!activeClip) return "Gameplay clips are not available for this match yet.";
+    if (povClip?.status === "skipped") return povClip.error || "The recorder skipped this clip. You can follow the moment on the radar.";
+
+    if (activeClip?.status === "skipped") return activeClip.error || "No clip was recorded for this round. Follow the moment on the radar.";
+    if (clipListFailed || povListFailed) return "Clip details could not be loaded. Checking again…";
+    if (!clipManifest && !activeClip) return "Checking for recorded clips…";
+    if (!activeClip) return "No clip was recorded for this round. Follow the moment on the radar.";
     if (activeClip.status === "queued" || activeClip.status === "recording") {
       const done = clipManifest?.done ?? 0;
       const total = clipManifest?.total ?? 0;
@@ -489,29 +533,22 @@ export default function StudioPage() {
     if (activeClip.status === "failed") {
       return activeClip.error ?? "Unable to record gameplay for this round. The radar still covers it.";
     }
-    if (activeClip.status === "skipped") {
-      return activeClip.error ?? "Clips are off on this computer, so the radar is shown instead.";
-    }
     return "Gameplay clip is not ready.";
-  }, [activeClip, gameplayReady, clipManifest, povClip, analysis]);
+  }, [activeClip, gameplayReady, clipManifest, povClip, recorder, clipListFailed, povListFailed, retryError]);
 
   // Keep clock master in sync with stage mode
   useEffect(() => {
     // A moment clip follows the shared clock; only a whole-round clip drives it
-    if (stageMode === "gameplay" && gameplayReady && !povSrc) {
+    if (stageMode === "gameplay" && gameplayReady && !povSrc && !mediaFailed) {
       clock.setMaster("video");
     } else {
       clock.setMaster("raf");
-      if (stageMode === "gameplay" && !gameplayReady) {
-        setStageMode("radar");
-      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stageMode, gameplayReady, povSrc]);
+  }, [stageMode, gameplayReady, povSrc, mediaFailed]);
 
   const setMode = useCallback(
     (mode: StageView) => {
-      if (mode === "gameplay" && !gameplayReady) return;
       // Continuity for the Gameplay/Radar swap: remember where both surfaces were (FLIP)
       if (!viaKey.current && mode !== stageMode) {
         const first = new Map<string, DOMRect>();
@@ -521,9 +558,10 @@ export default function StudioPage() {
         }
         swapFirst.current = first;
       }
+      if (mode === "gameplay" && (!gameplayReady || mediaFailed)) clock.pause();
       setStageMode(mode);
     },
-    [gameplayReady, stageMode],
+    [stageMode, gameplayReady, mediaFailed, clock.pause],
   );
 
   useLayoutEffect(() => {
@@ -536,82 +574,25 @@ export default function StudioPage() {
     }
   }, [stageMode]);
 
-  // ---- Stage fitting (prototype fitStage): 16:9 stage, spare height to the lanes ----
-
-  const workRef = useRef<HTMLElement>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
-  const transportRef = useRef<HTMLDivElement>(null);
-  const tlRef = useRef<HTMLDivElement>(null);
-  const [laneH, setLaneH] = useState(LANE_BASE);
-  const [stageSize, setStageSize] = useState({ w: 640, h: 360 });
-  // A fixed lane set for the whole match, so rows don't jump between rounds (U13).
-  // The Coach lane appears once the coach has findings for this player.
-  const hasCoach = (analysis?.findings.length ?? 0) > 0;
-  const lanes = useMemo(() => LANE_ORDER.filter((l) => l !== "coach" || hasCoach), [hasCoach]);
-  const laneCount = lanes.length;
-
-  const fitStage = useCallback(() => {
-    const work = workRef.current;
-    const wrap = wrapRef.current;
-    const stage = stageRef.current;
-    if (!work || !wrap || !stage || document.fullscreenElement) return;
-    const mobile = window.matchMedia("(max-width: 720px)").matches;
-    const tablet = window.matchMedia("(max-width: 1180px)").matches;
-    const cs = getComputedStyle(wrap);
-    const aw = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-    const tlH = tlRef.current?.offsetHeight ?? 0;
-    const baseTl = tlH - laneCount * (laneH - LANE_BASE);
-    const used = (transportRef.current?.offsetHeight ?? 0) + baseTl + parseFloat(cs.paddingTop);
-    let ah = work.clientHeight - used;
-    if (mobile) ah = (aw * 9) / 16;
-    let W = aw;
-    let H = (W * 9) / 16;
-    if (H > ah) {
-      H = Math.max(160, ah);
-      W = (H * 16) / 9;
-    }
-    stage.style.width = `${Math.floor(W)}px`;
-    stage.style.height = `${Math.floor(H)}px`;
-    const spare = ah - H;
-    const maxLane = mobile ? 30 : tablet ? 56 : 34;
-    const next = spare > 0 ? Math.min(maxLane, LANE_BASE + spare / (laneCount + 1)) : LANE_BASE;
-    setLaneH((cur) => (Math.abs(cur - next) < 0.5 ? cur : next));
-  }, [laneCount, laneH]);
+  const [stage, setStage] = useState<HTMLDivElement | null>(null);
+  const [stageSize, setStageSize] = useState({ w: 1, h: 1 });
 
   useLayoutEffect(() => {
-    fitStage();
-  }, [fitStage, replay, panelOn]);
-
-  useEffect(() => {
-    const work = workRef.current;
-    const stage = stageRef.current;
-    if (!work || !stage) return;
-    const ro = new ResizeObserver(() => fitStage());
-    ro.observe(work);
-    const so = new ResizeObserver(() =>
-      setStageSize((cur) =>
-        cur.w === stage.clientWidth && cur.h === stage.clientHeight
-          ? cur
-          : { w: stage.clientWidth, h: stage.clientHeight },
-      ),
-    );
-    so.observe(stage);
-    const onFs = () => fitStage();
-    document.addEventListener("fullscreenchange", onFs);
-    return () => {
-      ro.disconnect();
-      so.disconnect();
-      document.removeEventListener("fullscreenchange", onFs);
-    };
-  }, [fitStage]);
+    if (!stage) return;
+    const measure = () => setStageSize({ w: Math.max(1,stage.clientWidth), h: Math.max(1,stage.clientHeight) });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [stage]);
 
   // ---- Radar camera: round area by default, whole map on toggle; 320ms viewBox tween ----
 
   const radarSize = mapMeta?.radarSize ?? 1024;
-  const aspect = stageSize.w / Math.max(stageSize.h, 1);
+  // Under a clip the radar is a square inset, so frame it square instead of the stage's shape
+  const aspect = povMain ? 1 : stageSize.w / Math.max(stageSize.h, 1);
   const target = useMemo<Box>(() => {
-    const area = whole ? null : roundBounds(tracks);
+    const area = whole ? null : roundBounds(tracks, 100);
     return aspectBox(area ?? { x: 0, y: 0, w: radarSize, h: radarSize }, aspect);
   }, [whole, tracks, radarSize, aspect]);
 
@@ -656,6 +637,9 @@ export default function StudioPage() {
       animateCam.current = !viaKey.current;
       setReview(null);
       setMomentId(null);
+      setSelectedEventId(null);
+      pendingFinding.current = null;
+      pendingSeek.current = null;
       setRoundId(id);
     },
     [],
@@ -685,6 +669,7 @@ export default function StudioPage() {
       } else {
         animateCam.current = !viaKey.current;
         pendingSeek.current = m.t0;
+        pendingFinding.current = lead;
         setRoundId(target.id);
       }
     },
@@ -698,17 +683,20 @@ export default function StudioPage() {
       if (!target) return;
       clock.pause();
       setReview(null);
+      const seekTime = Math.max(0,f.t - 3);
+      const moment = moments.find((m) => m.round === f.round && m.findingIds.includes(f.id));
+      setMomentId(moment?.id ?? null);
       if (target.id === roundId && replay) {
-        seekTo(f.t, f.id);
+        seekTo(seekTime, f.id);
       } else {
         animateCam.current = !viaKey.current;
-        pendingSeek.current = f.t;
-        setMomentId(null);
+        pendingSeek.current = seekTime;
+        pendingFinding.current = f.id;
         setRoundId(target.id);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rounds, roundId, replay, clock.pause, seekTo],
+    [rounds, roundId, replay, clock.pause, seekTo, moments],
   );
 
   /** Open a round (if it is not the one in view) at a time: the Notes tab's rows. */
@@ -764,19 +752,27 @@ export default function StudioPage() {
   };
 
   const togglePlay = () => {
+    if (!replay || loadingReplay) return;
     if (!clock.playing && clock.t >= clock.duration) clock.seek(0);
     clock.toggle();
   };
 
   const toggleFullscreen = () => {
     if (document.fullscreenElement) void document.exitFullscreen();
-    else void stageRef.current?.requestFullscreen?.();
+    else void stage?.requestFullscreen?.();
   };
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const el = e.target as HTMLElement | null;
       const tag = el?.tagName;
+      if (e.defaultPrevented || document.querySelector("dialog[open]")) return;
+      if (e.key === "Escape" && ctxOpen && window.matchMedia("(max-width: 1180px)").matches) {
+        setCtxOpen(false);
+        const opener = document.querySelector<HTMLElement>(window.matchMedia("(max-width: 720px)").matches ? ".sheet-grab" : ".ctx-toggle");
+        opener?.focus();
+        return;
+      }
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       viaKey.current = true;
@@ -787,6 +783,7 @@ export default function StudioPage() {
       window.setTimeout(() => insightRef.current?.removeAttribute("data-instant"), 300);
 
       if (e.code === "Space") {
+        if (el?.closest("button, a, summary, [role=tab]")) return;
         e.preventDefault();
         togglePlay();
       } else if (e.key === "ArrowLeft") {
@@ -810,15 +807,16 @@ export default function StudioPage() {
         setAsking(true);
         setExtraTab(null);
         if (!panelOn) setPanelOn(true);
-        setCtxOpen(true);
+        setCtxOpen(window.matchMedia("(max-width: 1180px)").matches);
         window.setTimeout(() => askRef.current?.focus(), 0);
-      } else if (e.key === "Escape" && ctxOpen) {
-        setCtxOpen(false);
+
       } else if (e.key === "n" || e.key === "N") {
         // Next moment; after the last one, the wrap-up (design plan item 3)
         if (review === "overview" && moments[0]) selectMoment(moments[0]);
         else if (nextMoment) selectMoment(nextMoment);
         else if (activeMoment) setReview("wrapup");
+      } else if (e.key.toLowerCase() === "l") {
+        setLens((visible) => !visible);
       } else if (e.key === "v" || e.key === "V") {
         e.preventDefault();
         setMode(stageMode === "radar" ? "gameplay" : "radar");
@@ -872,7 +870,7 @@ export default function StudioPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [railKey]);
 
-  const empty = !loadingMatch && Boolean(loadError) && !replay && rounds.length === 0;
+
 
   // ---- Panel content ----
 
@@ -881,35 +879,12 @@ export default function StudioPage() {
     (activeMoment && !selectedEventId ? leadFinding(activeMoment, findingsById) : undefined);
   const headT = headFinding?.t ?? selected?.t;
   const panelLive = headT != null && clock.t >= headT && clock.t - headT < LIVE_SEC;
-  const momentRank = activeMoment
-    ? [...moments].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).findIndex((m) => m.id === activeMoment.id) + 1
-    : 0;
   const momentFindings = activeMoment
     ? activeMoment.findingIds.map((id) => findingsById.get(id)).filter((f): f is Finding => Boolean(f))
     : [];
   const nextMoment = activeMoment
     ? moments[moments.findIndex((m) => m.id === activeMoment.id) + 1]
     : moments.find((m) => roundNumber != null && m.round > roundNumber);
-  const cited = (text: string) =>
-    splitCitations(text).map((part, i) =>
-      "cite" in part ? (
-        findingsById.get(part.cite) ? (
-          <button
-            key={i}
-            type="button"
-            className="cite"
-            title={`Jump to ${part.cite}`}
-            onClick={() => seekFinding(findingsById.get(part.cite)!)}
-          >
-            {part.cite}
-          </button>
-        ) : (
-          <span key={i}>{part.cite}</span>
-        )
-      ) : (
-        <span key={i}>{part.text}</span>
-      ),
-    );
   const findingRows = (list: Finding[]) => (
     <ul className="find-list">
       {list.map((f) => (
@@ -951,7 +926,7 @@ export default function StudioPage() {
           headFinding
             ? `What should ${analysedName} have done instead?`
             : `What did ${analysedName} do well in round ${activeRound.number}?`,
-          `Does this happen in other rounds too?`,
+          `What happened in the seconds before this?`,
         ]
       : [
           `Why did ${activeRound.winner ?? "this side"} win round ${activeRound.number}?`,
@@ -962,6 +937,7 @@ export default function StudioPage() {
         ]
     : [];
   const coachCites = {
+    onHighlightFinding: setHighlightedFinding,
     onFinding: (id: string) => {
       const f = findingsById.get(id);
       if (f) seekFinding(f);
@@ -1009,9 +985,19 @@ export default function StudioPage() {
   const momentIdx = activeMoment ? moments.findIndex((m) => m.id === activeMoment.id) : -1;
   const unreviewedRound = rounds.find((r) => !momentRounds.has(r.number));
 
-  const alive = aliveSteps(events, roster, lookup, focus);
-  let aliveNow = alive[0];
-  for (const a of alive) if (a.t <= clock.t + 0.05) aliveNow = a;
+  const alive = useMemo(() => aliveSteps(replay?.samples ?? [],lookup), [replay,lookup]);
+  const subject = players.find((p) => p.id === focus?.id);
+  const eventInMoment = activeMoment && events.find((e) => e.type === "kill" && e.t >= activeMoment.t0 && e.t <= activeMoment.t1 &&
+    (lookup(e.actorId)?.id === focus?.id || lookup(e.victimId)?.id === focus?.id));
+  const participants = new Set(momentFindings.flatMap((f) => f.otherIds.map((id) => lookup(id)?.id ?? id)));
+  for (const id of [eventInMoment?.actorId,eventInMoment?.victimId]) {
+    const player = lookup(id);
+    if (player) participants.add(player.id);
+  }
+  const eventOpponent = eventInMoment && [eventInMoment.actorId, eventInMoment.victimId]
+    .map((id) => lookup(id)).find((p) => p && p.id !== focus?.id && p.team !== focus?.team);
+  const opponentId = eventOpponent?.id ?? [...participants].find((id) => lookup(id)?.team !== focus?.team);
+  const killFeed = events.filter((e) => e.type === "kill" && e.t <= clock.t && clock.t-e.t < 5).slice(-2);
   const band =
     activeMoment && !review && momentIdx >= 0
       ? {
@@ -1032,15 +1018,28 @@ export default function StudioPage() {
       ]
     : [];
   // Scorebug: rounds from the coached player's side when stats exist, else the match's own score.
-  const sbWon = (r: RoundSummary, i: number): boolean | undefined =>
-    wonByRound.get(r.number) ?? (match?.won?.[i] != null ? Boolean(match.won[i]) : undefined);
   const scoreParts = String(match?.score ?? "").match(/(\d+)\s*[–-]\s*(\d+)/);
-  const sbScore = wonByRound.size
-    ? { us: roundsWon, them: roundsLost, text: `${roundsWon}–${roundsLost}` }
-    : { us: Number(scoreParts?.[1] ?? 0), them: Number(scoreParts?.[2] ?? 0), text: String(match?.score ?? "") };
+  const personalScore = playerRoundScore(statRows);
+  const rating = matchRating(statRows);
+  const goodCount = moments.filter((m) => m.kind === "good").length;
+  const sbScore = personalScore
+    ? { us: personalScore[0], them: personalScore[1], text: personalScore.join("–") }
+    : { us: scoreParts?.[1] ?? "–", them: scoreParts?.[2] ?? "–", text: String(match?.score ?? "") };
 
-  if (!loadingMatch && !match && isNotFound(loadError)) {
-    return <NotFound title="This match isn't here" detail="It may have been deleted, or the link is wrong." />;
+  if (loadingMatch) return <main id="content" className="studio studio-loading">
+    <LoadingState label="Loading review moments…" /><LoadingState shape="stage" label="Loading the replay…" />
+    <LoadingState label="Loading coach analysis…" />
+  </main>;
+  if (!match && isNotFound(loadError)) return <NotFound title="This match isn’t here" detail="It may have been deleted, or the link is wrong." />;
+  if (!match || !rounds.length) {
+    const failed = match?.status === "failed";
+    const processing = match && !failed && !REPLAY_READY_STATUSES.has(match.status);
+    return <main id="content" className="main state-page"><section className="sheet state-sheet">
+      <h1>{!match ? "Unable to load this review" : failed ? "This demo could not be processed" : processing ? "This demo is still processing" : "No replay for this demo"}</h1>
+      <p>{!match ? "Check the connection and try loading the review again." : failed ? "Open the processing log to see what happened." : processing ? "Open processing to check the demo and player setup." : "Choose another match to watch its rounds."}</p>
+      {!match ? <button className="btn btn-fill" onClick={() => setMatchAttempt((n) => n + 1)}>Try again</button> :
+        <Link className="btn btn-fill" href={processing || failed ? "/processing/" + matchId : "/matches"}>{processing || failed ? "View processing" : "View matches"}</Link>}
+    </section></main>;
   }
   return (
     <main id="content" className={`studio${panelOn ? "" : " panel-off"}`}>
@@ -1051,54 +1050,46 @@ export default function StudioPage() {
         ? createPortal(
             <div className="sb" aria-label={`${mapLabel}, ${scorePhrase(sbScore.text)}`}>
               <span className="sb-map">{mapLabel}</span>
-              {match.reviewFocus && match.reviewFocus !== "overall" ? <span className="meta" title="Personal review focus">{match.reviewFocus}</span> : null}
               <span className="sb-score" aria-hidden>
                 <b>{sbScore.us}</b>
-                <i>:</i>
+                <i>–</i>
                 <b className="them">{sbScore.them}</b>
               </span>
               {rounds.length ? (
                 <ol className="sb-rounds" aria-label="Rounds">
                   {rounds.map((r, i) => {
-                    const w = sbWon(r, i);
-                    const glyph = momentRounds.get(r.number);
-                    const result = w == null ? "no result" : w ? "won" : "lost";
+                    const result = r.winner === "T" ? "terrorists won" : r.winner === "CT" ? "counter-terrorists won" : "result unavailable";
+                    const previousSide = statRows.find((s) => s.round === rounds[i - 1]?.number)?.side;
+                    const currentSide = statRows.find((s) => s.round === r.number)?.side;
                     return (
-                      <li key={r.id} className={i > 0 && i === Math.ceil(rounds.length / 2) && rounds.length > 12 ? "half" : undefined}>
+                      <li key={r.id} className={previousSide && currentSide && currentSide !== previousSide ? "half" : undefined}>
                         <button
                           type="button"
                           className="sb-cell"
-                          data-won={w == null ? undefined : String(w)}
+                          data-side={r.winner}
                           aria-current={r.id === roundId ? "true" : undefined}
-                          aria-label={`Round ${r.number}, ${result}${glyph ? `, ${glyph === "mistake" ? "a mistake" : "a good play"} picked` : ""}`}
+                          aria-label={`Round ${r.number}, ${result}`}
                           title={`Round ${r.number}, ${result}`}
                           onClick={() => selectRound(r.id)}
                         >
                           <span className="sb-box" aria-hidden />
-                          {glyph ? <i className={`g g-${glyph}`} aria-hidden /> : null}
                         </button>
                       </li>
                     );
                   })}
                 </ol>
               ) : null}
-              {activeRound ? (
-                <span className="sb-round">
-                  R{activeRound.number}
-                  {roundStats?.side ? <small>{roundStats.side}</small> : null}
-                </span>
-              ) : null}
             </div>,
             barSlot,
           )
         : null}
 
-      <aside className="rail" aria-label={moments.length ? "Review path" : "Rounds in this match"}>
+      <aside className="rail glass" aria-label={moments.length ? "Review path" : "Rounds in this match"}>
         <div className="rail-h">
-          <b>{loadingMatch ? "Loading…" : moments.length ? "Review" : "Rounds"}</b>
+          <b>{moments.length ? `${moments.length} ${moments.length === 1 ? "moment" : "moments"}` : "Rounds"}</b>
           {moments.length ? (
             <span>
-              {seenMoments.size} of {moments.length} seen
+              {seenMoments.size} seen
             </span>
           ) : rounds.length ? (
             <span>
@@ -1106,31 +1097,17 @@ export default function StudioPage() {
             </span>
           ) : null}
         </div>
-        {loadingMatch ? null : rounds.length === 0 ? (
-          <p className="rail-empty">
-            {loadError ?? "No rounds yet. Upload a real demo; the fixture sample has no Radar replays."}
-          </p>
-        ) : (
+        {rating && moments.length ? (
+          <div
+            className="rail-score"
+            title={`HLTV 2.0-style rating from this match (1.00 is average): ${rating.kpr.toFixed(2)} kills and ${rating.dpr.toFixed(2)} deaths per round, ${Math.round(rating.adr)} damage per round, KAST ${Math.round(rating.kast)}%`}
+          >
+            <b>{rating.rating.toFixed(2)}</b> rating, {goodCount} good, {moments.length - goodCount} to fix
+          </div>
+        ) : null}
           <div className="rail-scroll">
             {moments.length ? (
               <ol className="moments" aria-label={`Moments for ${analysedName}`}>
-                <li>
-                  <button
-                    type="button"
-                    className="mom mom-cap"
-                    aria-current={review === "overview" ? "true" : "false"}
-                    onClick={() => setReview("overview")}
-                  >
-                    {review === "overview" ? <span className="rail-ind" aria-hidden /> : null}
-                    <span className="mom-n" aria-hidden>
-                      <i className="g g-round" />
-                    </span>
-                    <span className="mom-title">Match brief</span>
-                    <span className="mom-meta">
-                      <span className="when">Summary and rounds</span>
-                    </span>
-                  </button>
-                </li>
                 {moments.map((m, i) => {
                   const current = m.id === activeMoment?.id && !review;
                   const lead = leadFinding(m, findingsById);
@@ -1147,26 +1124,20 @@ export default function StudioPage() {
                         onClick={() => selectMoment(m)}
                         data-moment={m.id}
                       >
-                        {current ? <span className="rail-ind" aria-hidden /> : null}
-                        <span className="mom-n" aria-hidden>
-                          {String(i + 1).padStart(2, "0")}
-                        </span>
-                        <span className="mom-title">
-                          <i className={`g g-${kindGlyph(m.kind)}`} aria-hidden />
-                          {title}
-                        </span>
-                        <span className="mom-meta">
-                          <span className="when">
-                            R{m.round} {formatClock(lead?.t ?? m.t0)}
-                            {lead?.zone ? ` · ${lead.zone}` : ""}
-                            {povReady.has(m.id) ? (
-                              <span className="pov-tag" title="First-person clip ready">
-                                POV
-                              </span>
-                            ) : null}
-                          </span>
-                          <span className="reason">{reason.charAt(0).toUpperCase() + reason.slice(1)}</span>
-                        </span>
+                        {current && <span className="rail-ind" aria-hidden />}
+                        {current && mapMeta?.radarImage && subject && <svg className="moment-thumb" aria-hidden="true"
+                          viewBox={`${subject.rx-74} ${subject.ry-74} 148 148`}>
+                          <image href={mapMeta.radarImage} width={radarSize} height={radarSize}/>
+                          <circle cx={subject.rx} cy={subject.ry} r="12" fill={focus?.team === "CT" ? "var(--side-ct)" : "var(--side-t)"} stroke="var(--stage-you)" strokeWidth="4"/>
+                        </svg>}
+                        <span className="mom-n">{String(i+1).padStart(2,"0")}</span>
+                        <i className={`g g-${kindGlyph(m.kind)}`} aria-hidden />
+                        <span className="mom-title">{title}</span>
+                        {current && <span className="mom-meta">
+                          Round {m.round} at {formatClock(lead?.t ?? m.t0)}{lead?.zone ? `, ${lead.zone}` : ""}
+                          {povReady.has(m.id) && <span className="mom-clip">Clip ready</span>}
+                        </span>}
+                        {current && reason && <span className="mom-reason">{reason.charAt(0).toUpperCase() + reason.slice(1)}</span>}
                       </button>
                     </li>
                   );
@@ -1190,14 +1161,9 @@ export default function StudioPage() {
                 </li>
               </ol>
             ) : null}
-            {moments.length ? (
-              <div className="rail-sub">
-                All rounds
-                <span>
-                  {seen.size} of {rounds.length} seen
-                </span>
-              </div>
-            ) : null}
+            <details className="round-picker" key={moments.length ? "moments" : "rounds"} open={moments.length ? undefined : true}>
+              <summary>All rounds</summary>
+              {moments.length > 0 && <button className="brief-link" onClick={() => setReview("overview")}>Match brief</button>}
             <ol className={`moments${moments.length ? " secondary" : ""}`} aria-label="All rounds">
               {rounds.map((r) => {
                 const current = r.id === roundId && !activeMoment && !review;
@@ -1228,34 +1194,29 @@ export default function StudioPage() {
                 );
               })}
             </ol>
+            </details>
           </div>
-        )}
       </aside>
 
-      <section className="work" aria-label="Replay" ref={workRef}>
-        {empty ? (
-          <div className="studio-empty">
-            <h2>Replay not available</h2>
-            <p>
-              {loadError} <Link href="/upload">Add a match</Link> to parse rounds onto the Radar stage.
-            </p>
-          </div>
-        ) : null}
-
-        <div className="stage-wrap" ref={wrapRef} hidden={empty}>
-          <div className="stage" ref={stageRef}>
+      <section className="work" aria-label="Replay">
+        {replay && <TeamHud roster={roster} players={players} round={replay.roundNumber} rounds={rounds} stats={analysis?.stats} selectedId={analysis?.playerId ?? focusId ?? undefined} />}
+        <div className="stage-wrap">
+          <div className="stage" ref={setStage}>
             {replay ? (
               <>
                 <div
-                  className={`surface${stageMode === "gameplay" && !povSrc ? " is-main" : " is-hidden"}`}
+                  className={`surface${stageMode === "gameplay" && !povMain ? " is-main" : " is-hidden"}`}
                   data-mode="gameplay"
-                  hidden={stageMode !== "gameplay" || Boolean(povSrc)}
+                  hidden={stageMode !== "gameplay" || povMain}
                 >
                   <GameplayView
-                    src={gameplaySrc}
+                    src={mediaFailed ? null : gameplaySrc}
+                    onMediaError={() => { clock.pause(); setMediaError(gameplaySrc); }}
                     active={stageMode === "gameplay"}
-                    disabledReason={gameplayDisabledReason}
+                    disabledReason={mediaFailed ? "This clip could not be played. The radar shows the same moment." : gameplayDisabledReason}
+                    onRetry={mediaFailed ? () => setMediaError(null) : recorder !== "off" && povClip?.status === "failed" ? () => retryPov(povClip.id) : undefined}
                     onBind={clock.bindVideo}
+                    onRadar={() => { setMode("radar"); document.querySelector<HTMLButtonElement>('.seg button[data-mode="radar"]')?.focus(); }}
                   />
                 </div>
                 <div
@@ -1279,21 +1240,13 @@ export default function StudioPage() {
                         pxPerUnit={pxPerUnit}
                         moment={activeMoment && !review ? activeMoment : null}
                         instantRef={viaKey}
+                        selectedId={analysis?.playerId ?? focusId ?? undefined}
+                        participants={[...participants]}
+                        opponentId={opponentId}
+                        lens={lens && !whole && stageMode === "radar"}
+                        highlighted={!!highlightedFinding && momentFindings.some((f) => f.id === highlightedFinding)}
+                        shot={!!eventOpponent && !!eventInMoment && clock.t >= eventInMoment.t && clock.t-eventInMoment.t < 1}
                       />
-                      <div className="legend" aria-hidden>
-                        <span>
-                          <i className="lg-you" />
-                          {focus?.name ?? "You"}
-                        </span>
-                        <span>
-                          <i className="lg-team" />
-                          Team
-                        </span>
-                        <span>
-                          <i className="lg-enemy" />
-                          Enemy
-                        </span>
-                      </div>
                       <button
                         type="button"
                         className="zoom"
@@ -1316,47 +1269,41 @@ export default function StudioPage() {
                     </div>
                   )}
                 </div>
-                {povClip && (stageMode === "radar" || povMain) ? (
+                {povClip && povMain ? (
                   <PovClip
                     clip={povClip}
                     src={povSrc}
+                    onMediaError={() => { clock.pause(); setMediaError(povSrc); }}
                     main={povMain}
                     playerName={analysedName}
                     t={clock.t}
                     playing={clock.playing}
                     rate={clock.rate}
                     onSeek={(t) => seekTo(t)}
-                    onRetry={retryPov}
                     onEnlarge={() => setMode("gameplay")}
                     onEnd={clock.pause}
                   />
                 ) : null}
-                {/* The shared label (decision 11): the same words as the path, the timeline band and the panel. */}
-                <div className={`chip${band ? ` chip-${band.glyph}` : ""}${panelLive && band ? " live" : ""}`}>
-                  {band ? (
-                    <>
-                      <i className={`g g-${band.glyph}`} aria-hidden />
-                      <b>{String(band.n).padStart(2, "0")}</b>
-                      <span>{band.label}</span>
-                    </>
-                  ) : activeRound ? (
-                    <>
-                      <b>R{activeRound.number}</b>
-                      <span>{review === "overview" ? "Match brief" : review === "wrapup" ? "Debrief" : `${activeRound.winner ?? "No"} win`}</span>
-                    </>
-                  ) : null}
-                </div>
+                {killFeed.length > 0 && stageMode === "radar" && <div className="kill-feed" aria-label="Recent eliminations">
+                  {killFeed.map((e) => <span key={e.id} title={e.label}>
+                    <b data-side={lookup(e.actorId)?.team}>{lookup(e.actorId)?.name ?? "Unknown"}</b>
+                    <span>{e.label.match(/\(([^()]+)\)\s*$/)?.[1]?.replace(/^weapon_/, "").replaceAll("_", " ") || "eliminated"}</span>
+                    <b data-side={lookup(e.victimId)?.team}>{lookup(e.victimId)?.name ?? "Unknown"}</b>
+                  </span>)}
+                </div>}
               </>
             ) : (
               <div className="stage-msg">
-                <p>{loadingReplay || loadingMatch ? "Loading radar…" : "No replay loaded."}</p>
+                {loadError ? <><p role="alert">The replay for this round could not be loaded.</p>
+                  <button className="btn btn-line" onClick={() => setRoundAttempt((n) => n + 1)}>Retry round</button></>
+                  : <LoadingState shape="stage" label="Loading round replay…" />}
               </div>
             )}
           </div>
         </div>
 
-        <div className="dock" hidden={empty}>
-          <div className="transport" ref={transportRef}>
+        {replay && <div className="dock">
+          <div className="transport">
             <button
               type="button"
               className="play"
@@ -1383,8 +1330,8 @@ export default function StudioPage() {
               title="Previous event (,)"
               onClick={() => stepEvent(-1)}
             >
-              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-                <path d="M2 1.5v9M10 1.5L4.5 6 10 10.5z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+                <path d="M4 3.5v9M12 4 7 8l5 4z" fill="currentColor" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
             <button
@@ -1394,45 +1341,22 @@ export default function StudioPage() {
               title="Next event (.)"
               onClick={() => stepEvent(1)}
             >
-              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-                <path d="M10 1.5v9M2 1.5L7.5 6 2 10.5z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+                <path d="M12 3.5v9M4 4l5 4-5 4z" fill="currentColor" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
             <div className="clock">
               <b>{formatClock(clock.t)}</b>
-              <span>/ {formatClock(clock.duration)}</span>
+              <span>of {formatClock(clock.duration).split(".")[0]}</span>
             </div>
-            {aliveNow ? (
-              <div
-                className={`adv${aliveNow.us > aliveNow.them ? " up" : aliveNow.us < aliveNow.them ? " down" : ""}`}
-                title="Players alive, your team first"
-                aria-label={`${aliveNow.us} of your team alive against ${aliveNow.them}`}
-              >
-                <b>{aliveNow.us}</b>
-                <i>v</i>
-                <b>{aliveNow.them}</b>
-              </div>
-            ) : null}
-            <div className="now" aria-live="off">
-              {nowEvent ? eventTitle(nowEvent, lookup) : ""}
-            </div>
+            <span className="transport-space" />
             <div
-              className={`seg${stageMode === "radar" ? " is-radar" : ""}`}
+              className="seg"
               role="group"
               aria-label="View"
               title="Switch view (V)"
             >
-              <span className="seg-pill" aria-hidden />
-              <button
-                type="button"
-                data-mode="gameplay"
-                aria-pressed={stageMode === "gameplay"}
-                disabled={!gameplayReady}
-                title={gameplayReady ? "Gameplay (V)" : (gameplayDisabledReason ?? "Gameplay unavailable")}
-                onClick={() => setMode("gameplay")}
-              >
-                Gameplay
-              </button>
+              <PillBubble value={stageMode} />
               <button
                 type="button"
                 data-mode="radar"
@@ -1442,8 +1366,17 @@ export default function StudioPage() {
               >
                 Radar
               </button>
+              <button
+                type="button"
+                data-mode="gameplay"
+                aria-pressed={stageMode === "gameplay"}
+                title={gameplayReady ? "Gameplay (V)" : (gameplayDisabledReason ?? "Gameplay unavailable")}
+                onClick={() => setMode("gameplay")}
+              >
+                Clip
+              </button>
             </div>
-            {clipManifest && clipManifest.total > 0 && clipManifest.done < clipManifest.total ? (
+            {clipManifest && recorder !== "off" && clipManifest.clips.some((c) => c.status === "queued" || c.status === "recording") ? (
               <span className="clip-progress" title="Gameplay clip recording">
                 Clips {clipManifest.done}/{clipManifest.total}
               </span>
@@ -1464,8 +1397,8 @@ export default function StudioPage() {
               title="Fullscreen"
               onClick={toggleFullscreen}
             >
-              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden>
-                <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+                <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
             <button
@@ -1475,7 +1408,7 @@ export default function StudioPage() {
               aria-controls="ctx"
               onClick={() => setCtxOpen((o) => !o)}
             >
-              Analysis
+              Coach
             </button>
             {!panelOn ? (
               <button
@@ -1486,26 +1419,24 @@ export default function StudioPage() {
                 onClick={() => setPanelOn(true)}
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-                  <rect x="1.5" y="2.5" width="13" height="11" rx="1" fill="none" stroke="currentColor" strokeWidth="1.4" />
-                  <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.4" />
-                  <path d="M7.8 6.2L6 8l1.8 1.8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                  <rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.6" />
+                  <path d="M7.8 6.2L6 8l1.8 1.8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
             ) : null}
           </div>
 
-          {replay && !empty ? (
-            <div ref={tlRef}>
+          {replay ? (
+            <div>
               <ReplayTimeline
                 duration={replay.durationSec}
                 t={clock.t}
                 marks={marks}
-                lanes={lanes}
                 alive={alive}
                 band={band}
-                selectedEventId={selectedEventId}
-                laneH={laneH}
-                onSeek={seekTo}
+                selectedEventId={highlightedFinding ?? selectedEventId}
+                onSeek={(t, id) => { if (id) clock.pause(); seekTo(t,id); }}
                 onScrub={(active) => {
                   if (active) {
                     wasPlaying.current = clock.playing;
@@ -1515,11 +1446,11 @@ export default function StudioPage() {
               />
             </div>
           ) : null}
-        </div>
+        </div>}
       </section>
 
       <aside
-        className={`ctx${ctxOpen ? " open" : ""}${asking && !extraTab ? " asking" : ""}${extraTab ? " extra" : ""}`}
+        className={`ctx sheet${ctxOpen ? " open" : ""}${asking && !extraTab ? " asking" : ""}${extraTab ? " extra" : ""}`}
         id="ctx"
         aria-label="Analysis of this round"
       >
@@ -1608,11 +1539,24 @@ export default function StudioPage() {
             </span>
           )}
           <span className="sp" />
-          <div className="ctx-tabs" role="tablist" aria-label="Panel">
+          <div className="ctx-tabs" role="tablist" aria-label="Panel" onKeyDown={(event) => {
+            const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+            const index = tabs.indexOf(event.target as HTMLButtonElement);
+            if (index < 0) return;
+            const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 :
+              event.key === "ArrowRight" ? (index + 1) % tabs.length : event.key === "ArrowLeft" ? (index + tabs.length - 1) % tabs.length : -1;
+            if (next < 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+            tabs[next].click();
+            tabs[next].focus();
+          }}>
+            <PillBubble value={extraTab ?? (asking ? "ask" : "analysis")} />
             <button
               type="button"
               role="tab"
               id="tab-insight"
+              tabIndex={!asking && !extraTab ? 0 : -1}
               aria-selected={!asking && !extraTab}
               aria-controls="insight"
               onClick={() => {
@@ -1626,6 +1570,7 @@ export default function StudioPage() {
               type="button"
               role="tab"
               id="tab-ask"
+              tabIndex={asking && !extraTab ? 0 : -1}
               aria-selected={asking && !extraTab}
               aria-controls="coach"
               onClick={() => {
@@ -1639,6 +1584,7 @@ export default function StudioPage() {
               type="button"
               role="tab"
               id="tab-round"
+              tabIndex={extraTab === "round" ? 0 : -1}
               aria-selected={extraTab === "round"}
               aria-controls="round-tab"
               onClick={() => setExtraTab("round")}
@@ -1649,6 +1595,7 @@ export default function StudioPage() {
               type="button"
               role="tab"
               id="tab-notes"
+              tabIndex={extraTab === "notes" ? 0 : -1}
               aria-selected={extraTab === "notes"}
               aria-controls="notes-tab"
               onClick={() => setExtraTab("notes")}
@@ -1664,9 +1611,9 @@ export default function StudioPage() {
             onClick={() => setPanelOn(false)}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-              <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-              <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.4" />
-              <path d="M6 6.2L7.8 8 6 9.8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              <rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+              <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.6" />
+              <path d="M6 6.2L7.8 8 6 9.8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
           {ctxOpen ? (
@@ -1676,13 +1623,14 @@ export default function StudioPage() {
               aria-label="Close details"
               onClick={() => setCtxOpen(false)}
             >
-              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-                <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
               </svg>
             </button>
           ) : null}
         </div>
 
+        <ModelNotice />
         <div className="insight" id="insight" role="tabpanel" aria-labelledby="tab-insight" ref={insightRef}
           data-review={review ?? undefined}
         >
@@ -1719,6 +1667,7 @@ export default function StudioPage() {
               language={coachLang}
               onLanguage={setCoachLang}
               total={moments.length}
+              seen={seenMoments.size}
               actions={
                 <>
                   <button type="button" className="btn btn-line" onClick={() => setReview("overview")}>
@@ -1735,60 +1684,28 @@ export default function StudioPage() {
             />
           ) : (
           <>
-          <h2 className="ins-head">
-            {headFinding
-              ? headFinding.summary
-              : selected
-              ? eventTitle(selected, lookup)
-              : activeRound
-                ? `${activeRound.winner ?? "No"} win, ${reasonLabel(activeRound.reason).toLowerCase()}`
-                : "Pick a round"}
-          </h2>
-          {headFinding ? (
-            <p className={`ins-meta k-${kindGlyph(headFinding.kind)}`}>
-              <b>
-                <i className={`g g-${kindGlyph(headFinding.kind)}`} aria-hidden />
-                {kindLabel(headFinding.kind)}
-              </b>
-              {activeMoment && momentIdx >= 0 ? <span>Moment {momentIdx + 1} of {moments.length}</span> : null}
-              <span>
-                Round {headFinding.round}, {formatClock(headFinding.t)}
-                {headFinding.zone ? `, ${headFinding.zone}` : ""}
-              </span>
-            </p>
-          ) : null}
-          <p className="picked">
-            {headFinding && activeMoment && activeMoment.findingIds[0] === headFinding.id
-              ? cited(
-                  activeMoment.source === "agent"
-                    ? `Picked by the coach: ${activeMoment.pickedBecause}`
-                    : `${momentRank === 1 ? "The most important" : `The ${ordinal(momentRank)} most important`} of ${moments.length} ${moments.length === 1 ? "moment" : "moments"}. Evidence: ${activeMoment.findingIds
-                        .map((id) => `[${id}]`)
-                        .join(" ")}.`,
-                )
-              : headFinding
-                ? cited(`${kindLabel(headFinding.kind)} for ${analysedName}, finding [${headFinding.id}].`)
-                : selected
-                  ? `${typeLabel(selected.type)} at ${formatClock(selected.t)}, tick ${selected.tick}.`
-                  : replay
-                    ? "Play, scrub the timeline or pick an event."
-                    : "Pick a moment or a round."}
-          </p>
-
+          {headFinding && <p className="ins-meta">
+            <i className={`g g-${kindGlyph(headFinding.kind)}`} aria-hidden />
+            {kindLabel(headFinding.kind)}{activeMoment && momentIdx >= 0 ? `, moment ${momentIdx + 1} of ${moments.length}` : ""}
+          </p>}
+          <h2 className="ins-head">{headFinding ? findingLabel(headFinding) : selected ? eventTitle(selected,lookup) : activeRound ? `Round ${activeRound.number}` : "Pick a round"}</h2>
+          {analysis && !moments.length && <p>No coaching moments were selected. Choose a round to review its replay.</p>}
+          {analysisFailed && <div><p role="alert">The player analysis could not be loaded. The radar is available.</p>
+            <button className="btn btn-line" onClick={() => setMatchAttempt((n) => n + 1)}>Reload analysis</button></div>}
+          {!analysis && !analysisFailed && !match.selectedPlayerId && <Link className="btn btn-line" href={"/processing/" + matchId}>Set up this review</Link>}
           {analysis && activeRound ? (
             <CoachExplanation
+              key={activeMoment?.id ?? activeRound.id}
+              onSeen={markMomentSeen}
               matchId={matchId}
               playerId={analysis.playerId}
+              evidence={headFinding && <EvidenceTiles finding={headFinding} related={momentFindings} highlightedId={highlightedFinding ?? selectedEventId} onSeek={seekFinding} />}
               momentId={activeMoment?.id ?? null}
               round={activeRound.number}
               language={coachLang}
               onLanguage={setCoachLang}
               {...coachCites}
             />
-          ) : null}
-
-          {analysis && headFinding ? (
-            <DoneWell matchId={matchId} playerId={analysis.playerId} finding={headFinding} onFinding={coachCites.onFinding} />
           ) : null}
 
           {activeMoment && momentIdx >= 0 ? (
@@ -1819,6 +1736,11 @@ export default function StudioPage() {
                 </button>
               )}
             </div>
+          ) : null}
+
+          <details className="analysis-details"><summary>Round stats and findings</summary>
+          {analysis && headFinding ? (
+            <DoneWell matchId={matchId} playerId={analysis.playerId} finding={headFinding} onFinding={coachCites.onFinding} />
           ) : null}
 
           {momentFindings.length > 1 ? (
@@ -2009,6 +1931,7 @@ export default function StudioPage() {
               )}
             </pre>
           ) : null}
+          </details>
           </>
           )}
         </div>
@@ -2051,7 +1974,6 @@ export default function StudioPage() {
             key={activeRound.id}
             matchId={matchId}
             playerId={analysis?.playerId ?? null}
-            contextId={activeRound.id}
             round={activeRound.number}
             momentId={activeMoment?.id ?? null}
             language={coachLang}
@@ -2064,7 +1986,7 @@ export default function StudioPage() {
               review
                 ? "What should I practise from this match?"
                 : band
-                  ? "Why did this happen?"
+                  ? "Ask about this moment"
                   : `What decided round ${activeRound.number}?`
             }
             onAsk={() => {

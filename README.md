@@ -1,5 +1,10 @@
 # Round Reviewer
 
+For the standalone Windows labeller, use the **`codex/labeller-recording`** branch
+and [installation and reviewer instructions](docs/LABELER-SETUP.md). Import your own
+Ancient/Anubis demo, choose a player, record the proposed moments, then assess the
+selection, individual signals and player decisions. [Polish quick start](docs/LABELER-FRIEND-INSTRUCTIONS.txt).
+
 **Use this folder for ongoing work:** `C:\Users\pawel\Documents\cs2-demos-studio`.
 
 A browser Studio for reviewing CS2 demos with radar replay, selected moments, recorded clips and an evidence-based coach. Pawel and Aleksander are building it for their university project: first defence **17 November 2026**, final invited-user product and submission **6 December 2026**.
@@ -43,7 +48,7 @@ A browser Studio for reviewing CS2 demos with radar replay, selected moments, re
 
 ## Run locally
 
-From this folder in PowerShell, run `./start-local.ps1 -Check`, then `./start-local.ps1`. Open `http://127.0.0.1:3003`. This uses the installed Python/Node dependencies and stores local data in ignored `.local/`. The optional model and CS2 recording are off until explicitly enabled; see the [runbook](docs/LOCAL-V1-RUNBOOK.md).
+From this folder in PowerShell, run `./start-local.ps1 -Check`, then `./start-local.ps1`. Open `http://127.0.0.1:3003`. This uses the installed Python/Node dependencies and stores local data in ignored `.local/`. A plain start runs the full app, including the local model and CS2 recording, and starts the model server and recorder database if they are down; see the [runbook](docs/LOCAL-V1-RUNBOOK.md).
 
 ## Existing Docker baseline
 

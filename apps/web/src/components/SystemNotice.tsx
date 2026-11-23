@@ -1,72 +1,70 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { ApiError, api } from "@/lib/api/client";
+import { ServiceIsland } from "@/components/StatusIsland";
+import { api } from "@/lib/api/client";
+import type { SystemStatus } from "@/lib/contracts";
 
-const CACHE_KEY = "rr.system";
-const CACHE_MS = 60_000;
+const SystemContext = createContext<SystemStatus | null>(null);
+export const useSystemStatus = () => useContext(SystemContext);
 
-/** Top-bar line that shows only when part of the local setup is on but not working (doc 29 R01). */
-export function SystemNotice() {
-  const [problem, setProblem] = useState<string | null>(null);
-  // Only the admin can fix a service, and the checks page is theirs
-  const { state, isAdmin } = useAuth();
-  const skip = !!state && !isAdmin;
+export function SystemProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const id = user?.id;
+  const [status, setStatus] = useState<SystemStatus | null>(null);
 
   useEffect(() => {
-    if (skip) {
-      setProblem(null);
-      return;
-    }
-    let cancelled = false;
-    try {
-      const cached = JSON.parse(window.sessionStorage.getItem(CACHE_KEY) ?? "null") as
-        | { at: number; problem: string | null }
-        | null;
-      if (cached && Date.now() - cached.at < CACHE_MS) {
-        setProblem(cached.problem);
-        return;
+    setStatus(null);
+    if (!id) return;
+    let live = true;
+    let pending = false;
+    async function refresh() {
+      if (pending || document.hidden) return;
+      pending = true;
+      try {
+        const result = await api.getSystem();
+        if (live) setStatus(result);
+      } catch {
+        if (live) setStatus(null);
+      } finally {
+        pending = false;
       }
-    } catch {
-      /* storage blocked */
     }
-    api
-      .getSystem()
-      .then((s) => {
-        const bad = s.checks.filter((c) => c.state === "problem").map((c) => LABELS[c.name]);
-        const text = bad.length ? `${bad.join(" and ")} not working` : null;
-        if (cancelled) return;
-        setProblem(text);
-        try {
-          window.sessionStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), problem: text }));
-        } catch {
-          /* storage blocked */
-        }
-      })
-      .catch((e: unknown) => {
-        // Signed out or not an admin: the API answered, so it is up
-        if (!cancelled) setProblem(e instanceof ApiError ? null : "API not reachable");
-      });
+    void refresh();
+    const timer = window.setInterval(refresh, 60_000);
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
     return () => {
-      cancelled = true;
+      live = false;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
     };
-  }, [skip]);
+  }, [id]);
 
-  if (!problem) return null;
-  return (
-    <Link href="/settings#system" className="sys-notice" title={`${problem}. Open the system checks.`}>
-      <span className="sys-dot" aria-hidden />
-      <span className="sys-text">{problem}</span>
-    </Link>
-  );
+  return <SystemContext.Provider value={status}>{children}</SystemContext.Provider>;
+}
+
+export function ModelNotice() {
+  const model = useSystemStatus()?.checks.find((c) => c.name === "llm");
+  if (!model || model.state === "ok") return null;
+  return <ServiceIsland label={model.state === "off" ? "Coach model is off" : "Coach model is unavailable"}
+    detail="New explanations use the finding templates." />;
+}
+
+export function SystemNotice() {
+  const status = useSystemStatus();
+  const { isAdmin } = useAuth();
+  const bad = status?.checks.filter((c) => c.state === "problem");
+  if (!isAdmin || !bad?.length) return null;
+  const label = bad.map((c) => LABELS[c.name]).join(" and ") + " unavailable";
+  return <Link className="sys-notice" href="/settings#system" aria-label={label + ". Open system checks."} title={label}>
+    <span className="sys-dot" aria-hidden="true" /><span className="sys-text">{label}</span>
+  </Link>;
 }
 
 export const LABELS: Record<string, string> = {
-  llm: "Coach model",
-  mcp: "Coach tools",
-  csdm: "Clip recording",
-  knowledge: "Knowledge base",
-  traces: "Run log",
+  llm: "Coach model", mcp: "Coach tools", csdm: "Clip recording", knowledge: "Knowledge base", traces: "Run log",
 };

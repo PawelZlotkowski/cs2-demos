@@ -119,3 +119,88 @@ Qwen's failures were Cyrillic letters in PL/NL (3), invented knowledge ids (2) a
 - Qwen lineup: https://codersera.com/blog/qwen-3-5-complete-guide-2026/
 
 Caveats: no Dutch leaderboard numbers could be read (EuroEval renders with JavaScript), and no benchmark compares Gemma 4 with Qwen3-14B on the same tool test, so the ranking above must be confirmed by our own evaluation.
+
+## Update, 22 November 2026: local rerun and newer models
+
+### Local rerun on the RTX 5080
+
+Both GGUFs already on the PC were run with `eval/compare_models.py` on one Anubis match: the same 5 stored moments, EN and PL, 2 repeats. Settings: 32k context, q8_0 KV cache, all layers on the GPU, the app's own prompts (v5) and verifier. The raw output is in `eval/results/2026-11-22-qwen-vs-gemma/` (git-ignored).
+
+| | Qwen3-14B Q4_K_M | Gemma 4 12B Q6_K |
+|---|---|---|
+| Moment selection | 42 s | 54 s (was 108–131 s on 27 Sep) |
+| Explanations passing the checker | 19/20 (EN 10/10, PL 9/10) | 20/20 |
+| Ask answers passing the checker | 12/12 | 12/12 |
+| Needed a repair | 4 | 1 |
+| Tool calls without error | 13/15 | 8/10 |
+| Median time per explanation / per Ask | 1.8 s / 1.2 s | 1.7 s / 1.7 s |
+| Peak VRAM | 13.1 GB | 12.6 GB |
+
+Reading all 40 texts (one reader, not blind) adds what the pass rates miss:
+
+- **Polish:** Gemma is clearly better. Qwen wrote "granadami", "ginieś", "na rondzie 13" (a road roundabout), "na tarczy" and "rozstrzelając … o 50 punktów uszkodzeń". Gemma's slips were minor: "1 niewykorzystanej granatu", and "używki" for utility.
+- **English explanations:** Qwen hedges more and cites the map notes (K113, K135, K155). Gemma asserts causes the data does not support: "This mistake meant you failed to…", and in Polish "uniemożliwił odparcie ataku".
+- **Match-level Ask:** for "What should I work on next match?" Gemma cited 11 real findings and two callouts. Qwen gave uncited general advice, which the Ask check allows (audit risk 2).
+
+### Newer models that fit 16 GB (web research, 22 Nov)
+
+The figures are third-party or vendor numbers on full-precision models, so treat them as reasons to test, not as results.
+
+| Model | GGUF that fits 32k context | τ²-bench airline (OpenRouter) | Hallucination (Vectara) | Notes |
+|---|---|---|---|---|
+| Qwen3-14B (current) | Q4_K_M | 44.0 | 5.4% | |
+| Gemma 4 26B-A4B (MoE, 3.8B active) | `unsloth/gemma-4-26B-A4B-it-GGUF` UD-IQ4_XS, 13.6 GB; UD-Q3_K_M 12.7 GB as a fallback | 68.0 | 5.2% | Lowest hallucination found; same family as the stronger Polish writer. No QLoRA on 16 GB |
+| Qwen3.8-27B | `unsloth/Qwen3.8-27B-GGUF` UD-Q3_K_XL, 13.1 GB | 76.7 | not listed (Qwen3.5-27B: 12.1%) | Thinking must be off for tool calls (llama.cpp #20837). Its default reasoning effort can overflow 32k. About half Qwen3-14B's speed |
+| Bielik 11B v3.1 (10 Nov) | `speakleash/Bielik-11B-v3.1-Instruct-GGUF` Q6_K, 9.2 GB | not listed | not listed | Polish-first and now with tool calling, but llama.cpp parsing of it is untested. QLoRA fits 16 GB |
+| Qwen3.5-9B | `unsloth/Qwen3.5-9B-GGUF` Q8_0, 9.5 GB | 75.0 | not listed | Weak Polish evidence |
+
+**Ruled out:**
+
+| Model | Reason |
+|---|---|
+| gpt-oss-20b | τ² 53.2, English-centric |
+| Ministral 3 14B | 19.4% hallucination, no Polish listed |
+| Nemotron 3.5 Lightning | No Polish data, a Q4 file does not fit |
+| Granite 4.2 | No Polish |
+| Qwen3.6-35B-A3B | Only 3-bit fits |
+
+**Decision:**
+
+- **25 November:** keep Qwen3-14B. The prepared review and every rehearsal use it.
+- **The 6 December evaluation:** test Gemma 4 26B-A4B first, against Qwen3-14B, Gemma 4 12B and the template baseline, with `--repeat 3`, a native Polish read and blind ratings. Qwen3.8-27B is second.
+- **Watch the VRAM:** about 1.9 GB of the card is already used by the Windows desktop and open apps. The 13.6 GB file plus about 0.5 GB of KV cache leaves almost no headroom, so close GPU-using apps or use the 12.7 GB quant.
+
+Sources:
+
+- OpenRouter τ²-bench airline: https://openrouter.ai/benchmarks/tau2-bench-airline
+- Vectara hallucination leaderboard: https://github.com/vectara/hallucination-leaderboard
+- Gemma 4 26B-A4B: https://huggingface.co/google/gemma-4-26B-A4B-it, https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF
+- Qwen3.8-27B: https://huggingface.co/Qwen/Qwen3.8-27B, https://unsloth.ai/docs/models/qwen3.8-27b
+- Bielik 11B v3.1: https://huggingface.co/speakleash/Bielik-11B-v3.1-Instruct
+- llama.cpp issues: https://github.com/ggml-org/llama.cpp/issues/20837, /22384, /21383, /22786
+
+Not verified: the speed of each new model on this RTX 5080, their Polish quality, and whether llama.cpp parses Bielik's tool calls.
+
+## Gemma 4 26B-A4B tested on the RTX 5080 (22 November 2026, evening)
+
+Same runner and match as above, but against the current review: the 6 stored moments of the Overall review (3 good, 3 to fix), prompt `select_moments.v3` with the variety rule, EN and PL, 2 repeats. Both models ran with 32k context, q8_0 KV cache, flash attention and all layers on the GPU. The raw output is private, in `.local/model-test-2026-11-22/`.
+
+| | Qwen3-14B Q4_K_M | Gemma 4 26B-A4B UD-IQ4_XS |
+|---|---|---|
+| Moment selection passing the checker | yes, first attempt | yes, first attempt |
+| Moment selection time | 45 s | 77 s |
+| Explanations passing the checker | 20/24 (EN 12/12, PL 8/12) | **24/24** |
+| Ask answers passing the checker | 11/12 | **12/12** |
+| Needed a repair | 6 | 1 |
+| Median time per explanation / per Ask | 1.7 s / 1.0 s | 1.1 s / 1.1 s |
+| Peak VRAM | 12.1 GB | 15.0 GB of 16.3 |
+
+What the pass rates miss, from reading the texts:
+
+- **Polish:** Qwen put Cyrillic letters into 4 of its 12 Polish answers, and the checker replaced them with templates. Gemma's Polish passed every time and reads more naturally.
+- **English:** Gemma wrote the Polish word "eliminacje" in 6 of its 18 English answers ("securing one eliminacja"). The checker did not catch it. The cause was the Polish kill-word rule, which sat in the shared prompts (`explain_moment.v5`, `answer_question.v5`, `answer_across.v2`) for every language. **Fixed the same evening:** `explain_moment.v6`, `answer_question.v6` and `answer_across.v3` drop the line, so the rule now reaches only Polish answers, through `LANGUAGE_NOTES` in `coach/jobs.py`. The MCP server prompts pass the same notes. An English rerun on Gemma gave 0 of 18 answers with Polish words, 12/12 explanations and 6/6 Ask answers passing, and no repairs. Saved Ask answers from older prompt versions are hidden, as for every prompt change.
+- **Match-level Ask:** for "What should I work on next match?" Gemma cited 7 real unused-utility findings. Qwen answered that it had no data about the match.
+- **Both models** still assert things the finding does not establish. Qwen wrote "contributing significantly to the round's outcome"; Gemma wrote "your death in Canal" for a self-flash finding that records no death.
+- **Picks:** both chose 3 good and 3 to fix with no more than 2 of one type. Gemma added context findings (the opening duel) to its moments, and Qwen did not.
+
+**Verdict:** Gemma 4 26B-A4B gives the better coach output, but it does not fit next to CS2 recording. At 15 GB it leaves about 1 GB, while a review with recording peaked at 15.9 GB on Qwen. Keep Qwen3-14B for 25 November. For 6 December, use Gemma for reviews that do not record, or record clips before the model starts. Not tested: Gemma at 16k context, blind ratings, `--repeat 3`.

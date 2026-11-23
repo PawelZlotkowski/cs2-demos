@@ -82,7 +82,7 @@ export default function SettingsPage() {
           </p>
           {error ? (
             <p className="err" role="alert">
-              The API is not reachable ({error}). Start it on port 8000 and check again.
+              The API is not reachable ({error}). Start it, then check again.
             </p>
           ) : status === null ? (
             <p className="meta">Checking…</p>
@@ -98,17 +98,15 @@ export default function SettingsPage() {
                 ))}
               </ul>
               <dl className="facts">
+                {/* Raw model ids on purpose: the admin compares them to fix a mismatch. The tool
+                    list is under Connect another app. */}
                 <div>
-                  <dt>RR_LLM_MODEL</dt>
+                  <dt>Model set in .env</dt>
                   <dd className="mono">{status.llmModel}</dd>
                 </div>
                 <div>
                   <dt>Served on the port</dt>
                   <dd className="mono">{status.servedModels.length ? status.servedModels.join(", ") : "nothing"}</dd>
-                </div>
-                <div>
-                  <dt>Coach tools over MCP</dt>
-                  <dd className="mono">{status.mcpTools.length ? status.mcpTools.join(", ") : "none"}</dd>
                 </div>
               </dl>
             </>
@@ -189,7 +187,7 @@ function ConnectApp({ tools, accounts }: { tools: string[]; accounts: boolean })
           <li key={r.id}>
             <span className="check-name">{r.label}</span>
             <code className="cmd">{r.text}</code>
-            <button type="button" className="link small" onClick={() => void copy(r.id, r.text)}>
+            <button type="button" className="btn btn-line" onClick={() => void copy(r.id, r.text)}>
               {copied === r.id ? "Copied" : "Copy"}
             </button>
             <span className="check-detail">{r.note}</span>

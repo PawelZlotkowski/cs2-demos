@@ -165,6 +165,35 @@ def test_knowledge_browse_zones_flag_and_notes(analysed, tmp_path, monkeypatch):
     assert all(after[k] == v for k, v in before.items())
 
 
+def test_listed_knowledge_ids_open_from_a_citation(tmp_path, monkeypatch):
+    import sqlite3
+
+    from app.rag.index import KnowledgeIndex, use_index
+
+    kdir = tmp_path / "knowledge"
+    shutil.copytree(KNOWLEDGE_DIR, kdir, ignore=shutil.ignore_patterns("__pycache__", "*.py"))
+    monkeypatch.setattr(settings, "knowledge_dir", kdir)
+    index = KnowledgeIndex(tmp_path / "k.db", kdir)
+    use_index(index)
+    try:
+        rows = client.get("/knowledge").json()
+        assert rows and not any("Detectors:" in r["text"] for r in rows)
+        for r in rows:  # the list and the [K..] chip lookup use one id scheme
+            got = client.get(f"/knowledge/{r['id']}")
+            assert got.status_code == 200 and got.json()["title"] == r["title"]
+            assert "Detectors:" not in got.json()["text"]
+        cited = index.search("trade a teammate", k=1)[0]
+        assert cited.id in {r["id"] for r in rows}
+
+        # A db built with the old positional ids keeps them resolving after the rebuild
+        with sqlite3.connect(index.db_path) as conn:
+            conn.execute("UPDATE passages SET id = 'K108' WHERE id = ?", (cited.id,))
+            conn.execute("UPDATE meta SET value = 'old' WHERE key = 'fingerprint'")
+        assert client.get("/knowledge/K108").json()["id"] == cited.id
+    finally:
+        use_index(None)
+
+
 # --- R13, R17 Matches and Progress ---
 
 

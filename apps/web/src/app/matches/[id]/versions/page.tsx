@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { LoadState, PageHead, useLoad } from "@/components/admin/ui";
+import { modelLabel } from "@/components/coach/CoachExplanation";
 import { CoachText } from "@/components/coach/CoachText";
+import { LoadingState } from "@/components/LoadingState";
 import { api } from "@/lib/api/client";
 import { when } from "@/lib/format";
 import { formatClock } from "@/lib/replay/time";
@@ -18,13 +20,14 @@ export default function VersionsPage() {
   const versions = data ? [...data].reverse() : null;
 
   return (
-    <main className="main wide" id="content">
+    <main className="main wide edge-scroll" id="content">
       <PageHead title="Earlier reviews" lede="Reviews this match had before a re-run replaced them, newest first. The current one is in the Studio.">
         <Link className="btn btn-line" href={`/studio/${id}`}>
           Open the current review
         </Link>
       </PageHead>
-      <LoadState error={error} loading={versions === null} />
+      <LoadState error={error} loading={false} />
+      {!error && versions === null ? <LoadingState label="Loading earlier reviews…" /> : null}
       {versions && versions.length === 0 ? (
         <div className="empty">
           <p>No earlier reviews. Re-running the coach from Matches keeps the review it replaces here.</p>
@@ -39,9 +42,7 @@ export default function VersionsPage() {
         return (
           <section key={v.id} className="settings-sec version" aria-labelledby={`${v.id}-h`}>
             <div className="sec-h">
-              <h2 id={`${v.id}-h`}>
-                <span className="mono">{v.model}</span>
-              </h2>
+              <h2 id={`${v.id}-h`}>{v.model === "templates" ? "Finding templates" : modelLabel(v.model)}</h2>
               <span className="meta">{when(v.createdAt)}</span>
             </div>
             {text.get("summary") ? (

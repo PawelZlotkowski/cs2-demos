@@ -20,5 +20,11 @@
  "good_plays.multi_kill": "Maakte {kills} kills in {spanS} s, de laatste op {zone}.",
  "good_plays.clutch": "Won de ronde als laatste levende speler tegen {enemiesAlive} tegenstanders, met {killsInClutch} kills.",
  "good_plays.flash_assist": "Flashte {victimName} voor de kill van {killerName} op {zone}.",
- "good_plays.utility_damage": "Deed {utilityDamage} granaat- en vuurschade aan {enemiesHit} tegenstanders."
+ "good_plays.utility_damage": "Deed {utilityDamage} granaat- en vuurschade aan {enemiesHit} tegenstanders.",
+ "untraded_death.not_traded": "{teammateName} stierf op {teammateDistanceM} m afstand; je doodde {killerName} niet binnen {tradeWindowS} s. Een vrije kans op een trade is niet vastgesteld.",
+ "untraded_death.traded_by_teammate": "{teammateName} stierf op {teammateDistanceM} m afstand; een andere teamgenoot maakte de trade na {observedWindowS} s.",
+ "untraded_death.player_died": "{teammateName} stierf op {teammateDistanceM} m afstand; je stierf {observedWindowS} s later zonder trade. Dit bewijst geen gemiste kans.",
+ "untraded_death.window_incomplete": "{teammateName} stierf op {teammateDistanceM} m afstand; de ronde duurde nog {observedWindowS} s. Er is geen persoonlijke trade geregistreerd.",
+ "untraded_death.killer_unavailable": "{teammateName} stierf op {teammateDistanceM} m afstand; de tegenstander stierf na {observedWindowS} s door een andere oorzaak.",
+ "shot_while_moving.review": "Je vuurde {movingShots} van {shots} schoten met de {weapon} boven de beoordelingsdrempel van {accurateSpeedUps} u/s tijdens een gevecht in {zone}. Beweging alleen bewijst geen fout."
 }

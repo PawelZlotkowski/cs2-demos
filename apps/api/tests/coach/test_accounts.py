@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
+import re
 import sqlite3
 import threading
 import time
@@ -24,8 +26,9 @@ from app.auth.store import digest, users
 from app.coach import tools
 from app.core.config import settings
 from app.main import app
+from app.models.contracts import MatchStatus
 from app.repositories.matches import repo
-from app.services.gpu import GpuQueue, JobCancelled, QueueFull
+from app.services.gpu import GpuQueue, JobCancelled, QueueFull, gpu
 
 PASSWORD = "correct horse battery"
 
@@ -266,6 +269,47 @@ def test_export_and_delete_account(people):
     assert "alice" not in [u["username"] for u in admin.get("/admin/users").json()]
 
 
+def test_ask_history_does_not_rebind_old_finding_ids_after_reanalysis(people):
+    from app.auth.store import users
+    mid, pid, _admin, alice, *_ = people
+    response = alice.post(f'/matches/{mid}/players/{pid}/ask', json={'question':'What happened?'})
+    assert 'event: answer' in response.text
+    [saved] = alice.get(f'/matches/{mid}/ask-history').json()
+    assert saved['evidenceVersion']
+    with repo.analysis._connect() as con:
+        row = con.execute('SELECT finding_id,json FROM findings WHERE match_id=? AND player_id=? LIMIT 1', (mid,pid)).fetchone()
+        value = json.loads(row[1]); value['summary'] = 'A different observation after reanalysis.'
+        con.execute('UPDATE findings SET json=? WHERE match_id=? AND player_id=? AND finding_id=?', (json.dumps(value),mid,pid,row[0]))
+    assert alice.get(f'/matches/{mid}/ask-history').json() == []
+    assert users().asks(saved['userId'], mid)[0]['id'] == saved['id']  # Export/history retains it.
+    users().add_ask(saved['userId'],mid,pid,'Legacy question','Unversioned answer',['F1'],'agent','en')
+    assert alice.get(f'/matches/{mid}/ask-history').json() == []
+
+
+def test_ask_rejects_answer_if_analysis_changes_while_it_runs(people, monkeypatch):
+    mid, pid, _admin, alice, *_ = people
+    versions = iter(['before-reanalysis', 'after-reanalysis'])
+    monkeypatch.setattr('app.api.routes.answer_evidence_version', lambda *args: next(versions))
+    response = alice.post(f'/matches/{mid}/players/{pid}/ask', json={'question':'What happened?'})
+    assert 'event: error' in response.text and 'analysis changed' in response.text
+    assert 'event: answer' not in response.text
+
+
+def test_ask_history_is_bound_to_knowledge_sources_too(people, monkeypatch, tmp_path):
+    from app.rag.index import KnowledgeIndex
+    mid, pid, _admin, alice, *_ = people
+    sources = tmp_path / 'sources'
+    sources.mkdir()
+    document = sources / 'principle.md'
+    document.write_text('## Trading\n\nProximity alone does not prove an opportunity.')
+    index = KnowledgeIndex(tmp_path / 'knowledge-history.db', sources)
+    monkeypatch.setattr('app.coach.evidence.default_index', lambda: index)
+    assert 'event: answer' in alice.post(f'/matches/{mid}/players/{pid}/ask', json={'question':'What happened?'}).text
+    assert len(alice.get(f'/matches/{mid}/ask-history').json()) == 1
+    document.write_text('## Visibility\n\nSight lines need evidence.\n\n## Trading\n\nProximity needs context.')
+    assert alice.get(f'/matches/{mid}/ask-history').json() == []
+
+
 def test_share_link(people, monkeypatch):
     mid, _pid, _admin, alice, *_ = people
     assert alice.post(f"/matches/{mid}/share").status_code == 404  # off by default
@@ -275,6 +319,39 @@ def test_share_link(people, monkeypatch):
     assert view["moments"] and "steam" not in str(view).lower()
     assert alice.delete(f"/matches/{mid}/share").status_code == 204
     assert new_client().get(f"/shared/{token}").status_code == 404
+
+
+def test_shared_replay_stays_in_its_match(people, monkeypatch):
+    from app.main import ROUTERS
+
+    mid, _pid, _admin, alice, *_ = people
+    monkeypatch.setattr(settings, "share_links", True)
+    token = alice.post(f"/matches/{mid}/share").json()["token"]
+    anon = new_client()
+
+    view = anon.get(f"/shared/{token}").json()
+    assert view["findings"] and view["roundStats"] and view["playerId"] == view["roundStats"][0]["playerId"]
+    rounds = anon.get(f"/shared/{token}/rounds").json()
+    assert [r["id"] for r in rounds] == [r["id"] for r in alice.get(f"/matches/{mid}/rounds").json()]
+    assert all(r["clip"] is None for r in rounds)
+    replay = anon.get(f"/shared/{token}/rounds/{rounds[0]['id']}/replay")
+    assert replay.status_code == 200 and replay.json()["samples"] and replay.json()["matchId"] == "shared"
+    # Names only: no SteamID anywhere in what a link opens
+    assert not re.search(r"7656119\d{10}", view.__repr__() + rounds.__repr__() + replay.text)
+
+    # Nothing beyond the token's match: unknown rounds, match ids and other paths are refused
+    assert anon.get(f"/shared/{token}/rounds/r999/replay").status_code == 404
+    assert anon.get(f"/shared/{mid}/rounds").status_code == 404
+    assert anon.get(f"/shared/{token}/matches/{mid}/rounds").status_code == 404
+    shared = [r for router in ROUTERS for r in router.routes if isinstance(r, APIRoute) and r.path.startswith("/shared/")]
+    assert all(r.methods <= {"GET", "HEAD"} and "{match_id}" not in r.path and "{player_id}" not in r.path for r in shared)
+
+    # A revoked token answers like an unknown one
+    unknown = anon.get("/shared/not-a-token/rounds")
+    assert alice.delete(f"/matches/{mid}/share").status_code == 204
+    revoked = anon.get(f"/shared/{token}/rounds/{rounds[0]['id']}/replay")
+    assert revoked.status_code == unknown.status_code == 404 and revoked.json() == unknown.json()
+    assert anon.get(f"/shared/{token}/rounds").status_code == 404
 
 
 # --- admin panel API ---
@@ -310,6 +387,17 @@ def test_admin_deletes_a_match(people):
     assert admin.delete(f"/admin/matches/{mid}").status_code == 204
     assert alice.get(f"/matches/{mid}").status_code == 404
     assert not (repo.matches_dir / mid).exists()
+
+
+def test_a_processing_match_cannot_be_deleted(people):
+    """The running job would write it back after the delete (audit 22 Nov #9)."""
+    mid, _pid, admin, alice, *_ = people
+    repo.set_status(mid, MatchStatus.explaining)
+    assert alice.delete(f"/matches/{mid}").status_code == 409
+    assert admin.delete(f"/admin/matches/{mid}").status_code == 409
+    assert repo.get(mid) is not None
+    repo.set_status(mid, MatchStatus.complete)
+    assert alice.delete(f"/matches/{mid}").status_code == 204
 
 
 def test_backup_and_restore(people):
@@ -509,6 +597,18 @@ def test_gpu_queue_runs_one_at_a_time_and_cancels():
     release.set()
     th.join()
     assert errors and q.snapshot()["finished"][0]["state"] in ("cancelled", "done")
+
+
+def test_on_demand_coach_text_uses_the_gpu_queue(analysed):
+    """Explain and review routes share the pipeline's one GPU slot (audit 22 Nov #11)."""
+    mid, pid = analysed
+    c, base = new_client(), f"/matches/{mid}/players/{pid}"
+    assert c.get(f"{base}/moments/m1/explanation").status_code == 200
+    assert c.post(f"{base}/rounds/2/explain", json={}).status_code == 200
+    assert c.get(f"{base}/review/summary").status_code == 200
+    assert c.get(f"{base}/review/wrapup").status_code == 200
+    kinds = sorted(j["kind"] for j in gpu.snapshot()["finished"] if j["matchId"] == mid)
+    assert kinds == ["explain", "explain_round", "review", "review"]
 
 
 def test_session_token_is_not_stored_in_plain_text(analysed, auth_on):

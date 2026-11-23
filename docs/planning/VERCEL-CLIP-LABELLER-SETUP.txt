@@ -1,0 +1,124 @@
+Build a shared Round Reviewer clip labeller with an admin panel and a reviewer panel. Pawel records the gameplay on his Windows PC and uploads selected clips. Reviewers visit the website, enter their personal access code, watch the assigned clips and save observations. Once clips are uploaded, reviewing works while Pawel's PC is off.
+
+This is the implementation and deployment handoff prepared on 17 November 2026. The existing local recorder and labeller were inspected. The cloud panels, code login and publishing workflow described below still need to be built by Claude Code using the accompanying prompt.
+
+The agreed services are Vercel for the existing Next.js application and its small API requests, Cloudflare R2 for private MP4 storage, and Supabase PostgreSQL for accounts, assignments, clip metadata and labels. Reviewer identity is handled by personal access codes and server-side sessions stored in PostgreSQL. Both panels belong to the same application and Vercel project.
+
+The admin uses /label/admin. Reviewers use /label. Everyone enters their code at /label/login, and their account role determines which panel opens. These are proposed routes for the implementation.
+
+The admin panel should provide these actions.
+
+- Add a reviewer using a display name and a unique labeller handle.
+- Generate and copy that reviewer's personal login code.
+- Activate or deactivate the reviewer, regenerate their code, and sign out their existing sessions.
+- Create collections grouped by map, demo and selected player.
+- Upload a folder of clips with its generated manifest, see upload progress, retry failures and publish ready clips.
+- Assign collections to individual reviewers. The same collection can be assigned to several people so their judgements can be compared.
+- See each reviewer's completed and remaining clips, read their notes and export their latest labels.
+- Archive a collection when its review is finished.
+
+A reviewer should see their assigned collections and a large Continue reviewing button. Each clip screen needs the video, map, round, selected player's display name, one note box and Save and next. Good play, Needs improvement and Unsure can be optional choices. Keep completion dependent on a written observation, with one save action. Provide replay, playback speed, Skip for now, and an obvious saved or saving indicator. Drafts should survive an interrupted connection and a return to the page. Other people's notes stay hidden during the review.
+
+Use the existing Porcelain visual direction and Mona Sans. Support keyboard operation, a narrow browser window and reduced motion. Reuse the current note-only ClipLabel behaviour and English/Polish language fields.
+
+Personal codes identify accounts.
+
+The admin creates Alex's account and the application generates a random code for Alex. Pawel sends Alex the website address and that code. After Alex logs in, every note is saved against Alex's immutable account ID and stable export handle. The browser supplies the note and clip ID. The server derives the reviewer identity from the authenticated session.
+
+Use a copyable code containing at least 100 bits of cryptographic randomness, formatted into readable groups. Store a keyed hash of the code. Show the raw code only when it is generated. A code remains usable until the admin regenerates it or deactivates the account. Regenerating a code invalidates the old code and existing sessions, while keeping the person's notes and assignments. Reactivation requires a fresh code.
+
+After login, keep a separate random session token in a Secure, HttpOnly, SameSite cookie. Validate the stored session and active account on protected requests. Apply persistent login throttling and same-origin checks to mutations. Keep codes out of URLs and request logs. A bootstrap command run by the owner creates the first admin account and code using the server credentials. Normal account creation in the admin panel creates reviewers.
+
+These details let multiple friends work independently without installing a local application. A shared code would attribute several people's work to the same account, so issue one code per person.
+
+The hosting arrangement is as follows.
+
+- Pawel's PC runs the current demo parser, CS Demo Manager, PostgreSQL for CS Demo Manager, Steam, CS2 and recording worker. It produces H.264 MP4 clips with the existing source evidence.
+- Vercel serves the two panels and validates login, assignments, saves and admin actions. It grants narrowly scoped upload and playback access.
+- Supabase PostgreSQL stores accounts, code hashes, sessions, collection assignments, clip metadata and versioned notes.
+- A dedicated private Cloudflare R2 bucket named cs2-demo-clips holds the MP4s in Standard storage. The browser transfers video directly to and from R2. Supabase stores each clip's object key and metadata.
+
+Vercel functions have a 4.5 MB request-body limit. The uploader sends small manifest and authorisation requests to the app, then transfers the MP4 bytes directly to R2. Use S3 multipart uploads with signed part URLs so interrupted files can resume. The app tracks upload state in PostgreSQL and only publishes ready clips after finalisation checks. [Vercel limits](https://vercel.com/docs/functions/limitations) [R2 uploads](https://developers.cloudflare.com/r2/objects/upload-objects/)
+
+Private playback uses a five-minute presigned GET URL after the server checks the account and assignment. Renew on expiry while preserving playback position. Disabling an account stops new URLs; an existing URL can still work until expiry. Use the R2 S3 endpoint for these links. Keep public r2.dev access disabled and leave public custom domains unconfigured. [R2 presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)
+
+All application database access runs through the Vercel server. Enable RLS and revoke direct table and RPC access from browser roles. The server secret bypasses RLS, so each server operation must check the caller's role and assignment. Keep source manifests, detector findings, roster identifiers and session records out of reviewer-facing responses. [Supabase database access controls](https://supabase.com/docs/guides/database/postgres/row-level-security)
+
+Set up the services in this order.
+
+1. Open Claude Code in the current cs2-demos-studio folder and give it CLAUDE-CODE-VERCEL-LABELLER-PROMPT.txt from this directory. The current working files contain the recently built local labeller and transfer support. They are the integration baseline.
+
+2. Have Claude implement the local clip exporter, the two web panels, code authentication, database migrations and exports. The implementation should add a clip-labeller mode to apps/web. In that mode, its root layout uses the labelling shell and its API routes run in Next.js. The existing layout currently wraps every page in a FastAPI-dependent AuthProvider, and next.config.ts rewrites /api to the local Python service. Both dependencies need explicit handling for the Vercel deployment.
+
+3. Create a dedicated Supabase project for the database through the available integration or the Supabase dashboard. Choose an EU region near the Vercel function region. Apply Claude's versioned migrations and restrictive grants. Store accounts, assignments, upload state, source metadata and versioned labels here. All MP4 bytes belong in R2.
+
+4. In your existing Cloudflare account, open R2 Object Storage and create a new bucket named cs2-demo-clips, or choose another dedicated name if that is already taken. Choose Standard storage. Keep public access disabled. Under R2 API tokens, create an Object Read & Write token restricted to this bucket. Save its Access Key ID, Secret Access Key and the bucket's S3 endpoint privately. Configure bucket settings through the dashboard; the running app needs only object access. [R2 credentials](https://developers.cloudflare.com/r2/api/tokens/)
+
+5. In Vercel, create or select the dedicated clip-labeller project from this same repository. Use the Next.js preset, set Root Directory to apps/web, Install Command to npm ci and Build Command to npm run build. Leave the Next.js output setting at its framework default. Claude can deploy the current workspace through its Vercel tools or CLI while following the repository's no-commit/no-push instruction.
+
+6. Set the following environment variables in that project's appropriate environments. The names below are proposed application configuration to be implemented by Claude.
+
+   RR_WEB_MODE=clip-labeller
+   SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+   SUPABASE_SECRET_KEY=the project server secret
+   LABELER_CODE_PEPPER=a cryptographically random secret of at least 32 bytes
+   LABELER_SITE_URL=https://YOUR_PROJECT.vercel.app
+   R2_ENDPOINT=https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com
+   R2_ACCESS_KEY_ID=the dedicated bucket token's access key ID
+   R2_SECRET_ACCESS_KEY=the dedicated bucket token's secret access key
+   R2_BUCKET=cs2-demo-clips
+
+   Keep the Supabase secret, R2 credentials and code pepper server-side, without NEXT_PUBLIC prefixes. Copy R2_ENDPOINT from the bucket settings: an EU-jurisdiction bucket uses https://YOUR_ACCOUNT_ID.eu.r2.cloudflarestorage.com. The S3 client uses region auto. Use the actual production domain for LABELER_SITE_URL. Supply separate test database and R2 resources to previews that need write access. Database migration credentials belong in the local migration process. Rotating the pepper requires reissuing account codes.
+
+7. In the R2 bucket's Settings, add this CORS policy after replacing the example origin with the exact production website address. This lets the browser upload parts and play video. Access still requires a signed URL. Put local development and named preview origins on the separate test bucket. [R2 CORS setup](https://developers.cloudflare.com/r2/buckets/cors/)
+
+   [
+     {
+       "AllowedOrigins": ["https://YOUR_PROJECT.vercel.app"],
+       "AllowedMethods": ["GET", "HEAD", "PUT"],
+       "AllowedHeaders": ["*"],
+       "ExposeHeaders": ["ETag", "Content-Length", "Content-Range", "Accept-Ranges"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+
+   Only the app's authorised server creates, completes or aborts multipart uploads. The browser receives temporary URLs for individual parts. Keep R2's default seven-day incomplete multipart cleanup and have the app restart an expired upload clearly. Local recordings remain your original copies.
+
+8. Run the idempotent owner-bootstrap command Claude supplies, choose Pawel's admin handle and save the generated admin code privately. The bootstrap uses trusted server credentials and must refuse to silently reset an existing owner. Include a documented recovery command for a lost admin code.
+
+9. Deploy a preview, then exercise the complete workflow with disposable accounts and clips. Publish the tested version to the dedicated production project. Check the production URL in a signed-out browser. The website's code login should be reachable by friends, with access controlled by the application. Vercel deployment protection must be configured for that intended public entry point. Verify that every protected route still requires an application session.
+
+10. In the admin panel, add a reviewer, assign a small collection and copy their code. Open a separate browser profile as that reviewer, enter the code and save a note. Reload, log out and log in again. Check that progress and authorship are correct. Then deactivate that reviewer and confirm an existing session can no longer save or obtain fresh video access.
+
+11. Test a recording from Ancient and one from Anubis. Test seeking, replaying, saving, skipping and connection recovery. Import a cloud label export into the current local labeller, then check eligible notes through its coach-example endpoint using a different demo identity.
+
+Your everyday publishing workflow should have four steps.
+
+1. Record the desired demo and player on your PC with the existing labeller.
+2. Choose the new Export clips for web action. It writes a host folder containing manifest.json and clips/*.mp4. Choose recordings from a human-readable list of demos, players and batches.
+3. Open /label/admin and select that exported folder. The manifest supplies map, player, round, clip identity and source evidence automatically. Upload, preview and publish the collection.
+4. Assign reviewers. Send each person the website URL and their own code. Watch progress in the admin panel.
+
+The exporter and upload action are implementation deliverables in the Claude prompt. A .dem file supplies the source on your PC. The hosted review collection consists of recorded clips and the metadata needed to identify them.
+
+Finished notes return to the existing local workflow.
+
+The admin's Download labels action should produce one file per reviewer, compatible with the current round-reviewer-notes-v1 transfer format. Preserve the demo hash, source match identity, map, player ID, detector snapshot, finding, footage identity, language, permissions and monotonically increasing revisions. Include the latest drafts so a withdrawn completion is withdrawn locally too.
+
+On your PC, use Import notes in Open labeller.cmd. The current importer already handles repeated imports and conflicting edits. Permitted completed notes on training matches can then be retrieved as examples for Qwen on a different demo. The initial cloud workflow uses an explicit download/import action. Saving a web note becomes available to local Qwen after that import. Keep source permissions and train/validation/test allocation attached to the match.
+
+The expected costs can be checked against your actual clips.
+
+The local ready queue currently contains 101 clips totalling 1,092,395,986 bytes, about 1.09 GB. Its largest clip is about 17.1 MB. These are measurements from the local footage metadata on 17 November.
+
+R2 Standard currently includes 10 GB-month of storage, 1 million Class A operations and 10 million Class B operations per month, with free outbound data transfer. The current 1.09 GB collection fits within that storage allowance. Check total usage in your existing Cloudflare account, including other buckets and test uploads; creating another bucket does not reserve a separate allowance. Usage beyond the included storage or operations is billable. Start with a ten-clip pilot to check the workflow before publishing the full collection. [R2 pricing](https://developers.cloudflare.com/r2/pricing/)
+
+Supabase's free database allowance is currently 500 MB. Account and label rows are much smaller than video files, but retained revisions and source metadata still count. Check database usage and the current free-project inactivity policy before the presentation. [Supabase pricing](https://supabase.com/pricing)
+
+Five people watching the entire collection twice transfers roughly 10.9 GB before seeking and caching effects. Those bytes travel directly from R2 to the browser, with no R2 egress fee. Playback requests still count towards R2 operations. Vercel serves the website and small API requests under your existing plan. Show stored bytes and upload reservations in the admin panel, and link the owner to account usage; app totals cannot include unrelated buckets. [R2 pricing](https://developers.cloudflare.com/r2/pricing/) [Vercel Hobby allowances](https://vercel.com/docs/plans/hobby)
+
+The initial acceptance condition is a real cloud pilot with an admin and two independently authenticated reviewers. Each reviewer must be able to resume their own work, and the admin must be able to revoke their access and export attributable notes. Test a clip larger than 4.5 MB through the normal upload entry point and verify that the review page continues working while the home recorder is offline.
+
+After deployment, the message to a friend can be this short.
+
+"Open [website address] and paste your personal code [code]. Choose Continue reviewing. Watch the selected player's clip, write what went well or what could be improved, then press Save and next. Use Skip for now if you need more context. Your notes save to your account, and you can return later on the same website."

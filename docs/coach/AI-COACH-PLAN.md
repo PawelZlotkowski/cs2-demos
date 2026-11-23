@@ -85,8 +85,8 @@ Each detector is a pure function `(match_data, round, player_id) -> list[Finding
 
 | # | Detector | Signal | Kind |
 |---|---|---|---|
-| D1 | Untraded death | no teammate killed the killer within 5 s; nearest teammate distance | mistake |
-| D2 | Shot while moving | `weapon_fire` with horizontal speed above the weapon's accurate threshold | mistake |
+| D1 | Nearby teammate death without a personal trade | selected player alive within 5 m; distinct response outcomes over up to 5 s; proximity does not prove opportunity | context |
+| D2 | Moving rifle burst during combat | at least two moving shots plus nearby firearm damage/kill evidence; weapon/visibility uncertainty retained | context |
 | D3 | Died with unused utility | grenades in inventory at death | mistake |
 | D4 | Dry peek | death soon after first contact, no own/team flash or smoke near the fight in the previous 3 s | mistake |
 | D5 | Team flash / self flash | `player_blind` from self or a teammate, duration > 1 s | mistake |
@@ -97,6 +97,8 @@ Each detector is a pure function `(match_data, round, player_id) -> list[Finding
 | D10 | Good plays | successful trade, entry kill, clutch, multi-kill, flash assist, utility damage | good |
 
 *As built (T14–T15):* thresholds, severity formulas and known false positives are documented at the top of each module in `apps/api/app/analysis/detectors/`. Differences from the table: D4 has no view angles, so "first contact" is the player's first shot or first damage exchanged with the killer; D5 reports flashes **thrown by the player** that blinded teammates or themselves; D8 covers the CT side after a plant only; D10 counts entry kills on the T side only (D6 records every opening duel as context). D2 checks rifles, snipers and pistols only.
+
+**20 November correction (RR13):** the D1/D2 rows above supersede their original behaviour. D2 now abstains on pistols, SMGs, shotguns and scoped weapons; a speed proxy cannot independently establish a mistake. D10 personal trades and the `tradeKills` statistic require the same fresh 5 m eligibility evidence as D1. Ranker and agent verifier prevent repeated findings and overlapping selected windows. [Research, source inventory, validation and remaining evidence requirements](DETECTION-QUALITY-RESEARCH-2026-11-20.md).
 
 ### 4.4 Finding contract
 

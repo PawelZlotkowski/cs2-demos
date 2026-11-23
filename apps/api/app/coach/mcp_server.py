@@ -15,7 +15,9 @@ import json
 
 from mcp.server.mcpserver import MCPServer
 
+from app.analysis.ranker import MIN_EACH, MIN_MOMENTS, TARGET
 from app.coach import tools
+from app.coach.jobs import LANGUAGE_NOTES
 from app.coach.prompts import load_prompt
 from app.coach.verify import LANGUAGE_NAMES
 
@@ -42,16 +44,20 @@ def build_server() -> MCPServer:
     @server.prompt(name="select_moments")
     def select_moments_prompt() -> str:
         """System prompt for picking 5-6 moments from the findings."""
-        return load_prompt("select_moments").render(min_moments=5, max_moments=6, min_each=2)
+        return load_prompt("select_moments").render(min_moments=MIN_MOMENTS, max_moments=TARGET, min_each=MIN_EACH)
 
     @server.prompt(name="explain_moment")
     def explain_moment_prompt(language: str = "en") -> str:
         """System prompt for the Analysis text of one moment (language: en, pl or nl)."""
-        return load_prompt("explain_moment").render(language=LANGUAGE_NAMES.get(language, "English"), sentences="2 to 4")
+        return load_prompt("explain_moment").render(
+            language=LANGUAGE_NAMES.get(language, "English"), sentences="2 to 4", language_notes=LANGUAGE_NOTES.get(language, "")
+        )
 
     @server.prompt(name="answer_question")
     def answer_question_prompt(language: str = "en") -> str:
         """System prompt for an Ask-tab answer (language: en, pl or nl)."""
-        return load_prompt("answer_question").render(language=LANGUAGE_NAMES.get(language, "English"))
+        return load_prompt("answer_question").render(
+            language=LANGUAGE_NAMES.get(language, "English"), language_notes=LANGUAGE_NOTES.get(language, "")
+        )
 
     return server

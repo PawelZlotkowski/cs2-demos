@@ -159,3 +159,66 @@ def test_analysis_opens_while_recordings_are_still_queued(recording, analysed, m
     stage = next(s for s in status["stages"] if s["id"] == "recording")
     assert stage["state"] == "active"
     assert stage["progress"] == {"done": 0, "total": len(clips)}
+
+
+def test_csdm_record_finds_the_clip_in_a_per_video_subfolder(tmp_path, monkeypatch):
+    """CS:DM 3.21 writes <output>/<uuid>/sequence-1-tick-A-to-B.mp4, not <output>/*.mp4."""
+    from app.processing import video_clips
+
+    def fake_run(cmd, timeout):
+        out_dir = Path(cmd[cmd.index("--output") + 1])
+        nested = out_dir / "5b076575-36d4-49e2-8059-2d9ae8224866"
+        nested.mkdir(parents=True)
+        (nested / "sequence-1-tick-100-to-200.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42")
+
+    monkeypatch.setattr(video_clips, "resolve_csdm_bin", lambda: "csdm")
+    monkeypatch.setattr(video_clips, "run_csdm", fake_run)
+    out = tmp_path / "c30.tmp" / "c30.mp4"
+    video_clips.csdm_record(tmp_path / "m.dem", 100, 200, "765", out)
+    assert out.read_bytes().startswith(b"\x00\x00\x00\x18ftyp")
+
+
+def test_recordings_are_remuxed_to_aac_so_safari_plays_them(tmp_path):
+    """CS:DM writes MP3 audio inside the MP4; Safari needs AAC. The video stream is copied, not re-encoded."""
+    import json
+    import subprocess
+
+    from app.processing import video_clips
+
+    probe = video_clips._ffprobe()
+    ffmpeg = Path(probe).with_name(Path(probe).name.replace("ffprobe", "ffmpeg")) if probe else None
+    if not ffmpeg or not ffmpeg.is_file():
+        pytest.skip("ffmpeg is not installed next to ffprobe")
+    clip = tmp_path / "c1.mp4"
+    subprocess.run(
+        [str(ffmpeg), "-v", "error", "-f", "lavfi", "-i", "testsrc=size=64x64:rate=10:duration=1",
+         "-f", "lavfi", "-i", "sine=duration=1", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+         "-c:a", "libmp3lame", "-shortest", str(clip)],
+        check=True, capture_output=True,
+    )
+
+    def codecs() -> dict[str, str]:
+        out = subprocess.run([probe, "-v", "error", "-show_streams", "-of", "json", str(clip)], capture_output=True, text=True)
+        return {s["codec_type"]: s["codec_name"] for s in json.loads(out.stdout)["streams"]}
+
+    assert codecs() == {"video": "h264", "audio": "mp3"}
+    video_clips.make_browser_playable(clip)
+    assert codecs() == {"video": "h264", "audio": "aac"}
+    assert not list(tmp_path.glob("*.aac.mp4"))
+
+
+def test_csdm_record_never_takes_an_older_clip_when_nothing_was_recorded(tmp_path, monkeypatch):
+    from app.processing import video_clips
+    import os
+
+    clips = tmp_path / "clips"
+    clips.mkdir()
+    older = clips / "r3.mp4"
+    older.write_bytes(b"round three")
+    os.utime(older, (1_000_000, 1_000_000))
+    monkeypatch.setattr(video_clips, "resolve_csdm_bin", lambda: "csdm")
+    monkeypatch.setattr(video_clips, "run_csdm", lambda cmd, timeout: None)
+    with pytest.raises(RuntimeError, match="did not produce an MP4"):
+        video_clips.csdm_record(tmp_path / "m.dem", 100, 200, "765", clips / "r4.mp4")
+    assert older.read_bytes() == b"round three"
+    assert not (clips / "r4.mp4").exists()

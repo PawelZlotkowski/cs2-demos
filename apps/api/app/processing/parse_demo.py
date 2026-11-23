@@ -108,7 +108,8 @@ def parse_demo_file(dem_path: str, *, tick_rate: int = DEFAULT_TICK_RATE) -> Par
         ]
 
         round_starts = parser.parse_event("round_start")
-        round_ends = parser.parse_event("round_end")
+        # is_match_started marks warm-up rows (normalize drops the leading False rows)
+        round_ends = parser.parse_event("round_end", other=["is_match_started"])
         try:
             freeze_ends = parser.parse_event("round_freeze_end")
         except Exception:
@@ -131,6 +132,8 @@ def parse_demo_file(dem_path: str, *, tick_rate: int = DEFAULT_TICK_RATE) -> Par
         )
         hurts = _safe_event(parser, "player_hurt", player=["X", "Y", "Z", "team_num"])
         blinds = _safe_event(parser, "player_blind", player=["team_num"])
+        if not len(blinds):
+            blinds = _blinds_from_flash_duration(parser, flashes)
         purchases = _safe_event(parser, "item_purchase")
         plant_begins = _safe_event(parser, "bomb_beginplant", player=["X", "Y", "Z"])
         defuse_begins = _safe_event(parser, "bomb_begindefuse", player=["X", "Y", "Z"])
@@ -208,6 +211,30 @@ def _safe_event(
     except Exception:
         logger.info("Event %s not available in this demo", name)
         return pd.DataFrame()
+
+
+def _blinds_from_flash_duration(parser: DemoParser, flashes: pd.DataFrame) -> pd.DataFrame:
+    """player_blind rows rebuilt from the pawn's flash_duration.
+
+    Newer CS2 GOTV demos do not carry player_blind. A blind sets flash_duration
+    (seconds, back to 0 when it wears off) on the flash's detonation tick, so a
+    rise from the tick before is that thrower blinding that player.
+    """
+    if not len(flashes) or "tick" not in flashes or "user_steamid" not in flashes:
+        return pd.DataFrame()
+    # shortcut: two flashes popping on the same tick credit every blind to one thrower; rare in practice
+    throwers = dict(zip(flashes["tick"].astype(int), flashes["user_steamid"]))
+    df = _safe_ticks(parser, ["flash_duration"], sorted({t + o for t in throwers for o in (-1, 0)}))
+    if not len(df) or "flash_duration" not in df:
+        return pd.DataFrame()
+    dur = {(int(t), s): float(d) for t, s, d in zip(df["tick"], df["steamid"], df["flash_duration"])}
+    return pd.DataFrame(
+        [
+            {"tick": t, "attacker_steamid": throwers[t], "user_steamid": s, "blind_duration": d}
+            for (t, s), d in dur.items()
+            if t in throwers and d > 0 and d != dur.get((t - 1, s))
+        ]
+    )
 
 
 def _safe_ticks(parser: DemoParser, props: list[str], ticks: list[int]) -> pd.DataFrame:

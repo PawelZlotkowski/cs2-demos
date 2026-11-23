@@ -16,10 +16,11 @@ model's llama-server listening on RR_LLM_BASE_URL:
 
 Each run does what the app does for one player: moment selection (thinking
 on), an explanation per moment and language, and a few Ask questions. The
-match's stored moments are put back after selection and explanations are not
-stored, so the app's data is unchanged and every model explains the same
-moments. Sampling comes from the model name (see ``SAMPLING_PROFILES``) unless
-``--sampling`` or the RR_LLM_* overrides say otherwise.
+match's stored moments and their stored explanations are put back after
+selection and new explanations are not stored, so the app's data is unchanged
+and every model explains the same moments. Sampling comes from the model name
+(see ``SAMPLING_PROFILES``) unless ``--sampling`` or the RR_LLM_* overrides say
+otherwise.
 
 Everything stays local: the model is whatever llama-server serves, and no
 hosted API is called (decision #16).
@@ -30,9 +31,11 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import statistics
 import subprocess
 import sys
 import time
+from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -127,6 +130,7 @@ def run(args: argparse.Namespace, llm: Any = None) -> Path:
 
     # Moment selection, then put the stored moments back so every model explains the same ones
     before = repo.analysis.moments(args.match_id, player_id)
+    stored_texts = [e for e in repo.analysis.explanations(args.match_id, player_id) if e.target.startswith("m")]
     t0 = time.perf_counter()
     sel = run_sync(jobs.select_moments(args.match_id, player_id))
     sel_record = traces.last()
@@ -138,8 +142,10 @@ def run(args: argparse.Namespace, llm: Any = None) -> Path:
         "picked": [{"id": m.id, "round": m.round, "kind": m.kind, "findingIds": m.finding_ids} for m in sel.moments],
     }
     vram.append(gpu_memory_mib())
-    if before:
-        repo.analysis.replace_moments(args.match_id, player_id, before)
+    # Also removes the model's picks when there were none, and drops every moment text, so those go back too
+    repo.analysis.replace_moments(args.match_id, player_id, before)
+    for explanation in stored_texts:
+        repo.analysis.save_explanation(args.match_id, player_id, explanation)
     moments = repo.analysis.moments(args.match_id, player_id)
 
     for _ in range(args.repeat):
@@ -191,8 +197,7 @@ def summarise(selection: dict[str, Any], rows: list[dict[str, Any]]) -> dict[str
         return f"{sum(r['verified'] for r in items)}/{len(items)}"
 
     def median(xs: list[float]) -> float | None:
-        xs = sorted(xs)
-        return round(xs[len(xs) // 2], 2) if xs else None
+        return round(statistics.median(xs), 2) if xs else None
 
     expl = [r for r in rows if r["kind"] == "explain"]
     asks = [r for r in rows if r["kind"] == "ask"]
@@ -245,17 +250,21 @@ def report(args: argparse.Namespace) -> str:
     for name, cell in SUMMARY_ROWS:
         lines.append(f"| {name} | " + " | ".join(cell(r) for r in results) + " |")
     lines += ["", "## Texts", "", "Fallbacks are marked; read the Polish and Dutch ones natively.", ""]
-    keyed = [{(a["kind"], a["target"], a["lang"]): a for a in r["answers"]} for r in results]
+    keyed: list[defaultdict[tuple, list[dict[str, Any]]]] = []
+    for r in results:  # every repeat, so a fallback in any of them is shown
+        keyed.append(defaultdict(list))
+        for a in r["answers"]:
+            keyed[-1][(a["kind"], a["target"], a["lang"])].append(a)
     for key in dict.fromkeys(k for d in keyed for k in d):
         kind, target, lang = key
         lines.append(f"### {kind} {target} ({lang})")
         lines.append("")
         for r, d in zip(results, keyed, strict=True):
-            a = d.get(key)
-            if a is None:
-                continue
-            mark = "" if a["verified"] else " (fallback: " + "; ".join(a["errors"][:2]) + ")"
-            lines.append(f"- **{r['label']}**{mark}: {a['text']}")
+            answers = d.get(key, [])
+            for n, a in enumerate(answers, 1):
+                mark = "" if a["verified"] else " (fallback: " + "; ".join(a["errors"][:2]) + ")"
+                repeat = f" (repeat {n})" if len(answers) > 1 else ""
+                lines.append(f"- **{r['label']}**{repeat}{mark}: {a['text']}")
         lines.append("")
     text = "\n".join(lines)
     out = Path(args.out) if args.out else RESULTS_DIR / "comparison.md"

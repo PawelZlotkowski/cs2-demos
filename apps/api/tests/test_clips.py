@@ -77,6 +77,7 @@ def _seed_fake_match(match_id: str = "match-clipstest01") -> dict:
             "status": "complete",
             "clipDuration": 40,
             "tickRate": 64,
+            "selectedPlayerId": "76561198000000001",
             "players": [
                 {"id": "76561198000000001", "name": "Alice", "team": "CT"},
                 {"id": "76561198000000002", "name": "Bob", "team": "T"},
@@ -121,6 +122,21 @@ def _seed_fake_match(match_id: str = "match-clipstest01") -> dict:
 
 def test_public_clip_url():
     assert public_clip_url("match-abc", "r3") == "/matches/match-abc/clips/r3.mp4"
+
+
+def test_round_video_uses_selected_player_and_never_relabels_old_pov(client):
+    from app.processing.video_clips import choose_focus_steamid, get_or_init_manifest
+    mid = 'match-pov-audit'; record = _seed_fake_match(mid)
+    record['match']['selectedPlayerId'] = '76561198000000002'
+    assert choose_focus_steamid(record) == '76561198000000002'
+    VideoWorker(repo).process(mid)
+    assert get_or_init_manifest(mid).focus_steamid == '76561198000000002'
+    record['match']['selectedPlayerId'] = '76561198000000001'
+    changed = get_or_init_manifest(mid)
+    assert changed.focus_steamid == '76561198000000001'
+    assert all(c.status != ClipStatus.ready for c in changed.clips)
+    record['match']['selectedPlayerId'] = 'missing'
+    assert choose_focus_steamid(record) is None
 
 
 def test_stub_worker_writes_clips_and_status(client: TestClient):
@@ -177,6 +193,20 @@ def test_replay_attaches_clip_metadata(client: TestClient):
 
     rounds = client.get(f"/matches/{mid}/rounds").json()
     assert rounds[0]["clip"]["status"] == "ready"
+
+
+def test_round_id_cannot_reach_another_match(client: TestClient):
+    """"%5C" decodes to a folder separator on Windows (audit 22 Nov #5)."""
+    _seed_fake_match("match-own")
+    _seed_fake_match("match-victim")
+    VideoWorker(repo).process("match-victim")
+    clip = "..%5C..%5Cmatch-victim%5Cclips%5Cr1"
+    replay = "..%5C..%5Cmatch-victim%5Crounds%5Cr1"
+    assert client.get(f"/matches/match-own/clips/{clip}.mp4").status_code == 404
+    assert client.get(f"/matches/match-own/rounds/{replay}/replay").status_code == 404
+    assert repo.get_round_replay("match-own", "../../match-victim/rounds/r1") is None
+    with pytest.raises(ValueError):
+        clip_file("match-own", "../../match-victim/clips/r1")
 
 
 def test_disabled_skips_clips(client: TestClient, monkeypatch):

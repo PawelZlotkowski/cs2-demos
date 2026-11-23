@@ -19,6 +19,7 @@ from app.annotation.media import install_media
 from app.annotation.voice import install_voice
 from app.annotation.batches import install_batches, BatchRequest
 from app.annotation.store import Store, Conflict, encode
+from app.annotation.worker import version_info
 from app.models.annotation import Provenance, ReviewSave, SelectPlayer
 
 
@@ -79,7 +80,9 @@ def create_app(data_dir: Path | None = None, *, run_worker: bool = True):
 
     @app.get('/api/config')
     def config():
-        return {'maxUploadMB': int(os.getenv('RR_ANNOTATION_MAX_UPLOAD_MB', '2048')), 'maps': ['Ancient', 'Anubis']}
+        from app.analysis.policy import policy_description
+        return {'maxUploadMB': int(os.getenv('RR_ANNOTATION_MAX_UPLOAD_MB', '2048')), 'maps': ['Ancient', 'Anubis'],
+                'reviewSchemaVersion': 3, 'policy': policy_description('local-v1'), 'detectorVersion': version_info()}
 
     @app.get('/api/demos')
     def demos():
@@ -136,11 +139,12 @@ def create_app(data_dir: Path | None = None, *, run_worker: bool = True):
         if value.playerId not in {p['id'] for p in metadata['players']}:
             raise ValueError('Choose a player from this demo roster.')
         snapshot = store.snapshot(demo, value.playerId)
-        if snapshot:
+        if snapshot and store.snapshot_is_current(demo, value.playerId, snapshot, version_info()):
             if value.autoRecord:
                 app.state.batches.create(demo, value.playerId, BatchRequest(before=value.before, after=value.after))
             return {'state': 'complete', 'result': {'demo': demo, 'player': value.playerId}}
         return jobs.submit('parse', {'demo': demo, 'player': value.playerId,
+                                    'expectedSnapshot': snapshot['id'] if snapshot else None,
                                     'autoRecord': value.autoRecord, 'before': value.before, 'after': value.after})
 
     @app.get('/api/demos/{demo}/players/{player}/rounds')
@@ -149,7 +153,8 @@ def create_app(data_dir: Path | None = None, *, run_worker: bool = True):
         if not snapshot:
             raise HTTPException(409, 'This player has not finished parsing yet.')
         return {'rounds': snapshot['rounds'], 'progress': store.progress(demo, player, labeller),
-                'warnings': snapshot['warnings'], 'policy': snapshot['policy'], 'snapshotId': snapshot['id']}
+                'warnings': snapshot['warnings'], 'policy': snapshot['policy'], 'snapshotId': snapshot['id'],
+                'stale': not store.snapshot_is_current(demo, player, snapshot, version_info())}
 
     @app.get('/api/demos/{demo}/players/{player}/rounds/{rnd}')
     def round_detail(demo: str, player: str, rnd: int, labeller: str):
@@ -165,7 +170,8 @@ def create_app(data_dir: Path | None = None, *, run_worker: bool = True):
         with store.connect() as con:
             exposed = con.execute('SELECT 1 FROM candidate_exposure WHERE demo=? AND player=? AND round=? AND labeller=?',
                                   (demo, player, rnd, labeller)).fetchone()
-        return {'replay': replay, 'context': rd, 'review': review, 'candidates': candidates, 'candidateExposed': bool(exposed)}
+        return {'replay': replay, 'context': rd, 'review': review, 'candidates': candidates,
+                'candidateExposed': bool(exposed), 'snapshotId': snapshot['id']}
 
     @app.put('/api/demos/{demo}/players/{player}/rounds/{rnd}')
     def save(demo: str, player: str, rnd: int, labeller: str, value: ReviewSave):

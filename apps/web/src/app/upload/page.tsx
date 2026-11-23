@@ -1,95 +1,88 @@
 "use client";
 
-import { useId, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
+import { FolderFront, FolderShape, PlusIcon } from "@/components/review/MatchFolders";
+import { UploadStatusIsland } from "@/components/StatusIsland";
 import { api } from "@/lib/api/client";
-
-function formatSize(bytes: number): string {
-  return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(0)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
+import { bytes } from "@/lib/format";
 
 export default function UploadPage() {
   const router = useRouter();
-  const inputId = useId();
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<File | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const transfer = useRef<AbortController | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [percent, setPercent] = useState<number | null>(null);
   const [over, setOver] = useState(false);
-  const [sent, setSent] = useState(0);
+  const [error, setError] = useState("");
 
-  async function onFile(file: File | null) {
-    if (!file || busy) return;
-    setError(null);
-    setBusy(file);
-    setSent(0);
+  useEffect(() => () => transfer.current?.abort(), []);
+
+  async function upload(files: FileList) {
+    if (!files.length || transfer.current) return;
+    const demo = files[0];
+    if (files.length !== 1 || !/\.dem(?:\.zst)?$/i.test(demo.name) || demo.size === 0) {
+      setError(files.length !== 1 ? "Choose one demo at a time." : !demo.size
+        ? "This file is empty. Choose the original .dem or .dem.zst."
+        : `${demo.name} is not a demo. Choose a .dem from CS Demo Manager or a .dem.zst from FACEIT.`);
+      return;
+    }
+    const controller = new AbortController();
+    transfer.current = controller;
+    setError("");
+    setFile(demo);
+    setPercent(null);
     try {
-      const res = await api.upload(file, (done) => setSent(done));
-      router.push(`/processing/${res.id}`);
+      const match = await api.upload(demo, (loaded, total) => {
+        setPercent(Math.floor(100 * loaded / total));
+      }, controller.signal);
+      if (!controller.signal.aborted) router.push("/processing/" + encodeURIComponent(match.id));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to upload the demo. Check it is a .dem or .dem.zst file and try again.");
-      setBusy(null);
+      if (controller.signal.aborted) return;
+      transfer.current = null;
+      setFile(null);
+      setError(e instanceof Error ? e.message : "The upload stopped. Choose the demo to try again.");
     }
   }
 
-  function onDragOver(e: DragEvent) {
+  function dragOver(e: DragEvent<HTMLElement>) {
     if (!e.dataTransfer.types.includes("Files")) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = busy ? "none" : "copy";
-    setOver(true);
+    e.dataTransfer.dropEffect = transfer.current ? "none" : "copy";
+    setOver(!transfer.current);
   }
 
-  function onDrop(e: DragEvent) {
-    e.preventDefault();
-    setOver(false);
-    onFile(e.dataTransfer.files?.[0] ?? null);
-  }
-
-  return (
-    <main className="main" id="content">
-      <h1>Add a match</h1>
-      <p className="lede">Upload an Ancient or Anubis .dem or .dem.zst. We read the player list first, then you choose one player, a review focus and language before starting full parsing and analysis.</p>
-      <div
-        className="drop"
-        data-over={over || undefined}
-        onDragOver={onDragOver}
-        onDragLeave={() => setOver(false)}
-        onDrop={onDrop}
-      >
-        <b>{busy ? `Uploading ${busy.name}` : over ? "Drop to upload" : "Drop a demo here"}</b>
-        <span className="meta" style={{ display: "block" }}>
-          {busy
-            ? sent >= busy.size
-              ? `${formatSize(busy.size)} sent. Opening the processing page.`
-              : `${formatSize(sent)} of ${formatSize(busy.size)}. The processing page opens when the upload finishes.`
-            : "Or choose a file."}
-        </span>
-        {busy ? (
-          <progress
-            className="upload-bar"
-            max={busy.size}
-            value={sent}
-            aria-label={`Uploading ${busy.name}`}
-          />
-        ) : null}
-        <div style={{ marginTop: 20, display: "flex", justifyContent: "center", gap: 12 }}>
-          <label htmlFor={inputId} className="btn btn-fill" style={{ cursor: busy ? "wait" : "pointer" }}>
-            {busy ? "Uploading…" : "Choose file"}
-          </label>
-          <input
-            id={inputId}
-            type="file"
-            accept=".dem,.dem.zst,application/octet-stream"
-            disabled={Boolean(busy)}
-            aria-busy={Boolean(busy)}
-            className="sr-only"
-            onChange={(e) => onFile(e.target.files?.[0] ?? null)}
-          />
+  return <main id="content" className="main demo-upload">
+    <FolderShape />
+    <section className="match-folder drop-folder" aria-labelledby="drop-title" data-over={over || undefined}
+      onDragOver={dragOver}
+      onDragLeave={(e) => {
+        if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) setOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        void upload(e.dataTransfer.files);
+      }}>
+      <div className="drop-pane">
+        <FolderFront />
+        <span className="folder-tab">New match</span>
+        <div className="drop-content">
+          <h1 id="drop-title">{percent === 100 && file ? "Waiting for processing" : file ? "Adding your match" : "Drop a demo to review it"}</h1>
+          <p className="drop-formats">{file ? bytes(file.size) + " demo" : "Choose an Ancient or Anubis demo. Use a .dem from CS Demo Manager or a .dem.zst from FACEIT."}</p>
+          {error && <p className="drop-error" role="alert">{error}</p>}
+          {file ? <UploadStatusIsland filename={file.name} percent={percent} /> :
+            <button type="button" className="btn btn-fill choose-demo" onClick={() => input.current?.click()}>
+              <span aria-hidden="true"><PlusIcon /></span>Choose file
+            </button>}
+          {/* macOS pickers match only the last extension, so ".dem.zst" must be ".zst"; upload() checks the full name */}
+          <input ref={input} type="file" hidden disabled={!!file} accept=".dem,.zst"
+            onChange={(e) => {
+              if (e.target.files) void upload(e.target.files);
+              e.target.value = "";
+            }} />
         </div>
       </div>
-      {error ? (
-        <p className="err" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </main>
-  );
+    </section>
+  </main>;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/LoadingState";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api/client";
 import type { CoachLanguage, PlanItem, PracticePlan } from "@/lib/contracts";
@@ -21,6 +22,7 @@ function trend(i: PlanItem): string | null {
 
 /** Coach page, Plan: what to practise across matches, with the evidence and a drill (doc 29 §2.1, R09). */
 export function PlanTab({ playerId, language }: Props) {
+  const [attempt, setAttempt] = useState(0);
   const [plan, setPlan] = useState<PracticePlan | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export function PlanTab({ playerId, language }: Props) {
     return () => {
       live = false;
     };
-  }, [playerId, language]);
+  }, [playerId, language, attempt]);
 
   async function renew() {
     setBusy(true);
@@ -53,6 +55,7 @@ export function PlanTab({ playerId, language }: Props) {
   }
 
   async function tick(i: PlanItem, done: boolean) {
+    setError(null);
     try {
       setPlan(await api.tickPlan(playerId, i.detector, done, language));
     } catch (e) {
@@ -63,8 +66,17 @@ export function PlanTab({ playerId, language }: Props) {
   const href = (ref: string, fid: string) =>
     plan?.matches[ref] ? `/studio/${plan.matches[ref]}?f=${encodeURIComponent(fid)}` : undefined;
 
-  if (error) return <p className="err" role="alert">{error}</p>;
-  if (!plan) return <p className="meta thinking">{busy ? "Writing your practice plan…" : "Loading…"}</p>;
+  // A failed tick or renew keeps the plan on screen; only a failed load replaces it.
+  if (error && !plan)
+    return (
+      <div className="sheet state-sheet">
+        <p role="alert">{error}</p>
+        <button type="button" className="btn btn-line" onClick={() => setAttempt((n) => n + 1)}>
+          Reload plan
+        </button>
+      </div>
+    );
+  if (!plan) return <LoadingState label="Loading the practice plan…" />;
 
   return (
     <section className="plan" aria-live="polite">
@@ -75,7 +87,7 @@ export function PlanTab({ playerId, language }: Props) {
         <p className="aa-note">
           {plan.source === "agent"
             ? "Written by the coach model and checked against your findings."
-            : "Written from your findings: the coach model is off or its note did not pass the checks."}{" "}
+            : "Written from the finding templates."}{" "}
           Plan from {when(plan.createdAt)}.
         </p>
       </div>
@@ -124,7 +136,11 @@ export function PlanTab({ playerId, language }: Props) {
         <button type="button" className="btn btn-line" onClick={() => void renew()} disabled={busy}>
           {busy ? "Writing…" : "Write a new plan"}
         </button>
-        <span className="meta">A new plan counts the matches you have added since and keeps what you ticked.</span>
+        {error ? (
+          <span className="meta" role="alert">{error}</span>
+        ) : (
+          <span className="meta">A new plan counts the matches you have added since and keeps what you ticked.</span>
+        )}
       </div>
     </section>
   );

@@ -38,6 +38,23 @@ def _added(record: dict) -> float:
         return 0.0
 
 
+def added_when(record: dict, now: datetime | None = None) -> str:
+    """When the match was added, as the library shows it: "Today", "Yesterday", "3 days ago", then "12 Nov 2026".
+    The stored match keeps the "just now" it was given at upload, so this is worked out on every read."""
+    added = _added(record)
+    if not added:
+        return ""
+    then = datetime.fromtimestamp(added)
+    days = ((now or datetime.now()).date() - then.date()).days
+    if days <= 0:
+        return "Today"
+    if days == 1:
+        return "Yesterday"
+    if days < 7:
+        return f"{days} days ago"
+    return f"{then.day} {then:%b %Y}"
+
+
 def match_rows() -> list[MatchRow]:
     from app.auth.scope import allowed
     from app.auth.store import users
@@ -59,7 +76,7 @@ def match_rows() -> list[MatchRow]:
                 id=mid,
                 map=match.get("map") or "Unknown",
                 score=match.get("score") or "",
-                when=match.get("when") or "",
+                when=added_when(record),
                 status=record.get("status") or match.get("status"),
                 player_id=pid,
                 player_name=name,
@@ -83,9 +100,10 @@ def progress(player_id: str) -> ProgressResponse | None:
     history = {h["matchId"]: h for h in repo.analysis.player_history(player_id)}
     matches = []
     for ref, mid in refs.items():
-        match = (repo.get(mid) or {}).get("match") or {}
+        record = repo.get(mid) or {}
+        match = record.get("match") or {}
         matches.append(
-            ProgressMatch(ref=ref, match_id=mid, map=match.get("map") or "Unknown", when=match.get("when") or "", rounds=history[mid]["rounds"])
+            ProgressMatch(ref=ref, match_id=mid, map=match.get("map") or "Unknown", when=added_when(record), rounds=history[mid]["rounds"])
         )
     rounds = [m.rounds for m in matches]
 

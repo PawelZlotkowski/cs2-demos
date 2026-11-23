@@ -8,15 +8,16 @@ import { Feedback } from "./Feedback";
 
 type Turn = {
   id: number;
+  /** Each round keeps its own thread */
+  round: number | null;
   q: string;
-  /** Full answer once it arrives; `shown` is how much has streamed in. */
+  /** The complete answer from the final SSE event. */
   a: string;
-  shown: number;
   pending: boolean;
   /** Tool lookups reported while the coach works (SSE `step` events). */
   steps: string[];
   error?: boolean;
-  mocked?: boolean;
+  verified?: boolean;
   source?: "agent" | "template";
   /** Ask history id once stored: feedback attaches to it */
   messageId?: number | null;
@@ -24,10 +25,8 @@ type Turn = {
 
 type Props = CiteHandlers & {
   matchId: string;
-  /** Analysed player: answers come from the coach agent. Without one, the legacy stub answers. */
+  /** Ask requires a player whose match findings are available. */
   playerId?: string | null;
-  /** Sent as the stub context id when no player is analysed. */
-  contextId: string;
   round: number;
   momentId?: string | null;
   language: CoachLanguage;
@@ -60,7 +59,6 @@ export const STEP_LABELS: Record<string, string> = {
 export function CoachPanel({
   matchId,
   playerId,
-  contextId,
   round,
   momentId,
   language,
@@ -77,11 +75,9 @@ export function CoachPanel({
   const [draft, setDraft] = useState("");
   const threadRef = useRef<HTMLDivElement>(null);
   const nextId = useRef(1);
-  const reduce = useRef(false);
-  const aborts = useRef(new Set<AbortController>());
+  const aborts = useRef(new Map<number, AbortController>());
 
   useEffect(() => {
-    reduce.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const open = aborts.current;
     return () => open.forEach((c) => c.abort());
   }, []);
@@ -99,12 +95,12 @@ export function CoachPanel({
           .reverse()
           .map((r) => ({
             id: nextId.current++,
+            round: r.round ?? null,
             q: r.question,
             a: r.answer ?? "",
-            shown: (r.answer ?? "").length,
             pending: false,
             steps: [],
-            source: r.source === "agent" ? "agent" : "template",
+            source: r.source === "agent" || r.source === "template" ? r.source : undefined,
             messageId: r.id,
           }));
         setTurns((ts) => [...earlier, ...ts]);
@@ -115,55 +111,24 @@ export function CoachPanel({
     };
   }, [matchId, playerId]);
 
-  // Reveal answers word by word (prototype stream()); instant with reduced motion.
-  // Only verified text reaches this point: the server never streams unchecked tokens.
-  const streaming = turns.some((x) => !x.pending && x.shown < x.a.length);
-  useEffect(() => {
-    if (!streaming) return;
-    const iv = window.setInterval(() => {
-      setTurns((ts) =>
-        ts.map((x) => {
-          if (x.pending || x.shown >= x.a.length) return x;
-          if (reduce.current) return { ...x, shown: x.a.length };
-          let n = x.shown;
-          for (let words = 0; words < 2 && n < x.a.length; ) {
-            n += 1;
-            if (/\s/.test(x.a[n] ?? " ")) words += 1;
-          }
-          return { ...x, shown: n };
-        }),
-      );
-    }, 28);
-    return () => window.clearInterval(iv);
-  }, [streaming]);
-
   useEffect(() => {
     const th = threadRef.current;
     if (th) th.scrollTop = th.scrollHeight;
-  }, [turns]);
+  }, [turns, round]);
 
   const patch = (id: number, f: (x: Turn) => Turn) => setTurns((ts) => ts.map((x) => (x.id === id ? f(x) : x)));
   const fail = (id: number, msg: string) =>
-    patch(id, (x) => ({ ...x, a: msg, shown: msg.length, pending: false, error: true }));
+    patch(id, (x) => ({ ...x, a: msg, pending: false, error: true }));
 
   async function ask(raw: string) {
     const question = raw.trim();
-    if (!question) return;
+    if (!question || !playerId) return;
     onAsk();
     setDraft("");
     const id = nextId.current++;
-    setTurns((ts) => [...ts, { id, q: question, a: "", shown: 0, pending: true, steps: [] }]);
-    if (!playerId) {
-      try {
-        const res = await api.coach(matchId, { momentId: contextId, question, t, view: "radar" });
-        patch(id, (x) => ({ ...x, a: res.answer, pending: false, mocked: res.mocked }));
-      } catch (e) {
-        fail(id, e instanceof Error ? e.message : "The coach did not answer.");
-      }
-      return;
-    }
+    setTurns((ts) => [...ts, { id, round, q: question, a: "", pending: true, steps: [] }]);
     const ctl = new AbortController();
-    aborts.current.add(ctl);
+    aborts.current.set(id, ctl);
     let answered = false;
     try {
       await api.ask(
@@ -176,7 +141,7 @@ export function CoachPanel({
             patch(id, (x) => ({ ...x, steps: [...x.steps, label] }));
           } else if (ev.event === "answer") {
             answered = true;
-            patch(id, (x) => ({ ...x, a: ev.data.answer, pending: false, source: ev.data.source, messageId: ev.data.messageId }));
+            patch(id, (x) => ({ ...x, a: ev.data.answer, pending: false, source: ev.data.source, verified: ev.data.verified, messageId: ev.data.messageId }));
           } else {
             answered = true;
             fail(id, ev.data.detail);
@@ -188,7 +153,7 @@ export function CoachPanel({
     } catch (e) {
       if (!ctl.signal.aborted) fail(id, e instanceof Error ? e.message : "The coach did not answer.");
     } finally {
-      aborts.current.delete(ctl);
+      aborts.current.delete(id);
     }
   }
 
@@ -197,39 +162,41 @@ export function CoachPanel({
     void ask(draft);
   }
 
-  const asked = new Set(turns.map((x) => x.q));
+  // Only this round's thread; answers saved before per-round threads (round null) are not shown
+  const shown = turns.filter((x) => x.round === round);
+  const asked = new Set(shown.map((x) => x.q));
   const open = suggestions.filter((q) => !asked.has(q));
-  const anyMocked = turns.some((x) => x.mocked);
 
   return (
     <div className="coach" id="coach" role="tabpanel" aria-labelledby="tab-ask">
       <div className="thread" ref={threadRef} aria-live="polite">
-        {turns.length ? null : (
+        {shown.length ? null : (
           <p className="thread-empty">Questions about this round collect here. Answers cite the findings and times they use.</p>
         )}
-        {turns.map((x) => (
+        {shown.map((x) => (
           <div className="qa" key={x.id}>
             <div className="qq">{x.q}</div>
             <div className={`aa${x.error ? " err" : ""}`}>
               {x.pending ? (
                 <span className="thinking">{x.steps.length ? `${x.steps[x.steps.length - 1]}…` : "Thinking…"}</span>
               ) : x.error ? (
-                x.a
+                <><p role="status">{x.a}</p><button className="btn btn-line" onClick={() => void ask(x.q)}>Ask again</button></>
               ) : (
-                <CoachText text={x.a.slice(0, x.shown)} {...cites} />
+                <CoachText text={x.a} {...cites} />
               )}
             </div>
-            {!x.pending && x.source === "template" ? (
-              <div className="aa-note">Written from the findings: the coach model is off or its answer did not pass the checks.</div>
+            {x.pending && <button className="btn btn-line" onClick={() => { aborts.current.get(x.id)?.abort(); fail(x.id, "Answer stopped."); }}>Stop</button>}
+            {!x.pending && x.source ? (
+              <div className="aa-note">{x.source === "template" ? "Written from the finding templates." : x.verified ? "Model answer, checked against the findings." : "Written by the coach model."}</div>
             ) : null}
-            {!x.pending && !x.error && x.messageId && x.shown >= x.a.length ? (
+            {!x.pending && !x.error && x.messageId ? (
               <Feedback matchId={matchId} target={String(x.messageId)} kind="answer" />
             ) : null}
           </div>
         ))}
       </div>
       <div className="coach-body">
-        {open.length ? (
+        {playerId && open.length ? (
           <ul className="qs" aria-label="Suggested questions">
             {open.map((q) => (
               <li key={q}>
@@ -259,23 +226,21 @@ export function CoachPanel({
               className="field"
               id="coach-ask"
               placeholder={placeholder}
+              disabled={!playerId}
               autoComplete="off"
               aria-keyshortcuts="/"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onFocus={onAsk}
             />
-            {draft.trim() ? null : <kbd aria-hidden>/</kbd>}
-            <button type="submit" className="ask-send" disabled={!draft.trim()}>
-              Ask
+            <button type="submit" className="ask-send" aria-label="Send question" disabled={!playerId || !draft.trim()}>
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3m-5 5 5-5 5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </button>
           </div>
         </form>
         {playerId ? null : (
           <div className="proto-note">
-            {anyMocked
-              ? "Pick a player to analyse first. Until then answers are placeholders."
-              : "Pick a player to analyse, and the coach answers from their findings."}
+            Pick a player to analyse so the coach can answer from their findings.
           </div>
         )}
       </div>

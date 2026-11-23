@@ -26,6 +26,8 @@ credentials.json
 # Demo binaries (keep small JSON fixtures only)
 *.dem
 *.dem.zst
+# Raw demos and anything else put in the local demos folder
+/demos/
 
 # Runtime / generated data
 .local/
@@ -74,3 +76,6 @@ eval/results/
 docs/university/*.docx
 docs/university/*.pdf
 prototype/fixtures/match-room.json
+labeler.env
+# Labellers' exported notes (real player nicknames and Steam IDs)
+data/labels/*-notes*.json

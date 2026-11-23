@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from app.auth.deps import current_user
 from app.auth.store import users
 from app.core.config import settings
-from app.services.gpu import QueueFull, gpu
+from app.services.gpu import JobCancelled, QueueFull, gpu
 from app.core.validation import UPLOAD_REJECT_MESSAGE, is_allowed_demo_filename
 from app.models.contracts import (
     REPLAY_READY_STATUSES,
@@ -45,6 +45,7 @@ from app.processing.pipeline import PlayerSelectionError, pipeline
 from app.processing.moment_clips import list_moment_clips, moment_clip_file, moment_recorder
 from app.processing.video_clips import clip_file, find_clip, get_or_init_manifest
 from app.coach.tools import player_match_refs
+from app.coach.evidence import answer_evidence_version
 from app.repositories.matches import repo
 from app.services.coach import coach_service
 
@@ -137,7 +138,9 @@ def get_match(match_id: str) -> Match:
     record = repo.get(match_id)
     if not record:
         raise HTTPException(status_code=404, detail="Match not found.")
-    return Match.model_validate(record["match"])
+    from app.services.progress import added_when
+
+    return Match.model_validate({**record["match"], "when": added_when(record) or record["match"].get("when")})
 
 
 @router.get("/matches/{match_id}/status", response_model=StatusResponse)
@@ -166,7 +169,10 @@ def stream_round_clip(match_id: str, round_id: str) -> FileResponse:
     record = repo.get(match_id)
     if not record:
         raise HTTPException(status_code=404, detail="Match not found.")
-    path: Path = clip_file(match_id, round_id)
+    try:
+        path: Path = clip_file(match_id, round_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Clip file not found.") from None
     if not path.exists() or path.stat().st_size == 0:
         raise HTTPException(status_code=404, detail="Clip file not found.")
     return FileResponse(
@@ -265,6 +271,27 @@ def select_player(match_id: str, body: PlayerSelectRequest) -> StatusResponse:
     return pipeline.status_response(match_id)
 
 
+@router.post("/matches/{match_id}/retry", response_model=StatusResponse)
+def retry_processing(match_id: str) -> StatusResponse:
+    """Start a failed match again from its stored upload (the coach-only re-run is /rerun)."""
+    try:
+        pipeline.retry(match_id)
+    except PlayerSelectionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    return pipeline.status_response(match_id)
+
+
+def _on_gpu(kind: str, match_id: str, player_id: str, job):
+    """Runs model work in the pipeline's GPU queue; sync routes wait in a worker thread, not the event loop."""
+    from app.coach.jobs import run_sync
+
+    try:
+        with gpu.slot(kind, match_id=match_id, player_id=player_id):
+            return run_sync(job())
+    except JobCancelled as exc:
+        raise HTTPException(status_code=503, detail="The coach job was cancelled. Try again.") from exc
+
+
 def _require_analysis(match_id: str, player_id: str) -> None:
     if not repo.get(match_id):
         raise HTTPException(status_code=404, detail="Match not found.")
@@ -307,15 +334,13 @@ def get_moment_explanation(
     match_id: str, player_id: str, moment_id: str, lang: CoachLanguage = "en"
 ) -> MomentExplanation:
     """Analysis-tab text for a moment: stored, or written now (model or templates)."""
-    from app.coach.jobs import run_sync
-
     _require_analysis(match_id, player_id)
     stored = repo.analysis.explanation(match_id, player_id, moment_id, lang)
     if stored:
         return stored
     if not any(m.id == moment_id for m in repo.analysis.moments(match_id, player_id)):
         raise HTTPException(status_code=404, detail="Moment not found.")
-    return run_sync(pipeline_module.coach_jobs(repo).explain(match_id, player_id, moment_id, lang))
+    return _on_gpu("explain", match_id, player_id, lambda: pipeline_module.coach_jobs(repo).explain(match_id, player_id, moment_id, lang))
 
 
 @router.post(
@@ -326,8 +351,6 @@ def explain_round(
     match_id: str, player_id: str, round_no: int, body: ExplainRequest | None = None, refresh: bool = False
 ) -> MomentExplanation:
     """On-demand analysis of any round (plan §3 step 9). Cached per language."""
-    from app.coach.jobs import run_sync
-
     _require_analysis(match_id, player_id)
     lang = (body or ExplainRequest()).language
     if not any(s.round == round_no for s in repo.analysis.round_stats(match_id, player_id)):
@@ -340,28 +363,25 @@ def explain_round(
         repo.analysis.queue_clip(match_id, player_id, round_no, round(max(0.0, lead.t - 5), 1), round(lead.t + 3, 1))
         moment_recorder.enqueue(match_id, player_id)
     stored = None if refresh else repo.analysis.explanation(match_id, player_id, target, lang)
-    return stored or run_sync(pipeline_module.coach_jobs(repo).explain(match_id, player_id, target, lang))
+    return stored or _on_gpu("explain_round", match_id, player_id, lambda: pipeline_module.coach_jobs(repo).explain(match_id, player_id, target, lang))
 
 
 @router.get("/matches/{match_id}/players/{player_id}/review/summary", response_model=MomentExplanation)
 def get_review_summary(match_id: str, player_id: str, lang: CoachLanguage = "en") -> MomentExplanation:
     """The overview's summary of the picked moments (design plan item 2): stored, or written now."""
-    from app.coach.jobs import run_sync
-
     _require_analysis(match_id, player_id)
     stored = repo.analysis.explanation(match_id, player_id, "summary", lang)
-    return stored or run_sync(pipeline_module.coach_jobs(repo).review(match_id, player_id, "summary", lang))
+    return stored or _on_gpu("review", match_id, player_id, lambda: pipeline_module.coach_jobs(repo).review(match_id, player_id, "summary", lang))
 
 
 @router.get("/matches/{match_id}/players/{player_id}/review/wrapup", response_model=ReviewWrapUp)
 def get_review_wrapup(match_id: str, player_id: str, lang: CoachLanguage = "en") -> ReviewWrapUp:
     """End of the review (design plan item 3): what went well, what to fix, one drill per mistake type."""
-    from app.coach.jobs import run_sync
     from app.coach.review import practice_drills
 
     _require_analysis(match_id, player_id)
     stored = repo.analysis.explanation(match_id, player_id, "wrapup", lang)
-    text = stored or run_sync(pipeline_module.coach_jobs(repo).review(match_id, player_id, "wrapup", lang))
+    text = stored or _on_gpu("review", match_id, player_id, lambda: pipeline_module.coach_jobs(repo).review(match_id, player_id, "wrapup", lang))
     a = repo.analysis
     return ReviewWrapUp(
         explanation=text,
@@ -427,11 +447,12 @@ def retry_player_clip(match_id: str, player_id: str, clip_id: str) -> MomentClip
 def get_knowledge(passage_id: str) -> dict:
     """One knowledge passage, for [K..] citation tokens in the Studio."""
     from app.rag.index import default_index
+    from app.rag.ingest import shown_text
 
     passage = default_index().get(passage_id)
     if passage is None:
         raise HTTPException(status_code=404, detail="Passage not found.")
-    return {"id": passage.id, "title": passage.title, "map": passage.map, "source": passage.source, "text": passage.text}
+    return {"id": passage.id, "title": passage.title, "map": passage.map, "source": passage.source, "text": shown_text(passage.text)}
 
 
 def _sse(event: str, data: dict) -> str:
@@ -450,7 +471,8 @@ async def ask_coach(match_id: str, player_id: str, body: AskRequest, request: Re
     return _ask_stream(
         lambda on_step: pipeline_module.coach_jobs(repo).ask(match_id, player_id, body, on_step=on_step),
         f"{match_id} / {player_id}",
-        job=AskJob("ask", current_user(request), match_id, player_id, body.question, body.language),
+        job=AskJob("ask", current_user(request), match_id, player_id, body.question, body.language,
+                   answer_evidence_version(match_id, player_id), body.round),
     )
 
 
@@ -474,7 +496,8 @@ async def ask_coach_across(player_id: str, body: CoachAskRequest, request: Reque
         lambda on_step: pipeline_module.coach_jobs(repo).ask_across(player_id, body, on_step=on_step),
         player_id,
         extra,
-        job=AskJob("ask_across", current_user(request), None, player_id, body.question, body.language),
+        job=AskJob("ask_across", current_user(request), None, player_id, body.question, body.language,
+                   answer_evidence_version(None, player_id)),
     )
 
 
@@ -486,6 +509,8 @@ class AskJob:
     player_id: str
     question: str
     language: str
+    evidence_version: str
+    round: int | None = None
 
 
 def _ask_stream(run, label: str, extra=None, *, job: AskJob) -> StreamingResponse:
@@ -504,10 +529,14 @@ def _ask_stream(run, label: str, extra=None, *, job: AskJob) -> StreamingRespons
                 if slot.started_at and slot.started_at - slot.created_at > 1:
                     await on_step({"tool": "queue", "ms": int((slot.started_at - slot.created_at) * 1000), "error": None})
                 outcome = await run(on_step)
+            if job.evidence_version != answer_evidence_version(job.match_id, job.player_id):
+                await queue.put(_sse('error', {'detail': 'The analysis changed while answering. Reload the review and ask again.'}))
+                return
             message_id = None
             try:
                 message_id = users().add_ask(user_id, job.match_id, job.player_id, job.question, outcome.answer,
-                                             list(outcome.citations), outcome.source, job.language)
+                                             list(outcome.citations), outcome.source, job.language, job.evidence_version,
+                                             round_no=job.round)
             except Exception:  # noqa: BLE001 - history is best effort
                 pass
             await queue.put(

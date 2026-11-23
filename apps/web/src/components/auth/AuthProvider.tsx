@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/LoadingState";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { UNAUTHORIZED_EVENT, api } from "@/lib/api/client";
@@ -86,6 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Until the API has answered, pages would only flash and then move to sign-in.
   // When the API is down, pages show their own "API not reachable" message.
-  const hold = !failed && (state === null || mustSignIn || mustConsent) && !isOpen(pathname);
-  return <AuthContext.Provider value={value}>{hold ? <main className="main" id="content" aria-busy="true" /> : children}</AuthContext.Provider>;
+  // Sign-in waits too, or its form flashes before "No sign-in needed"; shared reviews never wait for an account
+  const hold = !failed && ((state === null && !pathname.startsWith("/r/")) || ((mustSignIn || mustConsent) && !isOpen(pathname)));
+  // The empty header keeps the shell's 80px row, so the page does not jump up and back once it opens
+  return <AuthContext.Provider value={value}>{hold ? <div className="shell"><header className="topbar" aria-hidden="true" />
+    <main className="main" id="content"><LoadingState label="Opening Round Reviewer…" /></main></div> : children}</AuthContext.Provider>;
 }

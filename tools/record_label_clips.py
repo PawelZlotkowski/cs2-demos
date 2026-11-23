@@ -154,6 +154,10 @@ def run(command, timeout=600, env=None, log_path=None, startup_ready=None, start
             log.close()
     if 'econnrefused' in output.lower() and '5432' in output:
         raise RuntimeError('CS Demo Manager cannot connect to PostgreSQL at localhost:5432. Start its configured database and retry.')
+    # Some CLI/batch-shim versions return zero even when no demo was analysed.
+    # Recording then silently omits playerCameras because there is no roster.
+    if re.search(r'failed to analy[sz]e|failed demos:|\b[1-9]\d* failed\b|source could not be detected', output, re.IGNORECASE):
+        raise RuntimeError(output[-1800:] or 'CS Demo Manager analysis failed.')
     if proc.returncode or 'steam is not running' in output.lower() or re.search(r'^\s*(?:Error:|error:)', output, re.MULTILINE):
         raise RuntimeError(output[-1800:] or 'CS Demo Manager failed.')
     return output
@@ -189,11 +193,76 @@ def capture_config(demo, output, groups, player, recording_system, ffmpeg):
                     showXRay=False, showAssists=True, showOnlyDeathNotices=False,
                     playersOptions=[], cameras=[], recordAudio=True, playerVoicesEnabled=True,
                     deathNoticesDuration=5,
-                    playerCameras=[dict(tick=g['startTick'], playerSteamId=player, playerName=player)])
+                    # Select after the seek settles, before the first recorded frame.
+                    # Repeat for every window, including after a death/round change.
+                    playerCameras=[dict(tick=max(96, g['startTick']-round(g.get('tickRate', 64)/2)),
+                                        playerSteamId=player, playerName=player)])
                     for g in groups])
 
 
-def record_session(base, jobs, args, csdm, ffmpeg, *, _retry=False):
+def prepare_recording_demo(csdm, demo, output, player):
+    """Require a real CS:DM roster; never let an absent camera become spectator POV."""
+    analysis_log = output / 'analysis.log'
+    try:
+        analysis_log.write_text(run([csdm, 'analyze', str(demo)]), encoding='utf-8')
+    except RuntimeError as exc:
+        analysis_log.write_text(str(exc), encoding='utf-8')
+        if 'source could not be detected' not in str(exc).lower():
+            raise
+        # SourceTV tournament demos can have an opaque server name. The generic
+        # Valve parser supplies CS:DM's recording roster only; our own parser's
+        # rounds, findings, tick windows and source provenance remain authoritative.
+        print('CS:DM source not recognised; trying its Valve parser for the recording roster.', flush=True)
+        try:
+            result = run([csdm, 'analyze', str(demo), '--source', 'valve'])
+        except RuntimeError as fallback:
+            with analysis_log.open('a', encoding='utf-8') as log:
+                log.write('\nRecording roster fallback (--source valve):\n' + str(fallback))
+            raise
+        with analysis_log.open('a', encoding='utf-8') as log:
+            log.write('\nRecording roster fallback (--source valve):\n' + result)
+
+    # A successful CLI exit alone is insufficient: playerCameras is silently
+    # ignored by CS:DM when its database has no matching Steam ID.
+    roster_dir = output / 'roster'
+    roster_dir.mkdir()
+    (output / 'roster.log').write_text(run([csdm, 'json', str(demo), '--output-folder',
+                                          str(roster_dir), '--minify']), encoding='utf-8')
+    files = list(roster_dir.glob('*.json'))
+    if len(files) != 1:
+        raise RuntimeError('CS:DM did not export one recording roster. See analysis.log and roster.log.')
+    try:
+        roster = json.loads(files[0].read_text('utf-8-sig'))
+        matches = [p for p in roster['players'] if p.get('steamId') == player]
+        if len(matches) != 1:
+            raise ValueError('missing or ambiguous player')
+    except (ValueError, KeyError, TypeError, AttributeError) as exc:
+        raise RuntimeError('The selected player is missing from the CS:DM roster. '
+                           'Recording stopped to avoid capturing another player.') from exc
+    print(f"Verified recording player: {matches[0].get('name', player)} ({player}).", flush=True)
+
+
+def capture_roots(output):
+    """CS:DM 3.20 writes here; 3.21 adds a per-video UUID directory."""
+    return [output, *(p for p in output.iterdir() if p.is_dir() and not p.is_symlink())]
+
+
+def capture_window_started(output, number):
+    return any((root / f'{number}-sequence').is_dir() for root in capture_roots(output))
+
+
+def captured_sequence(output, group):
+    # Match the requested sequence and ticks exactly, within this fresh attempt.
+    # Never substitute a different clip just because its MP4 is newer.
+    name = f"sequence-{group['number']}-tick-{group['startTick']}-to-{group['endTick']}.mp4"
+    candidates = [root / name for root in capture_roots(output)
+                  if (root / name).is_file() and not (root / name).is_symlink()]
+    if len(candidates) > 1:
+        raise RuntimeError('CS:DM produced ambiguous sequence files. See capture.log.')
+    return candidates[0] if candidates else output / name
+
+
+def record_session(base, jobs, args, csdm, ffmpeg, *, _retry=False, _native=False):
     first = jobs[0]
     for job in jobs:
         if (not re.fullmatch(r'[a-f0-9]{32}', job['lease'])
@@ -208,7 +277,7 @@ def record_session(base, jobs, args, csdm, ffmpeg, *, _retry=False):
     groups = group_windows(jobs)
     root = args.cache.resolve()
     root.mkdir(parents=True, exist_ok=True)
-    output = root / 'sessions' / (first['lease'] + ('-retry1' if _retry else ''))
+    output = root / 'sessions' / (first['lease'] + ('-native' if _native else '-retry1' if _retry else ''))
     output.mkdir(parents=True, exist_ok=False)
     pending = {j['id']: j for j in jobs}
     stop = threading.Event()
@@ -259,7 +328,7 @@ def record_session(base, jobs, args, csdm, ffmpeg, *, _retry=False):
         print(f"Session: {len(jobs)} clips, {len(groups)} capture windows, {duration:.1f}s gameplay "
               f"instead of {requested:.1f}s; one CS2 launch; player {first['player']}.", flush=True)
         progress('analysing')
-        (output/'analysis.log').write_text(run([csdm, 'analyze', str(demo)]), encoding='utf-8')
+        prepare_recording_demo(csdm, demo, output, first['player'])
         config = capture_config(demo, output, groups, first['player'], args.recording_system, ffmpeg)
         config_path = output/'capture.json'
         config_path.write_text(json.dumps(config, indent=2), encoding='utf-8')
@@ -273,7 +342,7 @@ def record_session(base, jobs, args, csdm, ffmpeg, *, _retry=False):
         def watch_windows():
             last = 0
             while not capture_done.wait(2):
-                current = max((g['number'] for g in groups if (output/f"{g['number']}-sequence").is_dir()), default=0)
+                current = max((g['number'] for g in groups if capture_window_started(output, g['number'])), default=0)
                 if current > last:
                     last = current
                     print(f'Capturing window {current}/{len(groups)} in the same CS2 session.', flush=True)
@@ -288,7 +357,11 @@ def record_session(base, jobs, args, csdm, ffmpeg, *, _retry=False):
                                '--ffmpeg-executable-path', ffmpeg],
                               timeout=max(900, int(duration*8+len(groups)*45+180)), env=capture_env,
                               log_path=output/'capture.log',
-                              startup_ready=lambda: any((output/f"{g['number']}-sequence").is_dir() for g in groups))
+                              # Native CS writes frames in the game folder and only
+                              # moves them here after capture. A HLAE-directory
+                              # watchdog would kill a healthy native session.
+                              startup_ready=(None if args.recording_system == 'CS' else
+                                  lambda: any(capture_window_started(output, g['number']) for g in groups)))
         except Exception as exc:
             capture_error = exc
             capture_log = ((output/'capture.log').read_text('utf-8', errors='replace')
@@ -304,11 +377,18 @@ def record_session(base, jobs, args, csdm, ffmpeg, *, _retry=False):
             stop.set()
             print('Capture did not start. Retrying once with a clean CS2 session.', flush=True)
             return record_session(base, jobs, args, csdm, ffmpeg, _retry=True)
+        if isinstance(capture_error, CaptureStartupError) and args.recording_system == 'HLAE':
+            # Same demo/player/ticks and upload validation, but no HLAE hooks.
+            # Each attempt owns and closes its process tree before the next one.
+            stop.set()
+            native_args = argparse.Namespace(**{**vars(args), 'recording_system': 'CS'})
+            print('HLAE did not start after two attempts. Trying native CS capture once.', flush=True)
+            return record_session(base, jobs, native_args, csdm, ffmpeg, _native=True)
         progress('encoding')
         failures = 0
         prepared = {}
         for group in groups:
-            source = output/f"sequence-{group['number']}-tick-{group['startTick']}-to-{group['endTick']}.mp4"
+            source = captured_sequence(output, group)
             for job in group['jobs']:
                 try:
                     if not source.is_file() or source.stat().st_size < 1024:
@@ -316,12 +396,12 @@ def record_session(base, jobs, args, csdm, ffmpeg, *, _retry=False):
                     key = (group['number'], job['startTick'], job['endTick'])
                     ready = prepared.get(key, output/f"{job['id']}.mp4")
                     exact = (job['startTick'], job['endTick']) == (group['startTick'], group['endTick'])
+                    length = (job['endTick']-job['startTick'])/group['tickRate']
                     if exact:
                         # CS:DM already produced H.264/AAC. Only move the MP4 index for browser seeking.
-                        options = ['-i', str(source), '-map', '0:v:0', '-map', '0:a?', '-c', 'copy']
+                        options = ['-i', str(source), '-t', f'{length:.8f}', '-map', '0:v:0', '-map', '0:a?', '-c', 'copy']
                     else:
                         offset = (job['startTick']-group['startTick'])/group['tickRate']
-                        length = (job['endTick']-job['startTick'])/group['tickRate']
                         # Decode at the cut to retain exact context, rather than rounding to a keyframe.
                         options = ['-ss', f'{offset:.8f}', '-i', str(source), '-t', f'{length:.8f}',
                                    '-map', '0:v:0', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'fast',

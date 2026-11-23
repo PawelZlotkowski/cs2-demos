@@ -10,3 +10,38 @@
 
 .clipStep{border-top:1px solid #d8dde2;margin-top:1rem;padding-top:.4rem}.clipStep h3{margin:.5rem 0}.clipHint,#clipVerifyHelp,#clipVerifyState,#clipRequirements{font-size:.85rem;color:#53616c}.clipActions{border-top:1px solid #d8dde2;margin-top:1rem;padding-top:.6rem}#clipError{color:#8c3021;background:#fff0e7;border-left:3px solid #b75b32;padding:.7rem}#clipRequirements{font-weight:600}[aria-invalid=true]{border-color:#b75b32;outline:1px solid #b75b32}.clip-review .roundTools{display:none!important}.clip-review aside .setupSection{display:none}.clip-review.clip-setup-open aside .setupSection{display:block}.clip-review #clipReviewLayout{display:grid;grid-template-columns:minmax(0,1fr) minmax(310px,.8fr);gap:1rem;align-items:start}.clip-review #clipPlayback{min-width:0}.clip-review .replayViews{display:flex;flex-direction:column}.clip-review #footagePane{order:-1}.clip-review #clipLabelPanel{margin:0}.clip-review #voicePanel{margin-top:1rem}.clip-review #radarPane{margin:0}.clip-review #radar{max-height:400px;width:auto;max-width:100%;margin:auto}.clip-review #clipPlayback{position:sticky;top:1rem}.clip-review #clipInfo{font-size:.8rem}.clip-review #clipSaveState{font-size:.85rem}.clip-review #saveClipNext{width:100%;margin-right:0}
 @media(max-width:1200px){.clip-review main{grid-template-columns:250px minmax(0,1fr)}.clip-review #clipReviewLayout{grid-template-columns:1fr}.clip-review #clipPlayback{position:static}}@media(max-width:850px){.clip-review main{grid-template-columns:1fr}}
+
+/* Local labeller uses the same Porcelain colours as Studio, including offline. */
+:root {
+  --surface-app: #e7e2d9;
+  --surface-panel: #fbf9f5;
+  --text: #1d1a22;
+  --text-3: #5e5966;
+  --accent: #ff48b0;
+  --tint-1: rgba(29,26,34,.045);
+  background: var(--surface-app);
+  color: var(--text);
+  font-family: "Mona Sans Variable", "Mona Sans", system-ui, sans-serif;
+}
+header, section { background: var(--surface-panel); border: 0; }
+section { border-radius: 1.25rem; }
+button, .file { border-radius: 1.5rem; }
+textarea, select, input:not([type=checkbox]):not([type=range]) { border-radius: .65rem; }
+#reviewClips, #saveClipNext, #parse { background: var(--accent); color: var(--text); border-color: transparent; font-weight: 650; }
+:where(summary,button,input,select,textarea):focus-visible { outline: .18rem solid var(--text); outline-offset: .2rem; }
+#clipLabelPanel { background: var(--tint-1); }
+#clipLabelPanel textarea { font-size: 1rem; }
+#clipLabelPanel .clipActions { border: 0; }
+#clipVerifyHelp, #noteHelp, #clipRequirements { color: var(--text-3); }
+.clip-review #roundMeta, .clip-review #clipInfo { display: none; }
+.clip-review #clipPlayback video { background: var(--text); border-radius: .8rem; }
+@media (max-width: 850px) {
+  .clip-review main { display: flex; flex-direction: column; }
+  .clip-review #workspace { order: -1; }
+  .clip-review.clip-setup-open aside { order: -2; }
+  .clip-review #clipReviewLayout { grid-template-columns: minmax(0,1fr); }
+  main > *, .transport > *, .clipActions > * { min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}

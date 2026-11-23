@@ -75,6 +75,25 @@ def test_confirmation_is_durable_before_background_parse_starts(setup_match, mon
     assert repo.review_options(mid)['playerId'] == roster[-1]['id']
 
 
+def test_score_is_the_coached_players_rounds_and_heals_stale_records(setup_match):
+    # 23 Nov 2026: match.json kept the CT-starter's score (and, on older parses, the knife
+    # round) while the Studio scorebug and Progress used the player's round stats.
+    import json
+    repo, pipeline, mid, roster, calls = setup_match
+    pipeline.process(mid)
+    player = roster[0]['id']  # starts on T, so the CT-first normalize score is reversed
+    pipeline.select_player(mid, player, run_async=False)
+    stats = repo.analysis.round_stats(mid, player)
+    wins = sum(1 for s in stats if s.won)
+    expected = f'{wins}–{len(stats) - wins}'
+    assert repo.get(mid)['match']['score'] == expected
+    meta = settings.matches_dir / mid / 'match.json'
+    payload = json.loads(meta.read_text(encoding='utf-8'))
+    payload['match']['score'] = '7–17'  # stale order / knife round from an older parse
+    meta.write_text(json.dumps(payload), encoding='utf-8')
+    assert MatchRepository().get(mid)['match']['score'] == expected
+
+
 def test_unknown_focus_is_rejected_at_api_contract():
     from pydantic import ValidationError
     with pytest.raises(ValidationError):

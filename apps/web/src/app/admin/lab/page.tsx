@@ -305,9 +305,8 @@ function RunDetail({ run, onClose }: { run: TraceDetail; onClose: () => void }) 
   return (
     <article className="run-detail" aria-label="Run details">
       <header>
-        <h2>
-          {jobLabel(run.job)} <span className="meta">{when(run.ts)}</span>
-        </h2>
+        <div><h2>{jobLabel(run.job)}</h2>
+          <time className="meta" dateTime={run.ts}>{when(run.ts)}</time></div>
         <button type="button" className="btn btn-line" onClick={onClose}>
           Close
         </button>

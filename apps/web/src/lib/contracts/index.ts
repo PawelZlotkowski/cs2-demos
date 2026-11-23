@@ -53,9 +53,11 @@ export type ReviewFocus = "overall" | "shooting" | "utility" | "teamwork";
 export interface Match {
   id: string;
   map: string;
+  /** "us–them" for the coached player's team once round stats exist; before that, the team that started on CT first. */
   score: string;
   when: string;
   rounds: number;
+  /** Per round, for the team that started on CT. */
   won: (0 | 1)[];
   status: MatchStatus;
   clipDuration: number;
@@ -850,6 +852,7 @@ export interface SessionRow {
 }
 
 export interface AskHistoryItem {
+  evidenceVersion?: string | null;
   id: number;
   matchId: string | null;
   playerId: string;
@@ -859,6 +862,8 @@ export interface AskHistoryItem {
   source: string | null;
   lang: string | null;
   createdAt: string;
+  /** Studio round the question was asked in; null for answers saved before per-round threads */
+  round?: number | null;
 }
 
 export interface FeedbackItem {
@@ -881,9 +886,13 @@ export interface SharedReview {
   map: string | null;
   score: string | null;
   rounds: number | null;
+  /** A per-match alias ("p3"), never a SteamID; the shared replay, findings and stats use the same aliases. */
+  playerId: string;
   playerName: string | null;
   lang: CoachLanguage;
-  moments: { id: string; round: number; t0: number; t1: number; kind: "mistake" | "good"; pickedBecause: string; clip: string | null }[];
+  moments: (Pick<SelectedMoment, "id" | "round" | "t0" | "t1" | "kind" | "pickedBecause" | "findingIds" | "source"> & { clip: string | null; clipT0?: number; clipT1?: number })[];
+  findings: Finding[];
+  roundStats: RoundStats[];
   explanations: Record<string, string>;
 }
 

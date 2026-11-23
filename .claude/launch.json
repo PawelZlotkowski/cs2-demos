@@ -4,14 +4,39 @@
     {
       "name": "match-room-prototype",
       "runtimeExecutable": "apps/api/.venv/Scripts/python.exe",
-      "runtimeArgs": ["-m", "http.server", "8765", "--bind", "127.0.0.1"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--bind",
+        "127.0.0.1"
+      ],
       "port": 8765
     },
     {
       "name": "prototype-alt-port",
       "runtimeExecutable": "apps/api/.venv/Scripts/python.exe",
-      "runtimeArgs": ["-m", "http.server", "18791", "--bind", "127.0.0.1"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "18791",
+        "--bind",
+        "127.0.0.1"
+      ],
       "port": 18791
+    },
+    {
+      "name": "local-studio",
+      "url": "http://127.0.0.1:3003",
+      "port": 3003
+    },
+    {
+      "name": "clip-labeller-local",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "apps/web/scripts/dev-labeller.mjs"
+      ],
+      "port": 3100
     }
   ]
 }

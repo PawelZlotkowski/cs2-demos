@@ -1,9 +1,9 @@
 """Coach page Knowledge tab (doc 29 §2.3, R12): browse, flag and add knowledge passages.
 
 Passages come from ``data/knowledge`` as the retriever sees them. Notes added
-from the page go to ``data/knowledge/notes/<map>.md``, which sorts after every
-other folder, so adding one never renumbers the ``[K..]`` ids that stored
-explanations already cite (only later added notes move).
+from the page go to ``data/knowledge/notes/<map>.md``. A passage id comes from
+its file and title (``rag.ingest``), so adding or deleting a note moves no
+other passage's id; renaming a note gives it a new one.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from pathlib import Path
 from app.core.config import settings
 from app.maps.zones import load_zones
 from app.models.contracts import KnowledgeNoteRequest, KnowledgeRow, MapZone
-from app.rag.ingest import KNOWLEDGE_DIR, Passage, load_passages
+from app.rag.ingest import KNOWLEDGE_DIR, Passage, load_passages, shown_text
 from app.repositories.extras import extras
 
 ZONES_RE = re.compile(r"^Zones:\s*(.+?)\.?\s*$", re.MULTILINE)
@@ -64,7 +64,7 @@ def list_knowledge(map_name: str | None = None, zone: str | None = None, q: str 
         rows.append(
             KnowledgeRow(
                 id=p.id, title=p.title, map=p.map, side=p.side, topic=p.topic, source=p.source,
-                text=p.text, zones=zones, cited=cited.get(p.id, 0), flags=flags.get(p.id, []),
+                text=shown_text(p.text), zones=zones, cited=cited.get(p.id, 0), flags=flags.get(p.id, []),
             )
         )
     return rows
@@ -137,7 +137,7 @@ def _rebuild() -> None:
 
 
 def edit_note(map_name: str, index: int, title: str, text: str) -> None:
-    """Change a note in place; its [K..] id stays the same."""
+    """Change a note in place; its [K..] id stays the same unless the title changes."""
     path = knowledge_dir() / "notes" / f"{map_name}.md"
     head, sections = _note_sections(path)
     if map_name not in NOTE_MAPS or not 0 <= index < len(sections):
@@ -149,7 +149,7 @@ def edit_note(map_name: str, index: int, title: str, text: str) -> None:
 
 
 def delete_note(map_name: str, index: int) -> None:
-    """Remove a note; the notes after it on that map get new [K..] ids."""
+    """Remove a note; the other passages keep their [K..] ids."""
     path = knowledge_dir() / "notes" / f"{map_name}.md"
     head, sections = _note_sections(path)
     if map_name not in NOTE_MAPS or not 0 <= index < len(sections):

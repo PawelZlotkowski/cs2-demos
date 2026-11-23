@@ -8,15 +8,17 @@ Ownership of every ``{match_id}`` here is checked by ``guard``.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 
-from app.admin.services import delete_match_everything
+from app.admin.services import PROCESSING, delete_match_everything
 from app.auth.deps import audit, current_user
 from app.auth.store import users
 from app.core.config import settings
+from app.coach.evidence import answer_evidence_version
 from app.models.contracts import (
     FeedbackRequest,
     MatchPatch,
@@ -50,6 +52,9 @@ def delete_match(match_id: str, request: Request) -> Response:
     record = _match(match_id)
     if record.get("is_sample"):
         raise HTTPException(status_code=400, detail="The sample match cannot be deleted.")
+    if record["status"] in PROCESSING:
+        # The running job would write the files back after the delete
+        raise HTTPException(status_code=409, detail="The match is still processing. Delete it once it has finished.")
     delete_match_everything(match_id)
     audit(request, "match.delete", match_id)
     return Response(status_code=204)
@@ -74,12 +79,16 @@ def mark_seen(match_id: str, body: ReviewProgressRequest, user: dict = Depends(c
 @router.get("/matches/{match_id}/ask-history")
 def ask_history(match_id: str, user: dict = Depends(current_user)) -> list[dict[str, Any]]:
     _match(match_id)
-    return users().asks(user["id"], match_id, limit=50)
+    player = repo.analysis.get_player(match_id)
+    if not player:
+        return []
+    return users().asks(user["id"], match_id, limit=50, evidence_version=answer_evidence_version(match_id, player))
 
 
 @router.get("/players/{player_id}/ask-history")
 def ask_history_across(player_id: str, user: dict = Depends(current_user)) -> list[dict[str, Any]]:
-    return [a for a in users().asks(user["id"], limit=200) if a["matchId"] is None and a["playerId"] == player_id][:50]
+    return [a for a in users().asks(user["id"], limit=200, evidence_version=answer_evidence_version(None, player_id))
+            if a["matchId"] is None and a["playerId"] == player_id][:50]
 
 
 # --- feedback (A10) ---
@@ -183,9 +192,38 @@ def _shared(token: str) -> tuple[str, str]:
     return match_id, player_id
 
 
+_STEAM_ID = re.compile(r"7656119\d{10}")
+
+
+def _masked(match_id: str, data: Any) -> Any:
+    """The same data with every SteamID swapped for a per-match alias (``p1``…), stable across calls.
+
+    A shared link shows names only. Aliases follow the match roster's order, so the replay,
+    findings and round stats still refer to one another; an id outside the roster becomes
+    ``unknown`` rather than leaking.
+    """
+    roster = ((repo.get(match_id) or {}).get("match") or {}).get("players") or []
+    alias = {p["id"]: f"p{i + 1}" for i, p in enumerate(roster) if p.get("id")}
+    # Event ids can arrive float-rounded from the parser (as makeRosterLookup notes on the web)
+    near = {float(k): a for k, a in alias.items() if _STEAM_ID.fullmatch(k)}
+
+    def walk(v: Any) -> Any:
+        if isinstance(v, dict):
+            return {k: walk(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [walk(x) for x in v]
+        if isinstance(v, str):
+            if v in alias:
+                return alias[v]
+            return near.get(float(v), "unknown") if _STEAM_ID.fullmatch(v) else v
+        return v
+
+    return walk(data)
+
+
 @router.get("/shared/{token}")
 def shared_review(token: str) -> dict[str, Any]:
-    """The coached player's moments, clips and explanations; names only, no SteamIDs, no Ask."""
+    """The coached player's moments, findings, round stats, clips and explanations; names only, no SteamIDs, no Ask."""
     from app.processing.moment_clips import list_moment_clips
 
     match_id, player_id = _shared(token)
@@ -195,22 +233,49 @@ def shared_review(token: str) -> dict[str, Any]:
     langs = [e.lang for e in explanations]
     lang = max(set(langs), key=langs.count) if langs else "en"
     clips = {
-        c.moment_id: f"/shared/{token}/clips/{c.id}.mp4"
+        c.moment_id: {"clip": f"/shared/{token}/clips/{c.id}.mp4", "clipT0": c.t0, "clipT1": c.t1}
         for c in list_moment_clips(match_id, player_id)
         if c.status == "ready" and c.moment_id
     }
-    return {
+    return _masked(match_id, {
         "map": match.get("map"),
         "score": match.get("score"),
         "rounds": match.get("rounds"),
+        "playerId": player_id,
         "playerName": player.get("name"),
         "lang": lang,
         "moments": [
-            {**m.model_dump(by_alias=True, include={"id", "round", "t0", "t1", "kind", "picked_because"}), "clip": clips.get(m.id)}
+            {**m.model_dump(by_alias=True, include={"id", "round", "t0", "t1", "kind", "picked_because", "finding_ids", "source"}), **clips.get(m.id, {"clip": None})}
             for m in repo.analysis.moments(match_id, player_id)
         ],
+        "findings": [f.model_dump(by_alias=True) for f in repo.analysis.findings(match_id, player_id)],
+        "roundStats": [s.model_dump(by_alias=True) for s in repo.analysis.round_stats(match_id, player_id)],
         "explanations": {e.target: e.text for e in explanations if e.lang == lang},
-    }
+    })
+
+
+# Why a shared link cannot reach past its match: every /shared/ route resolves the token to
+# one match and its selected player through _shared (unknown and revoked tokens both 404 the
+# same way), then passes only that match_id to the existing builders. No route takes a match
+# or player id from the request, and the round id only selects inside that match's record.
+# Round clips are dropped (their URLs are account routes) and SteamIDs are masked.
+
+
+@router.get("/shared/{token}/rounds")
+def shared_rounds(token: str) -> list[dict[str, Any]]:
+    from app.api.routes import list_rounds
+
+    match_id, _ = _shared(token)
+    return _masked(match_id, [r.model_copy(update={"clip": None}).model_dump(by_alias=True) for r in list_rounds(match_id)])
+
+
+@router.get("/shared/{token}/rounds/{round_id}/replay")
+def shared_round_replay(token: str, round_id: str) -> dict[str, Any]:
+    from app.api.routes import get_round_replay
+
+    match_id, _ = _shared(token)
+    replay = get_round_replay(match_id, round_id).model_copy(update={"clip": None, "match_id": "shared"})
+    return _masked(match_id, replay.model_dump(by_alias=True))
 
 
 @router.get("/shared/{token}/clips/{clip_id}.mp4")

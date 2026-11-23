@@ -13,13 +13,21 @@ export function AccountMenu() {
   const { state, user } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   const pathname = usePathname() ?? "/";
 
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) setOpen(false);
+      if (e instanceof KeyboardEvent) {
+        if (e.key === "Escape") {
+          setOpen(false);
+          trigger.current?.focus();
+        }
+      } else if (!ref.current?.contains(e.target as Node)) {
+        setOpen(false);
+      }
     };
     document.addEventListener("mousedown", close);
     document.addEventListener("keydown", close);
@@ -32,8 +40,11 @@ export function AccountMenu() {
   if (!state) return null;
   if (state.authEnabled && !user) {
     return (
-      <Link href="/signin" className="bar-link">
-        Sign in
+      <Link href="/signin" className="acct-btn glass" aria-label="Sign in" title="Sign in">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+          <circle cx="8" cy="5.5" r="2.5" />
+          <path d="M2.5 13.5a5.5 5.5 0 0 1 11 0" />
+        </svg>
       </Link>
     );
   }
@@ -44,35 +55,31 @@ export function AccountMenu() {
     window.location.assign("/signin");
   }
 
-  const initials = user.displayName
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const initial = Array.from(user.displayName.trim())[0]?.toLocaleUpperCase();
+  const label = state.authEnabled ? `Account for ${user.displayName}` : "Local account";
 
   return (
-    <div className="acct" ref={ref}>
+    <div
+      className="acct"
+      ref={ref}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+      }}
+    >
       <button
         type="button"
-        className="acct-btn"
-        aria-haspopup="menu"
+        ref={trigger}
+        className="acct-btn glass"
+        aria-label={label}
+        aria-controls={open ? "account-links" : undefined}
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        title={state.authEnabled ? `${user.displayName} (${ROLE_LABEL[user.role]})` : "Settings and admin"}
+        title={label}
       >
-        {user.avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={user.avatarUrl} alt="" width={24} height={24} />
-        ) : (
-          <span className="acct-initials" aria-hidden>
-            {state.authEnabled ? initials : "·"}
-          </span>
-        )}
-        <span className="acct-name hide-s">{state.authEnabled ? user.displayName : "Local"}</span>
+        {initial}
       </button>
       {open ? (
-        <div className="acct-menu" role="menu">
+        <div className="acct-menu" id="account-links">
           {state.authEnabled ? (
             <p className="acct-who">
               <b>{user.displayName}</b>
@@ -84,21 +91,21 @@ export function AccountMenu() {
               <span>Accounts are off</span>
             </p>
           )}
-          <Link role="menuitem" href="/settings">
+          <Link href="/settings">
             Settings
           </Link>
           {user.role === "admin" ? (
-            <Link role="menuitem" href="/admin">
+            <Link href="/admin">
               Admin panel
             </Link>
           ) : null}
           {user.role === "labeller" ? (
-            <Link role="menuitem" href="/admin/lab">
+            <Link href="/admin/lab">
               Lab
             </Link>
           ) : null}
           {state.authEnabled ? (
-            <button type="button" role="menuitem" onClick={() => void signOut()}>
+            <button type="button" onClick={() => void signOut()}>
               Sign out
             </button>
           ) : null}

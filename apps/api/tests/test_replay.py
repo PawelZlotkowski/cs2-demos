@@ -117,6 +117,7 @@ def test_parse_and_normalize_fixture_dem():
     assert parsed.header.get("map_name") == "de_mirage"
     assert len(parsed.players) == 10
     assert len(parsed.ticks) > 100
+    assert "is_match_started" in parsed.round_ends  # warm-up rows are dropped by normalize
     out = normalize_parsed("match-test", parsed)
     assert out["match"]["map"] == "Mirage"
     assert out["match"]["rounds"] >= 10

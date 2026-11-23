@@ -1,7 +1,8 @@
 """Lab Labels (doc 29 §2.2, R07): detector labels and blind moment picks as committed files.
 
 - Detector labels use the T17 format in ``data/labels/README.md``: one JSONL
-  file per match, player and labeller, one line per labelled round. Agreement
+  file per match, player and labeller, one line per labelled round. The clip
+  labeller's note exports (``round-reviewer-notes-v1``) are read too. Agreement
   and precision/recall come from ``eval/label_tool.py`` so the page and the
   command line report the same numbers.
 - Moment picks (T62) go to ``data/labels/moments/<match>-<player>-<labeller>.json``
@@ -10,10 +11,13 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import math
 import re
 import sys
+from collections import Counter
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +26,8 @@ from app.models.contracts import MomentPicks, RoundLabel, SelectedMoment
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 NAME_RE = re.compile(r"^[A-Za-z0-9_]{1,40}$")  # no "-": it separates the parts of the file name
+NOTES_FORMAT = "round-reviewer-notes-v1"
+VERDICTS = ("correct", "wrong", "unsure")
 
 
 def labels_dir() -> Path:
@@ -71,34 +77,100 @@ def save_round(label: RoundLabel) -> RoundLabel:
     return label
 
 
+def _clip_rows(label: dict[str, Any]) -> list[dict[str, Any]]:
+    """Verdicts on a clip's findings: its per-finding reviews, or the clip verdict when it shows one finding."""
+    members = (label.get("footage") or {}).get("findings") or [label["finding"]]
+    verdicts = {r.get("findingId"): r.get("verdict") for r in label.get("signalReviews") or []}
+    if len(members) == 1:
+        verdicts.setdefault(members[0].get("id"), label.get("verdict"))
+    # One verdict over several findings cannot say which of them was right, so those are left out.
+    return [
+        {"findingId": f.get("id"), "detector": f.get("detector"), "t": f.get("t"), "verdict": verdicts[f.get("id")]}
+        for f in members
+        if verdicts.get(f.get("id")) in VERDICTS
+    ]
+
+
+def read_label_files(paths: Iterable[Path]) -> list[dict[str, Any]]:
+    """Round records (the JSONL line format) from JSONL files and ``round-reviewer-notes-v1`` exports.
+
+    A round labelled again keeps its newest line. Exports are cumulative, so each clip
+    keeps its newest save (a withdrawal included), and its scored findings join its round;
+    exports list no missed events, so those rounds have ``missed`` None.
+    """
+    rounds: dict[tuple, dict[str, Any]] = {}
+    clips: dict[tuple, dict[str, Any]] = {}
+    for path in paths:
+        text = Path(path).read_text(encoding="utf-8")
+        try:
+            doc = json.loads(text)
+        except ValueError:
+            doc = None  # several JSONL lines
+        if isinstance(doc, dict) and "findings" not in doc:
+            # One JSON document that is not a round line: a notes export, or something else (skipped)
+            entries = doc.get("labels") if doc.get("format") == NOTES_FORMAT else None
+            for entry in entries or []:
+                label = entry.get("label") or {}
+                if entry.get("kind") != "clip" or not isinstance(label.get("finding"), dict):
+                    continue
+                review = (label.get("footage") or {}).get("reviewKey") or label["finding"].get("id")
+                key = (label.get("matchId"), label.get("playerId"), label.get("snapshotId"), review, label.get("labeller"))
+                if key not in clips or entry.get("savedAt", "") >= clips[key].get("savedAt", ""):
+                    clips[key] = entry
+            continue
+        for line in text.splitlines():
+            if line.strip():
+                record = json.loads(line)
+                key = (record["labeller"], record["matchId"], record["playerId"], record["round"])
+                if key not in rounds or record.get("labelledAt", "") >= rounds[key].get("labelledAt", ""):
+                    rounds[key] = record
+    for entry in clips.values():
+        label = entry["label"]
+        rows = _clip_rows(label) if label.get("status") == "complete" else []
+        if rows:
+            key = (label.get("labeller"), label.get("matchId"), label.get("playerId"), label.get("round"))
+            record = rounds.setdefault(
+                key, {"labeller": key[0], "matchId": key[1], "playerId": key[2], "round": key[3], "findings": [], "missed": None}
+            )
+            record["findings"] += rows
+    return list(rounds.values())
+
+
+def manifest_splits() -> dict[str, str] | None:
+    """``demo-<sha256>`` -> train, val or test from RR_CORPUS_MANIFEST; None when it is not set."""
+    from app.core.config import settings
+
+    if settings.corpus_manifest is None:
+        return None
+    with Path(settings.corpus_manifest).open(encoding="utf-8-sig", newline="") as fh:
+        return {"demo-" + row["demoSha256"]: row["split"] for row in csv.DictReader(fh)}
+
+
+def _records() -> list[dict[str, Any]]:
+    folder = labels_dir()
+    return read_label_files(sorted(folder.glob("*.jsonl")) + sorted(folder.glob("*.json")))
+
+
 def labellers() -> list[str]:
-    names = set()
-    for path in labels_dir().glob("*.jsonl"):
-        names.add(path.stem.rsplit("-", 1)[-1])
+    names = {r["labeller"] for r in _records()}
     for path in (labels_dir() / "moments").glob("*.json"):
         names.add(path.stem.rsplit("-", 1)[-1])
     return sorted(names)
 
 
-def _records(labeller: str) -> list[dict[str, Any]]:
-    out = []
-    for path in sorted(labels_dir().glob(f"*-{check_name(labeller)}.jsonl")):
-        out += [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    return out
-
-
 def summary(a: str | None, b: str | None) -> dict[str, Any]:
-    """Rounds labelled per labeller, precision/recall over everyone, and κ between two labellers."""
+    """Rounds labelled per labeller, precision/recall over everyone (also per split), and κ between two labellers."""
     tool = label_tool()
-    names = labellers()
-    per = {n: len(_records(n)) for n in names}
-    all_records = [r for n in names for r in _records(n)]
-    out: dict[str, Any] = {"labellers": per, "rounds": len(all_records), "tool": tool is not None}
+    all_records = _records()
+    per = Counter(r["labeller"] for r in all_records)
+    out: dict[str, Any] = {"labellers": {n: per[n] for n in labellers()}, "rounds": len(all_records), "tool": tool is not None}
     if tool is None:
         return out
     out["score"] = tool.score(all_records) if all_records else {}
+    out.update(tool.score_by_split(all_records, manifest_splits()))
     if a and b and a != b:
-        out["agreement"] = {"a": a, "b": b, **tool.agreement(_records(a), _records(b))}
+        mine = [[r for r in all_records if r["labeller"] == name] for name in (a, b)]
+        out["agreement"] = {"a": a, "b": b, **tool.agreement(*mine)}
     return out
 
 
@@ -129,17 +201,30 @@ def _same_moment(a_round: int, a_t0: float, a_t1: float, b: SelectedMoment) -> b
 
 def score_picks(picks: MomentPicks, agent: list[SelectedMoment], k: int = 6) -> dict[str, Any]:
     """overlap@k: share of the coach's picks (at most k) the human also picked (same round, windows overlap).
-    NDCG@k: the coach's order scored against the human set, binary relevance."""
-    human = picks.picks[:k]
+    NDCG@k: the coach's order scored against the human set, binary relevance.
+    Each human pick matches at most one coach pick; both are None without human picks."""
+    human = list({(h.round, h.t0, h.t1): h for h in picks.picks}.values())[:k]
     ranked = agent[:k]
-    hits = [any(_same_moment(h.round, h.t0, h.t1, m) for h in human) for m in ranked]
+    owner: dict[int, int] = {}  # human pick -> the coach pick it matched
+
+    def claim(j: int, seen: set[int]) -> bool:
+        # Augmenting path in rank order: an earlier coach pick never loses its match, so DCG is the highest possible
+        for i, h in enumerate(human):
+            if i not in seen and _same_moment(h.round, h.t0, h.t1, ranked[j]):
+                seen.add(i)
+                if i not in owner or claim(owner[i], seen):
+                    owner[i] = j
+                    return True
+        return False
+
+    hits = [claim(j, set()) for j in range(len(ranked))]
     dcg = sum(1 / math.log2(i + 2) for i, hit in enumerate(hits) if hit)
-    ideal = sum(1 / math.log2(i + 2) for i in range(min(len(human), len(ranked))))
+    ideal = sum(1 / math.log2(i + 2) for i in range(min(len(human), k)))
     return {
         "humanPicks": len(human),
         "coachPicks": len(ranked),
         "overlap": sum(hits),
-        "overlapAt6": round(sum(hits) / len(ranked), 3) if ranked else None,
+        "overlapAt6": round(sum(hits) / len(ranked), 3) if ranked and human else None,
         "ndcgAt6": round(dcg / ideal, 3) if ideal else None,
         "coachSource": ranked[0].source if ranked else None,
     }

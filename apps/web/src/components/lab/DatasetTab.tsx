@@ -53,7 +53,7 @@ export function DatasetTab() {
     <section className="lab-tab">
       <div className="sec-h">
         <h2>
-          <span className="num">{kept}</span> of <span className="num">{TARGET}</span> examples kept
+          {kept} of {TARGET} examples kept
         </h2>
         <span className="meta">
           {Object.entries(page.counts)
@@ -91,8 +91,9 @@ export function DatasetTab() {
           <header className="label-h">
             <h2>
               {ex.job}
-              {ex.lang ? `, ${ex.lang}` : ""} <span className="meta">{ex.split} split</span>
+              {ex.lang ? `, ${ex.lang}` : ""}
             </h2>
+            <span className="meta">{ex.split} split</span>
             <span className="meta num">
               {idx + 1} of {page.items.length}
             </span>

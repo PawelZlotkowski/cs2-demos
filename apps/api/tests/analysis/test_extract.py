@@ -1,3 +1,5 @@
+import pandas as pd
+
 from app.analysis.match_data import build_match_data
 from app.analysis.run import analyse_player
 from app.processing.normalize import normalize_parsed
@@ -43,9 +45,25 @@ def test_end_to_end_analysis_on_synthetic_demo():
     t1 = sd.sid(sd.T_IDS[0])
     result = analyse_player(match, t1)
     detectors = {f.detector for f in result.findings}
-    assert {"shot_while_moving", "unused_utility", "team_flash", "opening_duel", "good_plays"} <= detectors
-    assert "untraded_death" not in detectors  # T2 traded within 1.6 s
+    assert {"team_flash", "opening_duel", "good_plays"} <= detectors
+    assert "unused_utility" not in detectors  # T1's death was traded by T2 within the trade window
+    moving = next(f for f in result.findings if f.detector == "shot_while_moving")
+    assert moving.kind == "context" and moving.evidence["shots"] == 2
+    assert "untraded_death" not in detectors  # Selected player died, no nearby mate death while alive.
     assert [f.id for f in result.findings] == [f"F{i}" for i in range(1, len(result.findings) + 1)]
     assert all(f.summary and "{" not in f.summary for f in result.findings)
     assert len(result.round_stats) == 2
     assert result.moments and all(set(m.finding_ids) <= {f.id for f in result.findings} for m in result.moments)
+
+
+def test_half_time_round_end_does_not_duplicate_a_round():
+    # anc-072: a winnerless round_end fires in the half-time break, with no freeze_end
+    # since the previous round. It used to reuse that round's freeze_end as its start.
+    parsed = sd.build()
+    parsed.round_ends = pd.DataFrame(
+        {"tick": [7000, 8000, 15000], "winner": ["CT", None, "T"],
+         "reason": ["t_killed", None, "ct_killed"], "round": [1, 2, 3]}
+    )
+    out = normalize_parsed("match-half", parsed)
+    match = build_match_data(out["analysis"], out["round_replays"])
+    assert [(r.number, r.start_tick, r.end_tick) for r in match.rounds] == [(1, 1000, 7000), (2, 9000, 15000)]

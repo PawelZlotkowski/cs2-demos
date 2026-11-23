@@ -1,115 +1,76 @@
 "use client";
 
-import { useEffect, useMemo, useRef, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { ReplayPlayer } from "@/lib/contracts";
 
 export type PickerPlayer = ReplayPlayer & { kills?: number; deaths?: number };
-
 type Props = {
   players: PickerPlayer[];
-  /** Player whose analysis is being started, if any. */
   busyId: string | null;
-  selectedId?: string | null;
+  selectedId: string | null;
   onPick: (playerId: string) => void;
 };
 
-/** Last analysed player, so the viewer's own name is focused on the next demo. */
 const LAST_KEY = "rr.player";
 
-function lastPicked(): string | null {
-  try {
-    return window.localStorage.getItem(LAST_KEY);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Ten players in two teams, each a plain row: name and K/D. Arrow keys move
- * between rows, Enter or Space picks. No avatars or ranks: the demo has neither.
- */
 export function PlayerPicker({ players, busyId, selectedId, onPick }: Props) {
-  const listRef = useRef<HTMLDivElement>(null);
-
-  // Teams by side at mid-match; a team keeps its players across the half, so the grouping holds.
-  const teams = useMemo(() => {
-    const sides = (["CT", "T"] as const).map((side) =>
-      players.filter((p) => p.team === side).sort((a, b) => (b.kills ?? 0) - (a.kills ?? 0) || (a.deaths ?? 0) - (b.deaths ?? 0)),
-    );
-    return sides.filter((ps) => ps.length).map((ps, i) => ({ name: i === 0 ? "Team A" : "Team B", players: ps }));
-  }, [players]);
-
+  const list = useRef<HTMLDivElement>(null);
+  const [lastId, setLastId] = useState<string | null>(null);
   useEffect(() => {
-    const last = lastPicked();
-    const root = listRef.current;
-    if (!root) return;
-    const target =
-      (last && root.querySelector<HTMLButtonElement>(`button[data-pid="${CSS.escape(last)}"]`)) ||
-      root.querySelector<HTMLButtonElement>("button[data-pid]");
-    target?.focus();
-  }, [teams]);
+    let last: string | null = null;
+    try { last = window.localStorage.getItem(LAST_KEY); } catch { /* Storage can be disabled. */ }
+    setLastId(last);
+    const buttons = Array.from(list.current?.querySelectorAll<HTMLButtonElement>("[data-pid]") ?? []);
+    const first = buttons.find((b) => b.dataset.pid === last) ?? buttons[0];
+    if (document.activeElement === document.body) first?.focus({ preventScroll: true });
+  }, []);
 
-  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") return;
-    const buttons = Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>("button[data-pid]") ?? []);
-    const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    const next =
-      e.key === "Home"
-        ? 0
-        : e.key === "End"
-          ? buttons.length - 1
-          : Math.max(0, Math.min(buttons.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)));
-    buttons[next]?.focus();
+  function move(e: KeyboardEvent<HTMLDivElement>) {
+    const rows = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button[data-pid]:enabled"));
+    const index = rows.indexOf(document.activeElement as HTMLButtonElement);
+    if (index < 0) return;
+    let next = index;
+    switch (e.key) {
+      case "Home": next = 0; break;
+      case "End": next = rows.length - 1; break;
+      case "ArrowUp": next = Math.max(0, index - 1); break;
+      case "ArrowDown": next = Math.min(rows.length - 1, index + 1); break;
+      default: return;
+    }
     e.preventDefault();
+    rows[next].focus();
   }
 
   function pick(id: string) {
-    try {
-      window.localStorage.setItem(LAST_KEY, id);
-    } catch {
-      /* per-viewer convenience only */
-    }
+    try { window.localStorage.setItem(LAST_KEY, id); } catch { /* The choice still works for this review. */ }
+    setLastId(id);
     onPick(id);
   }
 
-  const last = typeof window === "undefined" ? null : lastPicked();
-
-  return (
-    <div className="picker" ref={listRef} onKeyDown={onKeyDown}>
-      {teams.map((team) => (
-        <section key={team.name} className="pick-team" aria-label={team.name}>
-          <h2>
-            {team.name}
-            <span>{team.players.some((p) => p.kills !== undefined) ? "K / D" : "Choose one player"}</span>
-          </h2>
-          <ul>
-            {team.players.map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  className="pick-row"
-                  data-pid={p.id}
-                  disabled={busyId !== null}
-                  aria-busy={busyId === p.id}
-                  aria-pressed={selectedId === p.id}
-                  aria-label={`Select ${p.name}${p.kills !== undefined ? `, ${p.kills} kills, ${p.deaths} deaths` : ""}`}
-                  onClick={() => pick(p.id)}
-                >
-                  <span className="pick-name">{p.name}</span>
-                  {busyId === p.id ? (
-                    <span className="pick-note">Starting…</span>
-                  ) : selectedId === p.id ? (
-                    <span className="pick-note">Selected</span>
-                  ) : p.id === last ? (
-                    <span className="pick-note">Last picked</span>
-                  ) : null}
-                  {p.kills !== undefined ? <span className="pick-kd">{p.kills} / {p.deaths}</span> : null}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
-  );
+  return <div className="setup-roster" ref={list} onKeyDown={move}>
+    {(["T", "CT"] as const).map((side) => {
+      const team = players.filter((p) => p.team === side).sort((a, b) =>
+        (b.kills ?? 0) - (a.kills ?? 0) || (a.deaths ?? 0) - (b.deaths ?? 0));
+      return <section key={side} className="setup-team" data-side={side} aria-labelledby={`setup-${side}`}>
+        <h2 id={`setup-${side}`}><i className="team-dot" aria-hidden="true" />Started {side}</h2>
+        {team.length ? <ul>{team.map((p) => (
+          <li key={p.id}>
+            <button type="button" className="player-choice" data-pid={p.id} disabled={busyId !== null}
+              aria-busy={busyId === p.id} aria-pressed={selectedId === p.id}
+              aria-label={`Select ${p.name}${p.kills !== undefined ? `, ${p.kills} kills, ${p.deaths} deaths` : ""}`}
+              onClick={() => pick(p.id)} title={p.name}>
+              <span className="player-bead" aria-hidden="true">{Array.from(p.name.trim())[0]?.toUpperCase()}</span>
+              <strong>{p.name}</strong>
+              {p.kills !== undefined && <span className="player-kd" title="Kills / deaths">{p.kills} / {p.deaths}</span>}
+              {selectedId === p.id ? <span className="player-check" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"
+                  strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4.5 8.3l2.3 2.3 4.7-5.2" /></svg>
+              </span> :
+                !selectedId && lastId === p.id ? <small>Last picked</small> : null}
+            </button>
+          </li>
+        ))}</ul> : <p className="meta">No players on this side.</p>}
+      </section>;
+    })}
+  </div>;
 }

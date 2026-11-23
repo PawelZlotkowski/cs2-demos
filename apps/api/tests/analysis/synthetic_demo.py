@@ -55,8 +55,8 @@ def build() -> ParsedDemo:
         ]
     )
     weapon_fires = pd.DataFrame(
-        [{"tick": 1990, "user_steamid": t1, "weapon": "weapon_ak47", "user_X": mid[0], "user_Y": mid[1], "user_Z": 0.0,
-          "user_velocity_X": 180.0, "user_velocity_Y": 100.0}]
+        [{"tick": shot_tick, "user_steamid": t1, "weapon": "weapon_ak47", "user_X": mid[0], "user_Y": mid[1], "user_Z": 0.0,
+          "user_velocity_X": 180.0, "user_velocity_Y": 100.0} for shot_tick in (1990, 1997)]
     )
     hurts = pd.DataFrame(
         [{"tick": 1995, "attacker_steamid": ct1, "user_steamid": t1, "dmg_health": 40, "weapon": "m4a1"}]

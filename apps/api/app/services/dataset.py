@@ -19,9 +19,11 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from app.coach.examples import demo_digest
 from app.core.config import settings
 from app.models.contracts import DatasetExample, DatasetPage
 from app.repositories.extras import extras
+from app.services.labels import manifest_splits
 from app.services.traces import iter_traces
 
 JOBS = ("explain", "ask", "ask_across", "summary", "wrapup", "practice_plan")
@@ -29,7 +31,8 @@ TARGET = 300  # reviewed examples the plan asks for (T51)
 
 
 CITE_RE = re.compile(r"\[([^\]]+)\]")
-NUMBER_RE = re.compile(r"(?<![A-Za-z:])\d+(?:[.,]\d+)?")
+# Whole numbers only: not the "4" of F14 or the "5" of t:15.5
+NUMBER_RE = re.compile(r"(?<![\w:.])\d+(?:[.,]\d+)?")
 
 
 def edit_problem(ex: DatasetExample, text: str) -> str | None:
@@ -50,6 +53,16 @@ def split_of(key: str) -> str:
     return "test" if bucket == 0 else "val" if bucket == 1 else "train"
 
 
+def manifest_split(match_id: str | None, splits: dict[str, str] | None) -> str | None:
+    """The corpus manifest's split for the match's demo; None when there is no manifest or the demo is not in it."""
+    if not match_id or splits is None:
+        return None
+    try:
+        return splits.get("demo-" + demo_digest(match_id))
+    except OSError:  # the decompressed demo is gone
+        return None
+
+
 def _conversation(record: dict[str, Any]) -> list[dict[str, Any]] | None:
     runs = record.get("runs") or []
     if len(runs) != 1:
@@ -62,6 +75,7 @@ def _conversation(record: dict[str, Any]) -> list[dict[str, Any]] | None:
 
 def examples() -> list[tuple[DatasetExample, list[dict[str, Any]]]]:
     reviews = extras().dataset_reviews()
+    splits = manifest_splits()
     out = []
     for trace_id, record in iter_traces():
         if record.get("job") not in JOBS or record.get("source") != "agent" or record.get("repaired"):
@@ -78,7 +92,8 @@ def examples() -> list[tuple[DatasetExample, list[dict[str, Any]]]]:
                     job=str(record["job"]),
                     lang=record.get("lang"),
                     match_id=record.get("matchId"),
-                    split=split_of(str(record.get("matchId") or record.get("playerId") or trace_id)),  # type: ignore[arg-type]
+                    split=manifest_split(record.get("matchId"), splits)  # type: ignore[arg-type]
+                    or split_of(str(record.get("matchId") or record.get("playerId") or trace_id)),
                     prompt=prompt,
                     output=str(record["runs"][0]["output"]),
                     verdict=review.get("verdict"),
@@ -111,6 +126,7 @@ def export(folder: Path | None = None) -> dict[str, int]:
     """Write ``train.jsonl``, ``val.jsonl`` and ``test.jsonl`` (chat format) with the accepted examples."""
     folder = folder or dataset_dir()
     folder.mkdir(parents=True, exist_ok=True)
+    splits = manifest_splits()
     lines: dict[str, list[str]] = {"train": [], "val": [], "test": []}
     for ex, messages in examples():
         if ex.verdict not in ("accept", "edit"):
@@ -119,6 +135,8 @@ def export(folder: Path | None = None) -> dict[str, int]:
         if ex.verdict == "edit" and ex.edited:
             convo[-1] = {"role": "assistant", "content": ex.edited}
         row = {"id": ex.id, "job": ex.job, "lang": ex.lang, "messages": convo}
+        if splits is not None and manifest_split(ex.match_id, splits) is None:
+            row["splitByHash"] = True  # not in the corpus manifest, so the split is a hash of the match id
         lines[ex.split].append(json.dumps(row, ensure_ascii=False))
     for split, rows in lines.items():
         (folder / f"{split}.jsonl").write_text("".join(r + "\n" for r in rows), encoding="utf-8")

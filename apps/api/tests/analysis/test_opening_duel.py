@@ -12,6 +12,13 @@ def test_lost_opening_duel():
     assert out[0].template == "opening_duel.lost"
 
 
+def test_lost_opening_duel_that_was_traded_is_not_flagged():
+    traded = kill(14.0, "t2", "ct1")  # within the 5 s trade window
+    assert opening_duel.detect(match(round_(kills=[kill(12.0, "ct1", "t1"), traded])), 2, "t1") == []
+    late = kill(18.0, "t2", "ct1")
+    assert len(opening_duel.detect(match(round_(kills=[kill(12.0, "ct1", "t1"), late])), 2, "t1")) == 1
+
+
 def test_won_opening_duel_uses_attacker_position():
     rd = round_(kills=[kill(12.0, "t1", "ct1", vpos=w("Mid"), apos=w("Top mid"))])
     out = opening_duel.detect(match(rd), 2, "t1")

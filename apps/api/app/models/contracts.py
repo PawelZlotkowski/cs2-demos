@@ -133,10 +133,12 @@ ReviewFocus = Literal["overall", "shooting", "utility", "teamwork"]
 class Match(CamelModel):
     id: str
     map: str
+    # "us–them" for the coached player's team once round stats exist; before a player
+    # is chosen, the team that started on CT comes first (normalize_parsed).
     score: str
     when: str
     rounds: int
-    won: list[Literal[0, 1]]
+    won: list[Literal[0, 1]]  # per round, for the team that started on CT
     status: MatchStatus = MatchStatus.complete
     clip_duration: float = Field(20.0, alias="clipDuration")
     error: str | None = None

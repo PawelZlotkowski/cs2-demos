@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -8,7 +9,7 @@ BUNDLED_FIXTURE = Path(__file__).resolve().parents[2] / "data" / "fixtures" / "s
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="RR_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="RR_", env_file=os.getenv("RR_ENV_FILE", ".env"), extra="ignore")
 
     app_name: str = "Round Reviewer API"
     data_dir: Path = Path(__file__).resolve().parents[2] / "data"
@@ -25,15 +26,16 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 300 * 1024 * 1024
     max_decompress_bytes: int = 2 * 1024 * 1024 * 1024
     parse_timeout_seconds: float = 120.0
-    # Local V1 uses only the explicitly reviewed detector subset. Preserve the
-    # legacy profile for existing evaluations; the local launcher selects V1.
-    analysis_profile: Literal["all", "local-v1"] = "all"
+    # Fresh API/Docker starts use the conservative delivery profile too.
+    # Legacy research evaluations must opt in with RR_ANALYSIS_PROFILE=all.
+    analysis_profile: Literal["all", "local-v1"] = "local-v1"
     load_saved_settings: bool = True
 
     # Coach model (AI Coach plan §6.1): self-hosted llama.cpp, OpenAI-compatible.
     # Off by default so the app runs without a GPU; the code ranker and the
     # finding templates stand in until RR_LLM_ENABLED=true.
     llm_enabled: bool = False
+    labeler_url: str | None = None
     llm_base_url: str = "http://127.0.0.1:8080/v1"
     llm_model: str = "qwen3-14b-q4_k_m"
     llm_timeout_seconds: float = 180.0
@@ -45,6 +47,8 @@ class Settings(BaseSettings):
     llm_top_p: float | None = None
     llm_top_k: int | None = None
     llm_min_p: float | None = None
+    # Sent with every request so runs repeat; RR_LLM_SEED=-1 asks llama-server for a random one, None omits it
+    llm_seed: int | None = 20261125
     # How the agent reaches the tools: "mcp" (cs2-demo server in-process over
     # the MCP protocol, or RR_MCP_URL / RR_MCP_COMMAND) or "inprocess"
     coach_tools: str = "mcp"
@@ -59,6 +63,8 @@ class Settings(BaseSettings):
     labels_dir: Path | None = None
     # Fine-tuning set built from the traces (T50); the Lab Dataset tab reviews it (T51)
     dataset_dir: Path | None = None
+    # Private corpus manifest.csv (demoSha256, split): label scores and the dataset split by it
+    corpus_manifest: Path | None = None
     # Knowledge base (plan §7): markdown folder, optional local embedding server
     knowledge_dir: Path | None = None
     embed_url: str | None = None

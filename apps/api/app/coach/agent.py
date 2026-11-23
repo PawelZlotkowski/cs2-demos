@@ -118,8 +118,8 @@ class CoachAgent:
                 error = None
                 if call.name not in allowed:
                     out = json.dumps({"error": f"Unknown tool {call.name!r}. Use one of: {', '.join(sorted(allowed))}."})
-                elif "__invalid_json__" in call.arguments:
-                    out = json.dumps({"error": "Arguments were not valid JSON."})
+                elif not isinstance(call.arguments, dict) or "__invalid_json__" in call.arguments:
+                    out = json.dumps({"error": "Arguments must be a JSON object."})
                 else:
                     args = bind(specs[call.name].parameters, call.arguments, bound)
                     out = await self.tools.call(call.name, args)

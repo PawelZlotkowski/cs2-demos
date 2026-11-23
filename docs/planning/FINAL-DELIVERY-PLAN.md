@@ -2,6 +2,8 @@
 
 **Teacher presentation on Wednesday 25 November 2026.** The [first prototype working plan](TEACHER-PROTOTYPE-2026-11-25.md) gives the evidence, rehearsal schedule and assignments for this checkpoint. The 17 November date below belongs to the earlier defence schedule. The invited-user and submission target remains 6 December.
 
+**20 November audit evidence:** [application, corpus and labelling audit](../coach/SHOWCASE-READINESS-AUDIT-2026-11-20.md) records 85 ready clips, 102 training-file checks, corrected stale evidence/recording paths, regression results and the remaining presentation gates. Existing RR task scope is unchanged.
+
 **25 October scope and implementation update:** Pawel changed delivery maps to **Ancient and Anubis**. Mirage/Dust II coverage is no longer a delivery requirement. Local implementation has started; see the [V1 runbook and immediate tasks](../LOCAL-V1-RUNBOOK.md). Earlier dates remain targets, not completed work. The shared cloud API/parser requirement and the 17 November / 6 December milestones remain unchanged.
 
 **Workspace update, 20 October 2026:** `C:/Users/pawel/Documents/cs2-demos-studio` is now the organised working folder. Current plans, the original proposal, technical references and the selected prototype are collected there. Phase 1 safeguards are preserved in [integration patches and tasks](../../integration/phase1/README.md); application integration is still pending. [Consolidation record](../consolidation/README.md). **Design work is paused by Pawel.** Existing design milestones below remain planning targets to reassess when design resumes, not permission to continue it now.
@@ -9,6 +11,8 @@
 Final planning baseline, 19 October 2026; UI/motion refinement added 20 October. First defence: **17 November 2026**. Final invited-user product and university submission: **6 December 2026**.
 
 This is the authoritative delivery scope, priority list and ownership plan. It supersedes the decision draft and its P/F/E/C/U/R/X task IDs. The [hosting reference](HOSTING-AND-GPU-PLAN.md), [recording and training plan](RECORDING-AND-TRAINING-PLAN.md) and [Studio UI and motion plan](STUDIO-UI-AND-MOTION-PLAN.md) supply details; their task references expand this backlog rather than add competing work. Implementation has not begun as part of this planning task.
+
+**20 November detection quality update:** Pawel requested correction of nearby trades, movement false positives and repeated actions, plus web research for RAG. The code now uses selected-player trade eligibility within 5 m, contextual combat-linked rifle movement signals, and duplicate/overlap checks. [Research and implementation record](../coach/DETECTION-QUALITY-RESEARCH-2026-11-20.md) and [source manifest](../../data/knowledge/research-sources-2026-11-20.json). This advances RR11–RR13/RR16; it does not close the human-label, visibility, Ancient knowledge or live-model evaluation gates.
 
 ## 1 The product to deliver
 

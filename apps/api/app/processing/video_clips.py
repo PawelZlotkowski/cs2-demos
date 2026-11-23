@@ -8,13 +8,14 @@ import os
 import shutil
 import subprocess
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
 from app.models.contracts import ClipManifest, ClipStatus, RoundClip
-from app.repositories.matches import MatchRepository, repo
+from app.repositories.matches import ROUND_ID, MatchRepository, repo
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,8 @@ def save_manifest(manifest: ClipManifest, repository: MatchRepository | None = N
 
 
 def clip_file(match_id: str, round_id: str, repository: MatchRepository | None = None) -> Path:
+    if not ROUND_ID.fullmatch(round_id):
+        raise ValueError(f"Not a round id: {round_id!r}")
     return clips_dir(match_id, repository) / f"{round_id}.mp4"
 
 
@@ -99,15 +102,10 @@ def public_clip_url(match_id: str, round_id: str) -> str:
 
 
 def choose_focus_steamid(record: dict[str, Any]) -> str | None:
-    if settings.csdm_focus_steamid:
-        return settings.csdm_focus_steamid
-    players = (record.get("match") or {}).get("players") or []
-    for p in players:
-        if p.get("team") == "CT":
-            return str(p.get("id"))
-    if players:
-        return str(players[0].get("id"))
-    return None
+    match = record.get("match") or {}
+    chosen = match.get("selectedPlayerId") or settings.csdm_focus_steamid
+    roster = {str(p.get("id")) for p in match.get("players") or []}
+    return str(chosen) if chosen and str(chosen) in roster else None
 
 
 def init_manifest_for_match(match_id: str, repository: MatchRepository | None = None) -> ClipManifest:
@@ -116,6 +114,8 @@ def init_manifest_for_match(match_id: str, repository: MatchRepository | None = 
     if not record:
         raise KeyError(match_id)
     focus = choose_focus_steamid(record)
+    previous = load_manifest(match_id, repository)
+    prior_clips = {c.round_id: c for c in previous.clips} if previous else {}
     is_sample = bool(record.get("is_sample"))
     rounds = list(record.get("rounds") or [])
     if settings.csdm_max_rounds and settings.csdm_max_rounds > 0:
@@ -124,7 +124,10 @@ def init_manifest_for_match(match_id: str, repository: MatchRepository | None = 
     for r in rounds:
         rid = r["id"]
         path = clip_file(match_id, rid, repository)
-        if path.exists() and path.stat().st_size > 0:
+        prior = prior_clips.get(rid)
+        reusable = (prior and prior.status == ClipStatus.ready and prior.focus_steamid == focus
+                    and prior.start_tick == int(r['startTick']) and prior.end_tick == int(r['endTick']))
+        if focus and reusable and path.exists() and path.stat().st_size > 0:
             status = ClipStatus.ready
             url = public_clip_url(match_id, rid)
             err = None
@@ -132,6 +135,10 @@ def init_manifest_for_match(match_id: str, repository: MatchRepository | None = 
             status = ClipStatus.skipped
             url = None
             err = "Sample match has no gameplay video."
+        elif not focus:
+            status = ClipStatus.skipped
+            url = None
+            err = "Choose a roster player before recording their point of view."
         elif not settings.csdm_enabled:
             status = ClipStatus.skipped
             url = None
@@ -170,12 +177,13 @@ def init_manifest_for_match(match_id: str, repository: MatchRepository | None = 
 
 def get_or_init_manifest(match_id: str, repository: MatchRepository | None = None) -> ClipManifest | None:
     repository = repository or repo
+    repository = repository or repo
     existing = load_manifest(match_id, repository)
-    if existing:
-        return existing
     record = repository.get(match_id)
     if not record:
         return None
+    if existing and existing.focus_steamid == choose_focus_steamid(record):
+        return existing
     # Empty rounds → empty manifest (sample fixture has no round list)
     return init_manifest_for_match(match_id, repository)
 
@@ -359,20 +367,40 @@ def csdm_record(dem: Path, start_tick: int, end_tick: int, focus_steamid: str | 
     ]
     if focus_steamid:
         cmd.extend(["--focus-player", focus_steamid])
+    # Filesystem timestamps can be coarser than time.time(); allow a little slack.
+    started = time.time() - 2
     run_csdm(cmd, timeout=settings.csdm_timeout_seconds)
-    # CS:DM may name the file differently; normalize to the expected name
-    if out.exists():
-        return
-    candidates = sorted(out_dir.glob("*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
-    for cand in candidates:
-        if cand.resolve() == out.resolve():
-            return
-        # Prefer a file whose name contains the clip id; else take the newest.
-        if out.stem in cand.stem or cand == candidates[0]:
-            if cand.resolve() != out.resolve():
-                shutil.move(str(cand), str(out))
-            return
-    raise RuntimeError("CS Demo Manager did not produce an MP4 in the output folder.")
+    # CS:DM names the file itself, and 3.21 writes it into a per-video subfolder
+    # (<output>/<uuid>/sequence-1-tick-A-to-B.mp4). Take the newest MP4 written by this run
+    # at any depth; an older clip in a shared folder must never stand in for a failed one.
+    candidates = sorted(
+        (p for p in out_dir.rglob("*.mp4") if p.stat().st_mtime >= started),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if not candidates:
+        raise RuntimeError("CS Demo Manager did not produce an MP4 in the output folder.")
+    if candidates[0].resolve() != out.resolve():
+        shutil.move(str(candidates[0]), str(out))
+    make_browser_playable(out)
+
+
+def make_browser_playable(path: Path) -> None:
+    """Re-mux CS:DM's MP3-in-MP4 to AAC with the index first, so Safari plays it; video is copied."""
+    probe = _ffprobe()
+    ffmpeg = Path(probe).with_name(Path(probe).name.replace("ffprobe", "ffmpeg")) if probe else None
+    if not ffmpeg or not ffmpeg.is_file():
+        return  # shortcut: without ffmpeg beside ffprobe the MP3 version stays; Chrome still plays it
+    tmp = path.with_name(path.stem + ".aac.mp4")
+    done = subprocess.run(
+        [str(ffmpeg), "-v", "error", "-y", "-i", str(path), "-map", "0", "-c:v", "copy",
+         "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(tmp)],
+        capture_output=True, timeout=120, check=False,
+    )
+    if done.returncode == 0 and tmp.is_file() and tmp.stat().st_size > 0:
+        os.replace(tmp, path)
+    else:
+        tmp.unlink(missing_ok=True)
 
 
 def run_csdm(cmd: list[str], timeout: float) -> None:
@@ -383,19 +411,21 @@ def run_csdm(cmd: list[str], timeout: float) -> None:
     else:
         run_cmd = cmd
     try:
-        completed = subprocess.run(
-            run_cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
+        proc = subprocess.Popen(run_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     except FileNotFoundError as exc:
         raise RuntimeError(
             "CS Demo Manager CLI was not found. Install CS:DM and add `csdm` to PATH."
         ) from exc
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as exc:
+        # subprocess.run would kill only cmd.exe, then wait forever on the pipe csdm and CS2 still hold
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True, check=False)
+        else:
+            proc.kill()
         raise RuntimeError("Gameplay recording timed out.") from exc
+    completed = subprocess.CompletedProcess(run_cmd, proc.returncode, stdout, stderr)
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout or "").strip()
         raise RuntimeError(detail or f"Command failed: {' '.join(cmd)}")
@@ -427,8 +457,7 @@ def friendly_error(exc: Exception) -> str:
 video_worker = VideoWorker()
 
 
-def validate_recorded_media(path: Path) -> None:
-    """Reject empty/header-only files; this does not prove semantic POV alignment."""
+def _ffprobe() -> str | None:
     probe = shutil.which(settings.ffprobe_bin)
     if not probe and Path(settings.ffprobe_bin).is_file():
         probe = settings.ffprobe_bin
@@ -436,6 +465,12 @@ def validate_recorded_media(path: Path) -> None:
         candidate = Path.home() / '.csdm/ffmpeg/bin/ffprobe.exe'
         if candidate.is_file():
             probe = str(candidate)
+    return probe
+
+
+def validate_recorded_media(path: Path) -> None:
+    """Reject empty/header-only files; this does not prove semantic POV alignment."""
+    probe = _ffprobe()
     if not probe:
         raise RuntimeError('ffprobe is required to validate recordings. Set RR_FFPROBE_BIN.')
     checked = subprocess.run([probe, '-v', 'error', '-show_streams', '-show_format', '-of', 'json', str(path)], capture_output=True, text=True, timeout=20, check=False)

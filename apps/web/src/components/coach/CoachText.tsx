@@ -4,12 +4,14 @@ import { Fragment, useState, type ReactNode } from "react";
 import { api } from "@/lib/api/client";
 import type { KnowledgePassage } from "@/lib/contracts";
 import { formatClock } from "@/lib/replay/time";
+import { passageLinks } from "./KnowledgeTab";
 
 /** [F12], [t:34.5], [m3], [K7], [M2:F3] (a finding in another match, Coach page) and lists such as [F1, F2]. */
 const TOK = String.raw`(?:M\d+:F\d+|F\d+|m\d+|K\d+|t:\d+(?:\.\d+)?)`;
 const TOKEN_RE = new RegExp(String.raw`\[(${TOK}(?:\s*,\s*${TOK})*)\]`, "g");
 
 export type CiteHandlers = {
+  onHighlightFinding?: (id: string | null) => void;
   onFinding?: (id: string) => void;
   onSeek?: (t: number) => void;
   onMoment?: (id: string) => void;
@@ -19,10 +21,19 @@ export type CiteHandlers = {
   matchFindingHref?: (ref: string, findingId: string) => string | undefined;
 };
 
-type Props = CiteHandlers & { text: string; className?: string };
+type Props = CiteHandlers & {
+  text: string;
+  className?: string;
+  /** False where the knowledge API is out of reach (a shared link): passage tokens are left out. */
+  passages?: boolean;
+};
+
+/** A citation the model left unfinished, such as "[K...]" or "[F…]": nothing to open, so not shown. */
+const STUB_RE = /\s*\[[A-Za-z]{0,2}\d*:?\s*(?:\.{2,}|…)\]/g;
 
 /** Coach prose with seekable citation tokens and expandable knowledge passages. */
-export function CoachText({ text, className, ...h }: Props) {
+export function CoachText({ text: raw, className, passages = true, ...h }: Props) {
+  const text = raw.replace(STUB_RE, "");
   const [open, setOpen] = useState<KnowledgePassage | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
 
@@ -70,7 +81,10 @@ export function CoachText({ text, className, ...h }: Props) {
     }
     if (tok.startsWith("F") && h.onFinding) {
       return (
-        <button key={key} type="button" className="cite" title={`Jump to ${tok}`} onClick={() => h.onFinding!(tok)}>
+        <button key={key} type="button" className="cite" title={`Jump to ${tok}`}
+          onFocus={() => h.onHighlightFinding?.(tok)} onBlur={() => h.onHighlightFinding?.(null)}
+          onMouseEnter={() => h.onHighlightFinding?.(tok)} onMouseLeave={() => h.onHighlightFinding?.(null)}
+          onClick={() => h.onFinding!(tok)}>
           {tok}
         </button>
       );
@@ -83,6 +97,7 @@ export function CoachText({ text, className, ...h }: Props) {
       );
     }
     if (tok.startsWith("K")) {
+      if (!passages) return null;
       return (
         <button
           key={key}
@@ -98,7 +113,7 @@ export function CoachText({ text, className, ...h }: Props) {
     }
     return (
       <span key={key} className="cite">
-        {tok}
+        {tok.startsWith("m") ? h.momentLabel?.(tok) ?? tok : tok}
       </span>
     );
   }
@@ -123,7 +138,7 @@ export function CoachText({ text, className, ...h }: Props) {
       {open ? (
         <span className="k-passage" role="note">
           <b>{open.title}</b>
-          {open.text ? <span className="k-text">{open.text}</span> : null}
+          {open.text ? <span className="k-text">{passageLinks(open.text)}</span> : null}
           {open.source ? <span className="k-src">Source: {open.source}</span> : null}
         </span>
       ) : null}

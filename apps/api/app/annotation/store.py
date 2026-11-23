@@ -42,6 +42,14 @@ class Store:
                 CREATE TABLE IF NOT EXISTS snapshots (
                   demo TEXT NOT NULL, player TEXT NOT NULL, payload TEXT NOT NULL,
                   PRIMARY KEY(demo, player));
+                CREATE TABLE IF NOT EXISTS snapshot_history (
+                  demo TEXT NOT NULL, player TEXT NOT NULL, snapshot TEXT NOT NULL,
+                  payload TEXT NOT NULL, archived TEXT NOT NULL,
+                  PRIMARY KEY(demo,player,snapshot));
+                CREATE TABLE IF NOT EXISTS snapshot_verifications (
+                  demo TEXT NOT NULL, player TEXT NOT NULL, snapshot TEXT NOT NULL,
+                  version TEXT NOT NULL, verified TEXT NOT NULL,
+                  PRIMARY KEY(demo,player,snapshot,version));
                 CREATE TABLE IF NOT EXISTS revisions (
                   id INTEGER PRIMARY KEY AUTOINCREMENT, demo TEXT NOT NULL,
                   player TEXT NOT NULL, round INTEGER NOT NULL, labeller TEXT NOT NULL,
@@ -86,7 +94,7 @@ class Store:
     def demos(self):
         with self.connect() as con:
             return [{**json.loads(r['metadata']), 'provenance': json.loads(r['provenance'])}
-                    for r in con.execute('SELECT * FROM demos ORDER BY rowid DESC')]
+                    for r in con.execute("SELECT * FROM demos WHERE COALESCE(json_extract(metadata,'$.notesOnly'),0)=0 ORDER BY rowid DESC")]
 
     def demo(self, identity: str):
         with self.connect() as con:
@@ -97,7 +105,8 @@ class Store:
 
     def register(self, metadata: dict):
         with self.connect() as con:
-            con.execute('INSERT OR IGNORE INTO demos VALUES (?,?,?)',
+            con.execute("""INSERT INTO demos VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET metadata=excluded.metadata
+                           WHERE json_extract(demos.metadata,'$.notesOnly')=1""",
                         (metadata['id'], encode(metadata), encode(Provenance().model_dump())))
 
     def set_provenance(self, identity: str, value: Provenance):
@@ -131,12 +140,66 @@ class Store:
         with self.connect() as con:
             con.execute('INSERT OR IGNORE INTO snapshots VALUES (?,?,?)', (demo, player, encode(snapshot)))
 
+    def snapshot_is_current(self, demo: str, player: str, snapshot: dict, version: dict):
+        if snapshot.get('version') == version:
+            return True
+        with self.connect() as con:
+            return bool(con.execute('SELECT 1 FROM snapshot_verifications WHERE demo=? AND player=? AND snapshot=? AND version=?',
+                                    (demo, player, snapshot['id'], encode(version))).fetchone())
+
+    def accept_reanalysis(self, demo: str, player: str, snapshot: dict, *, expected_id: str):
+        """Keep clips/labels if recomputation proves every observation unchanged."""
+        with self.connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            row = con.execute('SELECT payload FROM snapshots WHERE demo=? AND player=?', (demo, player)).fetchone()
+            old = json.loads(row['payload']) if row else None
+            if not old or old['id'] != expected_id:
+                raise Conflict('The analysis changed before refresh. Recalculate from the current snapshot.')
+            def observations(value):
+                # Equal-tick detectors may be enumerated in a different order.
+                # Compare a multiset of complete observations, never their IDs.
+                return sorted(json.dumps({k: v for k, v in f.items() if k != 'id'},
+                                         sort_keys=True, allow_nan=False) for f in value['findings'])
+            unchanged = (all(old.get(k) == snapshot.get(k) for k in ('rounds', 'policy', 'analysisSha256'))
+                         and observations(old) == observations(snapshot))
+            if unchanged:
+                con.execute('INSERT OR IGNORE INTO snapshot_verifications VALUES(?,?,?,?,?)',
+                            (demo, player, old['id'], encode(snapshot['version']), now()))
+                return old
+        self.refresh_snapshot(demo, player, snapshot, expected_id=expected_id)
+        return snapshot
+
+    def refresh_snapshot(self, demo: str, player: str, snapshot: dict, *, expected_id: str):
+        """Replace computed findings, retaining the source snapshot and every label.
+
+        New findings use fresh IDs so a stale tab cannot apply old candidate
+        judgements to a newly computed event with the same ordinal ID.
+        """
+        self.demo(demo)
+        with self.connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            row = con.execute('SELECT payload FROM snapshots WHERE demo=? AND player=?', (demo, player)).fetchone()
+            old = json.loads(row['payload']) if row else None
+            if not old or old['id'] != expected_id:
+                raise Conflict('The analysis changed before refresh. Recalculate from the current snapshot.')
+            if (snapshot['id'] == old['id'] or snapshot.get('playerId', player) != player
+                    or snapshot['rounds'] != old['rounds']
+                    or {f['id'] for f in snapshot['findings']} & {f['id'] for f in old['findings']}):
+                raise ValueError('Refresh requires the same player/rounds and fresh snapshot/finding IDs.')
+            con.execute('INSERT OR IGNORE INTO snapshot_history VALUES(?,?,?,?,?)',
+                        (demo, player, old['id'], row['payload'], now()))
+            con.execute('UPDATE snapshots SET payload=? WHERE demo=? AND player=?', (encode(snapshot), demo, player))
+            con.execute('UPDATE clip_batches SET paused=1 WHERE demo=? AND player=?', (demo, player))
+            con.execute('DELETE FROM clip_selection WHERE demo=? AND player=?', (demo, player))
+
     def current(self, demo: str, player: str, rnd: int, labeller: str, con=None):
         name = self.labeller(labeller)
         if con is None:
             with self.connect() as db:
                 return self.current(demo, player, rnd, name, db)
-        row = con.execute('SELECT id,payload,created FROM revisions WHERE demo=? AND player=? AND round=? AND labeller=? ORDER BY id DESC LIMIT 1',
+        row = con.execute('SELECT id,payload,created FROM revisions WHERE demo=? AND player=? AND round=? AND labeller=? '
+                          "AND (NOT EXISTS (SELECT 1 FROM snapshots WHERE demo=revisions.demo AND player=revisions.player) OR json_extract(payload,'$.snapshotId')=(SELECT json_extract(payload,'$.id') FROM snapshots WHERE demo=revisions.demo AND player=revisions.player)) "
+                          'ORDER BY id DESC LIMIT 1',
                           (demo, player, rnd, name)).fetchone()
         return {**json.loads(row['payload']), 'revision': row['id'], 'savedAt': row['created']} if row else None
 
@@ -145,6 +208,8 @@ class Store:
         snapshot = self.snapshot(demo, player)
         if not snapshot:
             raise ValueError('Choose a player and finish parsing first.')
+        if request.snapshotId is not None and request.snapshotId != snapshot['id']:
+            raise Conflict('This analysis changed. Reload the round before editing; copy unsaved notes first.')
         round_meta = next((r for r in snapshot['rounds'] if r['number'] == rnd), None)
         if not round_meta:
             raise ValueError('Round not found for this player.')
@@ -199,6 +264,9 @@ class Store:
             raise ValueError('Give a reason for blocking or excluding this round.')
         with self.connect() as con:
             con.execute('BEGIN IMMEDIATE')
+            current_snapshot = con.execute('SELECT payload FROM snapshots WHERE demo=? AND player=?', (demo, player)).fetchone()
+            if not current_snapshot or json.loads(current_snapshot['payload'])['id'] != snapshot['id']:
+                raise Conflict('This analysis changed while saving. Reload the round before editing.')
             old = self.current(demo, player, rnd, labeller, con)
             exposed = con.execute('SELECT 1 FROM candidate_exposure WHERE demo=? AND player=? AND round=? AND labeller=?',
                                   (demo, player, rnd, labeller)).fetchone()
@@ -226,7 +294,8 @@ class Store:
         self.labeller(labeller)
         with self.connect() as con:
             rows = con.execute('SELECT round,payload,id FROM revisions WHERE id IN '
-                               '(SELECT MAX(id) FROM revisions WHERE demo=? AND player=? AND labeller=? GROUP BY round)',
+                               '(SELECT MAX(id) FROM revisions WHERE demo=? AND player=? AND labeller=? '
+                               "AND (NOT EXISTS (SELECT 1 FROM snapshots WHERE demo=revisions.demo AND player=revisions.player) OR json_extract(payload,'$.snapshotId')=(SELECT json_extract(payload,'$.id') FROM snapshots WHERE demo=revisions.demo AND player=revisions.player)) GROUP BY round)",
                                (demo, player, labeller)).fetchall()
         return {str(r['round']): {'status': json.loads(r['payload'])['status'], 'revision': r['id']} for r in rows}
 
@@ -234,7 +303,7 @@ class Store:
         self.labeller(labeller)
         with self.connect() as con:
             rows = con.execute('SELECT payload FROM revisions WHERE id IN '
-                               '(SELECT MAX(id) FROM revisions WHERE labeller=? GROUP BY demo,player,round)', (labeller,)).fetchall()
+                               "(SELECT MAX(id) FROM revisions WHERE labeller=? GROUP BY demo,player,round,json_extract(payload,'$.snapshotId'))", (labeller,)).fetchall()
         result = []
         for row in rows:
             r = json.loads(row['payload'])

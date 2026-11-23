@@ -22,7 +22,7 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
-from app.rag.ingest import KNOWLEDGE_DIR, Passage, load_passages
+from app.rag.ingest import ID_SCHEME, KNOWLEDGE_DIR, Passage, load_passages
 
 Embedder = Callable[[list[str]], list[list[float]]]
 RRF_K = 60
@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS passages (
     id TEXT PRIMARY KEY, file TEXT, title TEXT, map TEXT, side TEXT, topic TEXT,
     source TEXT, text TEXT, vector TEXT
 );
+CREATE TABLE IF NOT EXISTS aliases (old TEXT PRIMARY KEY, id TEXT NOT NULL);
 CREATE VIRTUAL TABLE IF NOT EXISTS passages_fts USING fts5(id UNINDEXED, title, text, tokenize='porter unicode61');
 """
 
@@ -56,6 +57,7 @@ class KnowledgeIndex:
             h.update(path.relative_to(self.knowledge_dir).as_posix().encode())
             h.update(path.read_bytes())
         h.update(b"dense" if self.embedder else b"sparse")
+        h.update(ID_SCHEME.encode())
         return h.hexdigest()
 
     def ensure(self) -> None:
@@ -67,6 +69,10 @@ class KnowledgeIndex:
             if not row or row[0] != fp:
                 self._build(fp)
 
+    def evidence_version(self) -> str:
+        """Fingerprint sources without rebuilding or invoking an embedding model."""
+        return self._fingerprint()
+
     def rebuild(self) -> int:
         with self._lock:
             return self._build(self._fingerprint())
@@ -77,6 +83,17 @@ class KnowledgeIndex:
         if self.embedder and passages:
             vectors = list(self.embedder([f"{p.title}\n{p.text}" for p in passages]))
         with self._connect() as conn:
+            # Stored answers cite the ids they were given; keep each retired id pointing at the
+            # same file and heading under its new id (e.g. old positional K108 -> K93458).
+            new_ids = {(p.file, p.title): p.id for p in passages}
+            conn.executemany(
+                "INSERT OR REPLACE INTO aliases VALUES (?, ?)",
+                [
+                    (old, new_ids[(file, title)])
+                    for old, file, title in conn.execute("SELECT id, file, title FROM passages")
+                    if (file, title) in new_ids and new_ids[(file, title)] != old
+                ],
+            )
             conn.execute("DELETE FROM passages")
             conn.execute("DELETE FROM passages_fts")
             conn.executemany(
@@ -99,8 +116,10 @@ class KnowledgeIndex:
     def get(self, passage_id: str) -> Passage | None:
         self.ensure()
         with self._connect() as conn:
+            alias = conn.execute("SELECT id FROM aliases WHERE old = ?", (passage_id,)).fetchone()
             row = conn.execute(
-                "SELECT id, file, title, map, side, topic, source, text FROM passages WHERE id = ?", (passage_id,)
+                "SELECT id, file, title, map, side, topic, source, text FROM passages WHERE id IN (?, ?) ORDER BY id = ? DESC",
+                (passage_id, alias[0] if alias else passage_id, passage_id),
             ).fetchone()
         return Passage(*row) if row else None
 
@@ -117,7 +136,11 @@ class KnowledgeIndex:
         return [p for p in (self.get(pid) for pid in best) if p is not None]
 
     def _sparse(self, query: str, maps: tuple[str, ...] | None, limit: int) -> list[str]:
-        terms = [t for t in re.findall(r"\w+", query.lower()) if len(t) > 1]
+        words = re.findall(r"\w+", query.lower())
+        # Keep the site letters, so "A site retake" and "B site retake" differ; as "a" is mostly the
+        # article, the letter with the next word ("a site", "b main") is searched as a phrase too
+        terms = [t for t in words if len(t) > 1 or t in ("a", "b")]
+        terms += [f"{t} {n}" for t, n in zip(words, words[1:]) if t in ("a", "b")]
         if not terms:
             return []
         match = " OR ".join(f'"{t}"' for t in terms)

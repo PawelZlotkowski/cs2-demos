@@ -1,21 +1,14 @@
 "use client";
 
-import { useLayoutEffect, useRef, type RefObject } from "react";
+import { useId, useLayoutEffect, useRef, type RefObject } from "react";
 import gsap from "gsap";
 import type { InterpolatedPlayer } from "@/lib/replay/interpolate";
 import type { ReplayPlayer } from "@/lib/contracts";
 import { getMapMeta } from "@/lib/replay/maps";
-import { roleOf, type RosterLookup } from "@/lib/replay/roster";
+import { type RosterLookup } from "@/lib/replay/roster";
 import { trailPoints, type Box, type Track, type UtilityMark } from "@/lib/replay/camera";
 import { reducedMotion } from "@/lib/motion";
 
-/* Radar language (28 Visual direction): you white, team slate, enemy red, as on the in-game radar.
-   Orange and blue stay reserved for mistake and good play. */
-const YOU = "var(--stage-you)";
-const ENEMY = "var(--stage-enemy)";
-const TEAM = "var(--stage-team)";
-const STX = "var(--stage-text)";
-const HALO = "var(--stage-halo)";
 const TRAIL_SEC = 4;
 
 type Props = {
@@ -32,6 +25,12 @@ type Props = {
   /** The picked moment's window: the followed player's whole path through it is drawn faintly. */
   moment?: { id: string; t0: number; t1: number } | null;
   /** True while a keyboard shortcut is handled: the path then appears at once (keyboard actions never animate). */
+  participants?: string[];
+  opponentId?: string | null;
+  lens?: boolean;
+  highlighted?: boolean;
+  shot?: boolean;
+  selectedId?: string;
   instantRef?: RefObject<boolean>;
 };
 
@@ -58,8 +57,15 @@ export function RadarView({
   viewBox,
   pxPerUnit,
   moment,
+  participants = [],
+  opponentId,
+  lens = false,
+  highlighted = false,
+  shot = false,
+  selectedId,
   instantRef,
 }: Props) {
+  const clipId = useId();
   const meta = getMapMeta(mapName);
   const size = meta?.radarSize ?? 1024;
   const u = (px: number) => px / Math.max(pxPerUnit, 0.01);
@@ -82,165 +88,63 @@ export function RadarView({
     };
   }, [moment?.id]);
 
-  // Draw the followed player last so they sit on top.
-  const ordered = [...players].sort(
-    (a, b) => Number(a.id === focus?.id) - Number(b.id === focus?.id),
-  );
+  const subject = players.find((p) => p.id === focus?.id);
+  const opponent = players.find((p) => p.id === opponentId);
+  const colour = (id: string) => {
+    const side = lookup(id)?.team;
+    return side === "T" ? "var(--side-t)" : side === "CT" ? "var(--side-ct)" : "var(--stage-text-2)";
+  };
+  const ordered = [...players].sort((a,b) => Number(a.id === selectedId) - Number(b.id === selectedId));
+  const radius = u(6.5);
+  // 168px across on desktop; on a phone-sized stage a fifth of the view, or it covers half the map
+  const glassRadius = Math.min(u(84), viewBox.w / 5, viewBox.h / 5);
+  // Keep the followed player inside the magnifier throughout the approach.
+  const fitsPair = subject && opponent && Math.hypot(subject.rx - opponent.rx, subject.ry - opponent.ry) * 0.9 < glassRadius - u(18);
+  const cx = fitsPair ? (subject.rx + opponent.rx) / 2 : subject?.rx;
+  const cy = fitsPair ? (subject.ry + opponent.ry) / 2 : subject?.ry;
+  const showLens = lens && moment && t >= moment.t0 && t <= moment.t1 && cx != null && cy != null;
+  const map = meta?.radarImage && <image className="radar-map" href={meta.radarImage} width={size} height={size} />;
+  const trail = subject?.alive && focusTrack && <polyline points={trailPoints(focusTrack, t - TRAIL_SEC, t, subject)}
+    fill="none" stroke={colour(subject.id)} strokeWidth={u(1.6)} strokeDasharray={`${u(2)} ${u(6)}`} strokeLinecap="round" />;
 
-  return (
-    <svg
-      className="radar"
-      viewBox={vb}
-      preserveAspectRatio="xMidYMid meet"
-      role="img"
-      aria-label={`Radar replay on ${meta?.displayName ?? mapName}`}
-    >
-      {meta?.radarImage ? (
-        <image className="radar-map" href={meta.radarImage} width={size} height={size} />
-      ) : (
-        <rect width={size} height={size} fill="#1a1f24" />
-      )}
+  function marker(p: InterpolatedPlayer, inLens = false) {
+    const you = p.id === selectedId;
+    const label = you ? "You" : participants.includes(p.id) ? lookup(p.id)?.name : undefined;
+    return <g key={p.id} transform={`translate(${p.rx} ${p.ry}) scale(${inLens ? 0.72 : 1})`}>
+      {p.alive ? <>
+        <g transform={`rotate(${-p.yaw})`} fill={colour(p.id)} stroke="var(--stage-halo)" strokeWidth={u(1.5)}>
+          <path d={`M${radius*.55},${-radius*.65} L${radius+u(5)},0 L${radius*.55},${radius*.65}Z`} />
+          <circle r={radius} />
+        </g>
+        {you && <circle r={radius+u(3)} fill="none" stroke="var(--stage-you)" strokeWidth={u(2)} />}
+      </> : <path d={`M${-radius},${-radius}l${2*radius},${2*radius} M${radius},${-radius}l${-2*radius},${2*radius}`}
+        stroke={colour(p.id)} strokeWidth={u(2)} opacity={.8} />}
+      {label && <text className="radar-name" y={you ? radius+u(15) : -radius-u(4)} textAnchor="middle"
+        fontSize={u(12)} fill="var(--stage-text)" stroke="var(--stage-halo)" strokeWidth={u(3)} paintOrder="stroke">{label}</text>}
+    </g>;
+  }
 
-      {momentPath ? (
-        <path
-          ref={pathRef}
-          d={momentPath}
-          pathLength={1}
-          fill="none"
-          style={{ stroke: YOU }}
-          strokeOpacity={0.34}
-          strokeWidth={1.5}
-          strokeDasharray="1 1"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      ) : null}
-
-      <g>
-        {utility.map((m) =>
-          m.kind === "smoke" ? (
-            <circle
-              key={m.id}
-              cx={m.rx}
-              cy={m.ry}
-              r={m.r}
-              fill="rgba(210,214,218,.38)"
-              stroke="rgba(238,241,243,.8)"
-              strokeWidth={1}
-              vectorEffect="non-scaling-stroke"
-              opacity={m.u > 0.9 ? (1 - m.u) * 10 : 1}
-            />
-          ) : m.kind === "molotov" ? (
-            <circle
-              key={m.id}
-              cx={m.rx}
-              cy={m.ry}
-              r={m.r}
-              fill="rgba(238,241,243,.08)"
-              stroke="rgba(238,241,243,.7)"
-              strokeWidth={1}
-              strokeDasharray="3 3"
-              vectorEffect="non-scaling-stroke"
-            />
-          ) : (
-            <circle
-              key={m.id}
-              cx={m.rx}
-              cy={m.ry}
-              r={m.r * (0.4 + m.u * 0.6)}
-              fill="none"
-              style={{ stroke: STX }}
-              strokeWidth={1.4}
-              vectorEffect="non-scaling-stroke"
-              opacity={1 - m.u}
-            />
-          ),
-        )}
+  return <svg className="radar" viewBox={vb} preserveAspectRatio="xMidYMid meet" role="img" aria-label={`Radar replay on ${meta?.displayName ?? mapName}`}>
+    {map}
+    {momentPath && focus && <path ref={pathRef} d={momentPath} pathLength={1} fill="none" stroke={colour(focus.id)} strokeOpacity={.2}
+      strokeWidth={1.4} strokeDasharray="1 1" vectorEffect="non-scaling-stroke" />}
+    {utility.map((m) => <circle key={m.id} cx={m.rx} cy={m.ry} r={m.r}
+      fill={m.kind === "smoke" ? "var(--stage-smoke)" : m.kind === "molotov" ? "var(--stage-fire)" : "none"}
+      stroke="var(--stage-text-2)" strokeWidth={u(1)} opacity={1 - Math.max(0,(m.u-.9)*10)} />)}
+    {trail}
+    {ordered.map((p) => marker(p))}
+    {showLens && <g className="radar-lens" data-highlighted={highlighted} pointerEvents="none">
+      <defs><clipPath id={clipId}><circle cx={cx} cy={cy} r={glassRadius} /></clipPath></defs>
+      <g clipPath={`url(#${clipId})`}>
+        <circle cx={cx} cy={cy} r={glassRadius} fill="var(--stage)" />
+        <g transform={`translate(${cx} ${cy}) scale(1.8) translate(${-cx} ${-cy})`}>
+          {map}{trail}
+          {shot && subject && opponent && <line x1={subject.rx} y1={subject.ry} x2={opponent.rx} y2={opponent.ry}
+            stroke="var(--stage-text)" strokeWidth={u(1)} strokeDasharray={`${u(3)} ${u(4)}`} />}
+          {ordered.filter((p) => p.id === focus?.id || participants.includes(p.id)).map((p) => marker(p, true))}
+        </g>
       </g>
-
-      <g>
-        {ordered.map((p) => {
-          const info = lookup(p.id);
-          const role = roleOf(info, focus) ?? "team";
-          const you = role === "you";
-          const col = you ? YOU : role === "team" ? TEAM : ENEMY;
-          const track = tracks.get(p.id);
-          const a = (-p.yaw * Math.PI) / 180;
-          const L = u(you ? 30 : 12);
-          const w = 0.4;
-          return (
-            <g key={p.id} opacity={p.alive ? 1 : 0.55}>
-              {track && p.alive ? (
-                <polyline
-                  points={trailPoints(track, t - TRAIL_SEC, t, p)}
-                  fill="none"
-                  style={{ stroke: col }}
-                  strokeOpacity={you ? 0.9 : 0.45}
-                  strokeWidth={you ? 2 : 1.2}
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                  vectorEffect="non-scaling-stroke"
-                />
-              ) : null}
-              {p.alive && you ? (
-                <path
-                  d={`M${p.rx} ${p.ry}L${p.rx + Math.cos(a - w) * L} ${p.ry + Math.sin(a - w) * L}A${L} ${L} 0 0 1 ${p.rx + Math.cos(a + w) * L} ${p.ry + Math.sin(a + w) * L}Z`}
-                  fill="rgba(255,255,255,.16)"
-                  stroke="rgba(255,255,255,.35)"
-                  strokeWidth={1}
-                  vectorEffect="non-scaling-stroke"
-                />
-              ) : null}
-              {p.alive && !you ? (
-                <line
-                  x1={p.rx}
-                  y1={p.ry}
-                  x2={p.rx + Math.cos(a) * L}
-                  y2={p.ry + Math.sin(a) * L}
-                  style={{ stroke: col }}
-                  strokeWidth={1.5}
-                  strokeLinecap="round"
-                  vectorEffect="non-scaling-stroke"
-                />
-              ) : null}
-              {p.alive ? (
-                <circle
-                  cx={p.rx}
-                  cy={p.ry}
-                  r={u(you ? 5.5 : 4.2)}
-                  style={{ fill: col, stroke: HALO }}
-                  strokeWidth={you ? 2.5 : 1.5}
-                  vectorEffect="non-scaling-stroke"
-                />
-              ) : (
-                <path
-                  d="M-1 -1L1 1M1 -1L-1 1"
-                  transform={`translate(${p.rx} ${p.ry}) scale(${u(4.5)})`}
-                  style={{ stroke: col }}
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  vectorEffect="non-scaling-stroke"
-                />
-              )}
-              <text
-                className="radar-name"
-                x={p.rx + u(9)}
-                y={p.ry - u(7)}
-                style={{
-                  fill: you ? YOU : role === "enemy" ? "var(--stage-enemy-text)" : "var(--stage-team-text)",
-                  stroke: HALO,
-                }}
-                fontSize={u(11)}
-                paintOrder="stroke"
-                strokeWidth={u(3)}
-              >
-                {info?.name ?? p.id.slice(-4)}
-              </text>
-            </g>
-          );
-        })}
-      </g>
-    </svg>
-  );
+      <circle cx={cx} cy={cy} r={glassRadius} fill="none" stroke="var(--stage-text)" strokeWidth={u(2)} />
+    </g>}
+  </svg>;
 }

@@ -90,7 +90,7 @@ def test_session_claim_is_atomic_scoped_and_renewable(client, store):
 
 def test_session_limit_pause_and_ready_preservation(client, store):
     snapshot = store.snapshot(DEMO, PLAYER)
-    snapshot['findings'] += [dict(id='F'+str(n), round=1, t=5., detector='untraded_death', evidence={}) for n in (2, 3)]
+    snapshot['findings'] += [dict(id='F'+str(n), round=2, t=5., detector='untraded_death', evidence={}) for n in (2, 3)]
     with store.connect() as con:
         con.execute('UPDATE snapshots SET payload=?', (encode(snapshot),))
     current = batch(client)
@@ -187,6 +187,71 @@ def test_completed_clip_requires_alignment_and_freezes_assigned_split(client, st
     assert client.put(route,headers=HEADERS,json=payload).status_code==200
     assert client.get('/api/clip-labels/export?labeller=qa&training=true').text
     assert client.put(f'/api/demos/{DEMO}/provenance',headers=HEADERS,json={'split':'test'}).status_code==409
+
+
+def test_examples_prefer_matching_equipment_then_language_and_limit_sources(client, store):
+    for source, grenade, language in [('b','smoke','en'), ('c','flashbang','pl'),
+                                      ('d','flashbang','en'), ('e','flashbang','en')]:
+        demo = 'demo-' + source*64
+        shared = 'duplicate' if source in ('d','e') else source
+        store.register({'id':demo,'map':'de_anubis','players':[]})
+        client.put(f'/api/demos/{demo}/provenance',headers=HEADERS,
+                   json={'split':'train','sourceMatchId':shared,'trainingPermitted':True}).raise_for_status()
+        label = {'status':'complete','language':language,'notes':source,'footage':{'alignmentConfirmed':True},
+                 'finding':{'detector':'unused_utility','evidence':{'grenadeList':grenade}}}
+        with store.connect() as con:
+            con.execute('INSERT INTO clip_labels(demo,player,snapshot,finding,labeller,payload,created) VALUES(?,?,?,?,?,?,?)',
+                        (demo,PLAYER,'snapshot','F1','qa',encode(label),'2026-11-17'))
+    results = client.post('/api/coach-examples',headers=HEADERS,json={'demoHash':'f'*64,'map':'de_anubis',
+        'detectors':['unused_utility'],'language':'en','terms':'flashbang'}).json()
+    assert [r['note'] for r in results] == ['e','c']
+
+
+def test_note_submission_feeds_only_current_permitted_examples(client, store):
+    clip_batch = batch(client)
+    clip = items(client, clip_batch['id'])[0]
+    assert client.get('/api/next-ready-clip?labeller=qa').json() is None
+    ready(store, clip['id'])
+    assert client.get('/api/next-ready-clip?labeller=qa').json()['clip'] == clip['id']
+    with store.connect() as con:
+        con.execute("UPDATE footage SET metadata=json_set(metadata,'$.alignmentConfirmed',json('false'))")
+    route = f"/api/clip-batches/{clip_batch['id']}/clips/{clip['id']}/label?labeller=qa"
+    note = {'status':'complete', 'inputMode':'note', 'confirmFootage':True,
+            'notes':'Selected player had no clear view.'}
+    assert client.put(route, headers=HEADERS, json={**note,'notes':' '}).status_code == 422
+    saved = client.put(route, headers=HEADERS, json=note).json()
+    assert client.get('/api/next-ready-clip?labeller=qa').json() is None
+    assert client.get('/api/next-ready-clip?labeller=other').json()['clip'] == clip['id']
+    assert saved['footage']['alignmentConfirmed'] and saved['assessment'] is None and saved['verdict'] is None
+    assert client.put(route, headers=HEADERS, json=note).json()['revision'] == saved['revision']
+    assert client.put(route, headers=HEADERS, json={**note,'notes':'Stale change'}).status_code == 409
+
+    def lookup(**changes):
+        query = {'demoHash':'c'*64, 'map':'de_ancient','detectors':['untraded_death'],'language':'en'}
+        response = client.post('/api/coach-examples', headers=HEADERS, json={**query, **changes})
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    assert lookup() == []
+    provenance = {'sourceMatchId':'match-one','split':'train','trainingPermitted':True}
+    assert client.put(f'/api/demos/{DEMO}/provenance', headers=HEADERS, json=provenance).status_code == 200
+    assert lookup() == [{'revision':saved['revision'],'language':'en','detector':'untraded_death','map':'de_ancient',
+                         'signal':None,'decision':None,'note':'player had no clear view.'}]
+    assert not lookup(demoHash='a'*64) and not lookup(detectors=['unused_utility'])
+    # Judgement carries across maps; the note keeps its own map so its callouts are read as Ancient ones.
+    assert [r['map'] for r in lookup(map='de_anubis')] == ['de_ancient']
+    duplicate = 'demo-' + 'b'*64
+    store.register({'id':duplicate,'map':'de_ancient','players':[]})
+    assert client.put(f'/api/demos/{duplicate}/provenance', headers=HEADERS, json=provenance).status_code == 200
+    assert not lookup(demoHash='b'*64)
+    assert client.get('/api/clip-labels/export?labeller=qa&split=val').text == ''
+    assert client.put(f'/api/demos/{DEMO}/provenance', headers=HEADERS,
+                      json={**provenance,'trainingPermitted':False}).status_code == 200
+    assert not lookup()
+    assert client.put(f'/api/demos/{DEMO}/provenance', headers=HEADERS, json=provenance).status_code == 200
+    draft = {**note,'previousRevision':saved['revision'],'status':'draft','confirmFootage':False}
+    assert client.put(route, headers=HEADERS, json=draft).status_code == 200
+    assert not lookup()
 
 
 def test_failed_retry_does_not_reset_ready_clips(client, store):

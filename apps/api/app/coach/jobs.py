@@ -17,17 +17,23 @@ worker thread or a sync endpoint.
 from __future__ import annotations
 
 import asyncio
+import functools
+import hashlib
 import json
 import logging
 import re
+import subprocess
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, TypeVar
 
+from app.analysis.policy import policy_description
 from app.analysis.ranker import MIN_EACH, MIN_MOMENTS, TARGET, rank_moments
 from app.coach.agent import AgentRun, CoachAgent, StepCallback, TraceWriter, run_record
+from app.coach.examples import EXAMPLE_RULE, example_context
 from app.coach.backends import InProcessTools, MCPTools
 from app.coach.llm_client import LLM, LLMClient, LLMError, json_schema_format
 from app.coach.prompts import load_prompt
@@ -39,8 +45,9 @@ from app.coach.review import (
     review_findings,
     review_numbers,
 )
-from app.coach.tools import MomentPick, cross_match_findings
+from app.coach.tools import TOOLS, MomentPick, cross_match_findings, to_json
 from app.coach.verify import (
+    CITATION_RE,
     LANGUAGE_NAMES,
     VerifyContext,
     autocite,
@@ -74,6 +81,7 @@ LANGUAGE_NOTES = {
         "\n- Polish: write correct Polish grammar with the right case endings (dobrej wymiany, szybkiej śmierci)."
         "\n- Polish: avoid gendered past-tense verbs (zginąłeś/zginęłaś); use noun phrases such as"
         " 'śmierć od P5' or 'twoja śmierć'. A player killed in the game 'ginie', never 'umiera' or 'zmarł'."
+        "\n- Polish: kills are 'zabójstwa' or 'eliminacje', never 'ciosy' or 'uderzenia'."
     ),
     "nl": "\n- Dutch: address the player as 'je', and keep callout names in English.",
 }
@@ -88,6 +96,10 @@ EXPLAIN_TOOLS = {
     "get_match_totals",
     "search_knowledge",
 }
+
+
+# A Studio question belongs to one round: these tools see only that round (it is bound, not chosen)
+ROUND_TOOLS = {"get_finding", "list_findings", "get_round_stats", "get_round_timeline", "get_player_state", "search_knowledge"}
 
 
 def run_sync(coro: Awaitable[T]) -> T:
@@ -131,8 +143,9 @@ class CoachJobs:
             yield CoachAgent(self.llm, tools, max_steps=self.max_steps)
 
     def _trace(self, record: dict[str, Any]) -> None:
+        run_info = {"policyVersion": policy_description(settings.analysis_profile)["version"], "gitSha": git_sha()}
         try:
-            self.traces.write(record)
+            self.traces.write({**record, **run_info})
         except OSError:
             logger.exception("Could not write coach trace")
 
@@ -154,10 +167,17 @@ class CoachJobs:
         record = self.repo.get(match_id) or {}
         return {int(r["number"]): float(r.get("durationSec") or 0) for r in record.get("rounds") or []}
 
-    def _verify_context(self, match_id: str, player_id: str, extra: set[float] | None = None) -> VerifyContext:
+    def _sampling(self, thinking: bool) -> dict[str, Any] | None:
+        """The sampling values the client sends (None for a scripted test model)."""
+        values = getattr(self.llm, "sampling_values", None)
+        return {"profile": self.llm.sampling, **values(thinking)} if values else None  # type: ignore[attr-defined]
+
+    def _verify_context(
+        self, match_id: str, player_id: str, extra: set[float] | None = None, round_no: int | None = None
+    ) -> VerifyContext:
         a = self.repo.analysis
         return VerifyContext.build(
-            a.findings(match_id, player_id),
+            a.findings(match_id, player_id, round_no=round_no),
             a.round_stats(match_id, player_id),
             a.moments(match_id, player_id),
             self._round_durations(match_id),
@@ -193,8 +213,12 @@ class CoachJobs:
             "playerId": player_id,
             "model": getattr(self.llm, "model", "unknown"),
             "promptVersion": prompt.version,
+            "promptHash": hashlib.sha256(system.encode("utf-8")).hexdigest()[:12],
             "thinking": True,
+            "sampling": self._sampling(True),
+            "tools": ["select_moments"],
             "candidates": user.count("\nF"),
+            "candidateIds": re.findall(r"^(F\d+) \|", user, re.M),
             "attempts": [],
         }
         errors: list[str] = []
@@ -334,6 +358,10 @@ class CoachJobs:
             ]
         )
         ctx = self._verify_context(match_id, player_id)
+        examples = await example_context(match_id, self._map(match_id), findings, lang, record)
+        if examples:
+            system += EXAMPLE_RULE
+            user += "\n\n" + examples
         outcome = await self._answer(
             job="explain",
             prompt_version=prompt.version,
@@ -492,17 +520,33 @@ class CoachJobs:
         context = self._context_line(match_id, player_id, round_no, t=req.t, moment=moment, view=req.view)
         lines = [context]
         if in_view:
-            lines += ["Findings in view:", *(_finding_row(f) for f in in_view)]
+            lines += ["Findings in view (evidence holds the numbers you may quote):", *(_finding_json(f) for f in in_view)]
+        mentioned = set(re.findall(r"\bF\d+\b", req.question.upper()))
+        explicit = [f for f in all_findings if f.id in mentioned and round_no in (None, f.round)]
+        relevant = explicit or in_view
+        if req.t is not None and not explicit:
+            relevant = sorted(relevant, key=lambda f: abs(f.t - req.t))
+        examples = await example_context(match_id, self._map(match_id), relevant, req.language, record)
+        if examples:
+            lines.append(examples)
+        bound: dict[str, Any] = {"match_id": match_id, "player_id": player_id}
+        if round_no is not None:
+            bound["round"] = round_no
+            lines.append(f"Answer about round {round_no} only; your tools can only see this round.")
+            lines += _round_data(match_id, player_id, round_no, relevant[0].t if relevant else req.t)
         lines += ["", f"Question: {req.question}", f"Answer in {LANGUAGE_NAMES[req.language]}."]
+        system = prompt.render(language=LANGUAGE_NAMES[req.language], language_notes=LANGUAGE_NOTES[req.language])
         return await self._answer(
             job="ask",
             prompt_version=prompt.version,
-            system=prompt.render(language=LANGUAGE_NAMES[req.language], language_notes=LANGUAGE_NOTES[req.language]),
+            system=system + EXAMPLE_RULE if examples else system,
             user="\n".join(lines),
-            bound={"match_id": match_id, "player_id": player_id},
-            ctx=self._verify_context(match_id, player_id, extra),
+            bound=bound,
+            allow_tools=ROUND_TOOLS if round_no is not None else None,
+            # A round-bound answer may cite only that round's findings
+            ctx=self._verify_context(match_id, player_id, extra, round_no),
             lang=req.language,
-            max_sentences=3,
+            max_sentences=5,
             require_citation=False,
             fallback=fallback,
             record=record,
@@ -547,7 +591,7 @@ class CoachJobs:
             prompt_version=prompt.version,
             system=prompt.render(language=LANGUAGE_NAMES[req.language], language_notes=LANGUAGE_NOTES[req.language]),
             user="\n".join(lines),
-            bound={"player_id": player_id},
+            bound={"player_id": player_id, "match_id": None},  # no current match: hide the argument
             ctx=ctx,
             lang=req.language,
             max_sentences=4,
@@ -600,7 +644,7 @@ class CoachJobs:
                 prompt_version=prompt.version,
                 system=prompt.render(language=LANGUAGE_NAMES[lang], language_notes=LANGUAGE_NOTES[lang]),
                 user="\n".join(lines),
-                bound={"player_id": player_id},
+                bound={"player_id": player_id, "match_id": None},
                 ctx=ctx,
                 lang=lang,
                 max_sentences=4,
@@ -647,6 +691,10 @@ class CoachJobs:
         allow_tools: set[str] | None = None,
     ) -> AskOutcome:
         cite_candidates = cite_candidates or []
+        allow_tools = allow_tools or EXPLAIN_TOOLS
+        # Kept even when no run finished, so every trace says what the job ran with
+        record = {**record, "model": getattr(self.llm, "model", "unknown"), "promptVersion": prompt_version,
+                  "tools": sorted(allow_tools), "sampling": self._sampling(False)}
         messages: list[dict[str, Any]] = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         runs: list[AgentRun] = []
         errors: list[str] = []
@@ -659,7 +707,7 @@ class CoachJobs:
                         messages=messages,
                         bound=bound,
                         thinking=False,
-                        allow_tools=allow_tools or EXPLAIN_TOOLS,
+                        allow_tools=allow_tools,
                         max_steps=None if attempt == 0 else 2,
                         on_step=on_step,
                     )
@@ -674,13 +722,18 @@ class CoachJobs:
                     )
                     errors = check.errors
                     if check.ok:
-                        verdict = {"ok": True, "errors": [], "autocited": text != run.text.strip()}
+                        # autocite also normalises whitespace, so compare citations, not text
+                        added = len(CITATION_RE.findall(text)) > len(CITATION_RE.findall(run.text))
+                        verdict = {"ok": True, "errors": [], "autocited": added}
                         self._trace({**record, **_runs_record(runs), "verifier": verdict, "source": "agent"})
                         return AskOutcome(text, check.citations, "agent")
                     messages = run.messages + [{"role": "user", "content": repair_message(errors)}]
         except LLMError as exc:
             errors = [str(exc)]
             logger.warning("%s fell back to templates: %s", job, exc)
+        except Exception as exc:  # an odd model reply must still end in the fallback and a trace
+            errors = [f"{type(exc).__name__}: {exc}"]
+            logger.exception("%s failed; fell back to templates", job)
         text = fallback()
         self._trace({**record, **_runs_record(runs), "verifier": {"ok": False, "errors": errors}, "source": "template", "fallback": text})
         return AskOutcome(text, citations_in(text), "template", errors)
@@ -716,6 +769,18 @@ def default_tools_factory() -> Any:
     if settings.coach_tools == "inprocess":
         return InProcessTools()
     return MCPTools.from_settings(settings.mcp_url, settings.mcp_command)
+
+
+@functools.cache
+def git_sha() -> str | None:
+    """The checked-out commit, read once for the traces; None without git or a checkout."""
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=Path(__file__).parent, capture_output=True, text=True, timeout=5
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return (out.stdout.strip() or None) if out.returncode == 0 else None
 
 
 def knowledge_in(messages: list[dict[str, Any]]) -> dict[str, str]:
@@ -794,8 +859,22 @@ def parse_window(target: str) -> tuple[int, float, float]:
     return int(round_part), float(t0), float(t1)
 
 
-def _finding_row(f: Finding) -> str:
-    return f"{f.id} {f.kind} {f.detector} round {f.round} t={f.t:.1f} {f.zone or '-'}: {f.summary}"
+def _round_data(match_id: str, player_id: str, round_no: int, t: float | None) -> list[str]:
+    """What a coach looks at before answering: the round's events, the player's numbers (money for eco
+    context) and where everyone stood just before the moment. Live Qwen and Gemma runs answered Ask
+    without calling a single tool, so the answer only restated the finding."""
+    calls: list[tuple[str, str, dict[str, Any]]] = [
+        ("Round timeline", "get_round_timeline", {"match_id": match_id, "round": round_no}),
+        ("Your numbers this round", "get_round_stats", {"match_id": match_id, "player_id": player_id, "round": round_no}),
+    ]
+    if t is not None:
+        # One second earlier, so the coached player is still alive in the sample.
+        calls.append(("Everyone just before the moment", "get_player_state",
+                      {"match_id": match_id, "round": round_no, "t": max(0.0, t - 1)}))
+    # Plain labels: with tool names here the model cited "[get_round_timeline]".
+    rows = [(label, TOOLS[name](**args)) for label, name, args in calls]
+    rows = [f"{label}: {to_json(out)}" for label, out in rows if "error" not in out]
+    return ["Round data (already looked up for you):", *rows] if rows else []
 
 
 def _finding_json(f: Finding) -> str:

@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingState } from "@/components/LoadingState";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api/client";
@@ -16,14 +17,16 @@ function trend(recent: number | null, before: number | null): string {
 
 /** Progress: each detector per match and where the player dies (A11 without accounts; doc 29 §2.4, R17). */
 export default function ProgressPage() {
-  const { players, error: loadError, playerId, player, pick } = useCoachedPlayer();
+  const { players, error: loadError, playerId, player, pick, retry } = useCoachedPlayer();
   const [data, setData] = useState<ProgressResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!playerId) return;
     let live = true;
     setData(null);
+    setError(null);
     api
       .getProgress(playerId)
       .then((d) => live && setData(d))
@@ -31,15 +34,16 @@ export default function ProgressPage() {
     return () => {
       live = false;
     };
-  }, [playerId]);
+  }, [playerId, attempt]);
 
   const refs = new Map((data?.matches ?? []).map((m) => [m.ref, m.matchId]));
+  const trends = data?.detectors.some((d) => d.per10Recent != null) ?? false;
   const maxCount = Math.max(1, ...(data?.detectors ?? []).flatMap((d) => d.counts));
   const byMap = new Map<string, ProgressResponse["zones"]>();
   for (const z of data?.zones ?? []) byMap.set(z.map, [...(byMap.get(z.map) ?? []), z]);
 
   return (
-    <main className="main wide page-list" id="content">
+    <main className="main wide page-list edge-scroll" id="content">
       <header className="page-h">
         <div>
           <h1>Progress</h1>
@@ -60,9 +64,9 @@ export default function ProgressPage() {
       </header>
 
       {loadError || error ? (
-        <p className="err" role="alert">
-          {loadError ?? error}
-        </p>
+        <div className="sheet state-sheet"><p role="alert">Player progress could not be loaded.</p>
+          <button className="btn btn-line" onClick={loadError ? retry : () => setAttempt((n) => n + 1)}>Try again</button>
+        </div>
       ) : players?.length === 0 ? (
         <div className="empty">
           <p>No reviewed matches yet. Add a match and pick a player.</p>
@@ -71,13 +75,14 @@ export default function ProgressPage() {
           </Link>
         </div>
       ) : !data ? (
-        <p className="meta">Loading…</p>
+        <LoadingState label="Loading player progress…" />
       ) : (
         <>
           <p className="meta">
             {player?.name ?? data.playerId}, <span className="num">{data.matches.length}</span>{" "}
             {data.matches.length === 1 ? "match" : "matches"}.{" "}
-            {data.matches.length < 2 ? "Trends show from the second match on." : null}
+            {/* The API compares the last 3 matches with the ones before (RECENT in apps/api/app/coach/plan.py) */}
+            {trends ? null : "Trends show from the fourth match on."}
           </p>
           <div className="table-wrap">
             <table className="data prog">
@@ -91,7 +96,7 @@ export default function ProgressPage() {
                       </Link>
                     </th>
                   ))}
-                  <th scope="col">Lately</th>
+                  {trends ? <th scope="col">Lately</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -110,7 +115,7 @@ export default function ProgressPage() {
                         <span className="num">{c || ""}</span>
                       </td>
                     ))}
-                    <td className="meta">{trend(d.per10Recent, d.per10Before)}</td>
+                    {trends ? <td className="meta">{trend(d.per10Recent, d.per10Before)}</td> : null}
                   </tr>
                 ))}
               </tbody>
@@ -139,7 +144,7 @@ export default function ProgressPage() {
                               const [ref, fid] = e.split(":");
                               const mid = refs.get(ref);
                               return mid ? (
-                                <Link key={e} href={`/studio/${mid}?f=${fid}`}>
+                                <Link key={e} className="cite" href={`/studio/${mid}?f=${fid}`}>
                                   {e}
                                 </Link>
                               ) : null;

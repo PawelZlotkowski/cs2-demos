@@ -1,12 +1,13 @@
 """D10 Good plays.
 
 One finding per play, ``evidence["play"]`` names it:
-- ``trade_kill``: killed an enemy within ``TRADE_WINDOW_S`` of that enemy
-  killing a teammate. Severity 0.45.
+- ``trade_kill``: killed an enemy within 5 s of that enemy killing a teammate
+  within 5 m of the selected player. Fresh positions required. Severity 0.45.
 - ``entry_kill``: first kill of the round, on the T side. Severity 0.5.
 - ``multi_kill``: 3+ kills in the round. Severity 0.5 + 0.1 per kill over 3.
 - ``clutch``: last player alive on the team against 1+ enemies and the round
-  was won. Severity 0.6 + 0.1 per enemy, capped at 0.95.
+  was won with the player still alive. Severity 0.6 + 0.1 per enemy, capped
+  at 0.95.
 - ``flash_assist``: a teammate's kill credited as flash-assisted by the player.
   Severity 0.4.
 - ``utility_damage``: HE/fire damage to enemies >= ``MIN_UTILITY_DAMAGE`` in the
@@ -18,7 +19,6 @@ Severity here means how much the play is worth showing, not a mistake cost.
 from __future__ import annotations
 
 from app.analysis.detectors.common import (
-    TRADE_WINDOW_S,
     FindingDraft,
     clamp,
     first_kill,
@@ -27,6 +27,7 @@ from app.analysis.detectors.common import (
     zone_of,
 )
 from app.analysis.match_data import MatchData
+from app.analysis.trades import successful_trades
 
 MIN_UTILITY_DAMAGE = 40
 UTILITY_WEAPONS = {"hegrenade", "inferno", "molotov", "incgrenade"}
@@ -60,22 +61,17 @@ def detect(match: MatchData, round_no: int, player_id: str) -> list[FindingDraft
             )
         )
 
-    for k in my_kills:
-        traded = next(
-            (
-                prev
-                for prev in kills
-                if prev.attacker == k.victim and prev.victim in mates and 0 < k.t - prev.t <= TRADE_WINDOW_S
-            ),
-            None,
-        )
-        if traded:
+    for event in successful_trades(rd, player_id):
+        k, traded = event.response, event.death
+        if k is not None:
             add(
                 "trade_kill",
                 k.t,
                 k.tick,
                 0.45,
-                {"tradeTimeS": round(k.t - traded.t, 1), "tradedName": match.name(traded.victim), "victimName": match.name(k.victim)},
+                {"tradeTimeS": round(k.t - traded.t, 1), "tradedName": match.name(traded.victim),
+                 "victimName": match.name(k.victim), "teammateDistanceM": round(event.distance_m, 2),
+                 "tradeOutcome": "traded"},
                 [k.victim, traded.victim],
                 k.attacker_pos,
             )
@@ -96,15 +92,14 @@ def detect(match: MatchData, round_no: int, player_id: str) -> list[FindingDraft
             last.attacker_pos,
         )
 
-    # Clutch: the moment the last teammate died with the player still alive
+    # Clutch: the moment the last teammate died with the player still alive.
+    # Dying in the round, even in the bomb blast that wins it, is not a clutch.
     my_side = rd.sides.get(player_id)
-    if my_side and rd.winner == my_side:
-        my_death = rd.death_of(player_id)
+    my_death = rd.death_of(player_id)
+    if my_side and rd.winner == my_side and (my_death is None or my_death.t > rd.duration):
         for k in kills:
             if k.victim not in mates:
                 continue
-            if my_death and my_death.t <= k.t:
-                break
             alive = rd.alive_at(k.t + 1e-6)
             if player_id in alive and not (alive & mates):
                 enemies_alive = [p for p in rd.enemies(player_id) if p in alive]

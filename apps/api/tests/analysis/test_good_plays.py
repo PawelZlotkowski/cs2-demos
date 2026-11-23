@@ -1,5 +1,5 @@
 from app.analysis.detectors import good_plays
-from tests.analysis.builders import hurt, kill, match, round_
+from tests.analysis.builders import frames, hurt, kill, match, round_, w
 
 
 def _plays(rd, pid="t1"):
@@ -8,6 +8,7 @@ def _plays(rd, pid="t1"):
 
 def test_trade_kill_and_entry():
     rd = round_(winner="T", kills=[kill(10.0, "t1", "ct1"), kill(15.0, "ct2", "t2"), kill(17.0, "t1", "ct2")])
+    rd.frames = frames({"t1": w("A site"), "t2": w("A site")})
     plays = _plays(rd)
     assert plays["entry_kill"].evidence["victimName"] == "CT1"
     assert plays["trade_kill"].evidence["tradeTimeS"] == 2.0
@@ -32,6 +33,17 @@ def test_multi_kill_and_clutch():
 def test_lost_clutch_is_not_good():
     kills = [kill(5.0 + i, "ct1", p) for i, p in enumerate(("t2", "t3", "t4", "t5"))] + [kill(30.0, "ct1", "t1")]
     assert "clutch" not in _plays(round_(winner="CT", kills=kills))
+
+
+def test_no_clutch_when_the_player_died_before_the_bomb_won_the_round():
+    kills = [kill(30.0, "ct1", p) for p in ("t2", "t3", "t4", "t5")] + [kill(31.0, "t1", "ct2"), kill(60.0, "ct1", "t1")]
+    assert "clutch" not in _plays(round_(winner="T", kills=kills))
+    # Killed by the own bomb on the round-end tick
+    kills[-1] = kill(90.0, None, "t1", weapon="planted_c4")
+    assert "clutch" not in _plays(round_(winner="T", kills=kills))
+    # Killed after the round end: the clutch still stands
+    kills[-1] = kill(95.0, "ct1", "t1")
+    assert _plays(round_(winner="T", kills=kills))["clutch"].evidence["enemiesAlive"] == 5
 
 
 def test_flash_assist_and_utility_damage():

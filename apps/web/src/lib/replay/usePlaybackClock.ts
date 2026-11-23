@@ -174,7 +174,8 @@ export function usePlaybackClock(initialDuration = 0): PlaybackClock {
 
     const tick = (ts: number) => {
       if (lastTsRef.current == null) lastTsRef.current = ts;
-      const dt = (ts - lastTsRef.current) / 1000;
+      // Browsers pause frames in background tabs; cap the step so returning doesn't jump the round
+      const dt = Math.min((ts - lastTsRef.current) / 1000, 0.1);
       lastTsRef.current = ts;
       const next = tRef.current + dt * rateRef.current;
       if (next >= durationRef.current) {

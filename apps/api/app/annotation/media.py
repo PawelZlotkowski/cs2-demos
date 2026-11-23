@@ -10,6 +10,7 @@ import json
 import math
 import os
 from pathlib import Path
+from fractions import Fraction
 import shutil
 import subprocess
 import time
@@ -64,15 +65,47 @@ def probe_video(path: Path):
         streams = [s for s in data['streams'] if s.get('codec_type') == 'video']
         duration = float(data['format']['duration'])
         video = streams[0]
+        fps = float(Fraction(video.get('avg_frame_rate', '0/1')))
         if (result.returncode or not math.isfinite(duration) or duration <= 0
+                or not math.isfinite(fps) or not 0 < fps <= 1000
                 or video['width'] <= 0 or video['height'] <= 0 or video['codec_name'] != 'h264'
                 or video.get('pix_fmt') not in ('yuv420p', 'yuvj420p')
                 or 'mp4' not in data['format'].get('format_name', '')):
             raise ValueError()
         return {'duration': duration, 'width': video['width'], 'height': video['height'],
                 'fps': video.get('avg_frame_rate', '30/1'), 'codec': 'h264'}
-    except (ValueError, KeyError, IndexError, TypeError):
+    except (ValueError, KeyError, IndexError, TypeError, ZeroDivisionError):
         raise ValueError('Choose a readable H.264 MP4 with 8-bit 4:2:0 video (yuv420p).') from None
+
+
+def validate_recording_duration(metadata, info):
+    """Allow frame quantisation, not seconds of missing action or extra overlap."""
+    expected = metadata['end'] - metadata['start']
+    tolerance = max(.1, 2 / float(Fraction(info['fps'])))
+    if abs(info['duration'] - expected) > tolerance:
+        raise ValueError('Recorded duration differs from the requested window. Check capture timing before retrying.')
+    anchors = [f['t'] for f in metadata.get('findings', [])] or [metadata.get('anchor', metadata['start'])]
+    if max(anchors) - metadata['start'] >= info['duration'] + 1 / float(Fraction(info['fps'])):
+        raise ValueError('The recording stops before a detected event. Record its full context before labelling.')
+
+
+def validate_video_frames(path: Path):
+    """A readable MP4 header is insufficient: reject corrupt video frames too."""
+    ffmpeg = os.getenv('RR_FFMPEG_BIN') or shutil.which('ffmpeg')
+    bundled = Path.home() / '.csdm/ffmpeg/bin/ffmpeg.exe'
+    if not ffmpeg and bundled.is_file():
+        ffmpeg = str(bundled)
+    if not ffmpeg:
+        raise ValueError('FFmpeg is required to validate all video frames before labelling.')
+    try:
+        result = subprocess.run([ffmpeg, '-v', 'error', '-xerror', '-protocol_whitelist', 'file,pipe',
+                                 '-i', str(path), '-map', '0:v:0', '-f', 'null', '-'],
+                                capture_output=True, timeout=180,
+                                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+    except (OSError, subprocess.TimeoutExpired):
+        raise ValueError('Video frame validation could not finish. Try a shorter clip or record it again.') from None
+    if result.returncode:
+        raise ValueError('The video contains unreadable frames. Record or export this clip again.')
 
 
 class Media:
@@ -110,6 +143,7 @@ class Media:
         metadata = json.loads(row['metadata'])
         if not include_finding:
             metadata.pop('finding', None)
+            metadata.pop('findings', None)
         return {**metadata, 'id': row['id'], 'state': row['state'],
                 'demo': row['demo'], 'player': row['player'], 'round': row['round'],
                 'url': f"/api/footage/{row['id']}.mp4" if row['state'] == 'ready' else None}
@@ -124,12 +158,19 @@ class Media:
     def expire(self, con):
         con.execute("UPDATE footage SET state='failed',lease=NULL WHERE state='recording' AND expires<?", (time.time(),))
 
-    def list(self, demo, player, rnd):
+    def list(self, demo, player, rnd, *, history=False):
         self.round(demo, player, rnd)
         with self.store.connect() as con:
             self.expire(con)
-            return [self.public(r) for r in con.execute(
-                'SELECT * FROM footage WHERE demo=? AND player=? AND round=? ORDER BY rowid DESC', (demo, player, rnd))]
+            current = con.execute('SELECT payload FROM snapshots WHERE demo=? AND player=?', (demo, player)).fetchone()
+            snapshot = json.loads(current['payload'])['id'] if current else None
+            result = []
+            for row in con.execute('SELECT * FROM footage WHERE demo=? AND player=? AND round=? ORDER BY rowid DESC', (demo, player, rnd)):
+                metadata = json.loads(row['metadata'])
+                if not history and metadata.get('snapshotId') and metadata['snapshotId'] != snapshot:
+                    continue
+                result.append(self.public(row))
+            return result
 
     def prepare(self, demo, player, rnd, value):
         replay = self.round(demo, player, rnd)
@@ -144,6 +185,7 @@ class Media:
                     'requestedAfter': value.after, 'startTick': ticks[0], 'endTick': ticks[1],
                     'start': (ticks[0] - replay['startTick']) / replay['tickRate'],
                     'end': (ticks[1] - replay['startTick']) / replay['tickRate'], 'createdAt': now(),
+                    'contextClamped': start > value.anchor - value.before or end < value.anchor + value.after,
                     'alignmentConfirmed': False}
         return metadata
 
@@ -203,8 +245,8 @@ def install_media(app, store):
     prefix = '/api/demos/{demo}/players/{player}/rounds/{rnd}/footage'
 
     @app.get(prefix)
-    def listing(demo: str, player: str, rnd: int):
-        return media.list(demo, player, rnd)
+    def listing(demo: str, player: str, rnd: int, history: bool = False):
+        return media.list(demo, player, rnd, history=history)
 
     @app.post(prefix, status_code=202)
     def queue(demo: str, player: str, rnd: int, value: ClipRequest):
@@ -225,7 +267,8 @@ def install_media(app, store):
                     target.write(chunk)
                     digest.update(chunk)
             info = await run_in_threadpool(probe_video, path)
-            return path, {**info, 'sha256': digest.hexdigest(), 'bytes': total}
+            await run_in_threadpool(validate_video_frames, path)
+            return path, {**info, 'sha256': digest.hexdigest(), 'bytes': total, 'frameValidation': 'full-decode-v1'}
         except BaseException:
             path.unlink(missing_ok=True)
             raise
@@ -334,9 +377,7 @@ def install_media(app, store):
                 con.execute('BEGIN IMMEDIATE')
                 row = media.leased(identity, lease)
                 metadata = json.loads(row['metadata'])
-                expected = metadata['end'] - metadata['start']
-                if abs(info['duration'] - expected) > max(1., expected * .05):
-                    raise ValueError('Recorded duration differs from the requested window. Check capture timing before retrying.')
+                validate_recording_duration(metadata, info)
                 metadata.update(info)
                 metadata['videoEnd'] = metadata['start'] + info['duration']
                 con.execute("UPDATE footage SET state='ready',metadata=?,lease=NULL,expires=NULL WHERE id=?", (encode(metadata), identity))

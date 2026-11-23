@@ -204,6 +204,10 @@ def set_owner(match_id: str, body: OwnerRequest, request: Request) -> dict[str, 
 
 @router.delete("/matches/{match_id}", status_code=204)
 def delete_match(match_id: str, request: Request) -> Response:
+    from app.repositories.matches import repo
+
+    if (repo.get(match_id) or {}).get("status") in services.PROCESSING:
+        raise HTTPException(status_code=409, detail="The match is still processing. Delete it once it has finished.")
     if not services.delete_match_everything(match_id):
         raise HTTPException(status_code=404, detail="Match not found.")
     audit(request, "admin.match_delete", match_id)

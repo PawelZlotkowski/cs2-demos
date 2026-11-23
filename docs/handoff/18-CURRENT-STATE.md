@@ -4,6 +4,16 @@ Related: [15 Implementation](./15-IMPLEMENTATION-ARCHITECTURE.md), [17 Testing](
 
 As of 26 September 2026 (AI Coach phase 1 on branch `claude/coach-phase-1-hrt6pm` and phase 2 on `claude/coach-phase-2-r2gzvt`, both in review; CS:DM gameplay clips merged on `development`; Demo Replay milestone verified 25 Sep). Runnable monorepo: `apps/web`, `apps/api`, `apps/mcp`. UI reference remains [`prototype/analysis-studio.html`](../../prototype/analysis-studio.html) — do not treat it as the live app.
 
+## Detection quality update on 20 November 2026
+
+**Extended audit completed:** 102 permitted training files checked (100 usable; two first fragments have no selectable players); four fresh full analyses cover 93 rounds. All **85** current grouped labeller clips are ready, decoded and exported with no integrity/overlap errors. The additional 28 clips received timestamped frame inspection. Stale Ask/knowledge citations, stale annotation saves, legacy default profile, long-chain overlap, historical footage duplicates, selected POV reuse and native capture watchdog faults were corrected. All original human revisions survive. Combined regressions: 464 passed / 3 skipped; final recorder follow-up: 19 passed. [Full audit, exact limits and presentation gates](../coach/SHOWCASE-READINESS-AUDIT-2026-11-20.md). The staged 57-clip result below records the earlier checkpoint.
+
+Owner-assigned corrections now use a living selected player's nearby teammate death (within 5 m), distinct trade outcomes, and a conservative rifle-combat movement signal. Uncertain trade/movement observations are context, not automatically proven mistakes. Positive trades and personal trade counts share the proximity rule; missing positions abstain. The ranker and agent verifier reject duplicate evidence and overlapping selected windows. Policy: `local-v1.1`.
+
+Eight conditional knowledge passages, corrected fundamentals, versioned uncertainty prompts and a 16-source research inventory support RR11–RR13/RR16. [Detailed research and validation](../coach/DETECTION-QUALITY-RESEARCH-2026-11-20.md). Cached telemetry smoke is not a precision/recall result. Existing stored reviews require a fresh analysis; human-labelled clip validation, map/build geometry and full RAG evaluation remain open. The September status below is historical.
+
+The owner's follow-up refresh is now applied: five Studio reviews and five prepared labeller profiles were recalculated; 57 grouped personal clips are ready (16 Ancient, 20 + 21 Anubis). A visual frame audit covered 20 observations from 18 files, including a successful nearby trade and interrupted/no-trade outcomes. New batches have no overlapping windows or repeated evidence IDs. Old snapshots and all existing labeller labels were retained. [Clip audit, exact scope and remaining limits](../coach/DETECTION-QUALITY-CLIP-AUDIT-2026-11-20.md). Two historical non-owner profiles have paused recording queues; two roster-only imports were not parsed or assigned a player.
+
 ## Implemented (Demo Replay — monorepo)
 
 - **Upload → process → Radar:** `.dem` / `.dem.zst` upload, zstd decompress, **demoparser2** parse, normalise to round replay JSON on disk.

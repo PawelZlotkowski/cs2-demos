@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import sqlite3
 import threading
@@ -17,6 +18,8 @@ from app.models.contracts import MatchStatus
 from app.repositories.analysis import AnalysisRepository
 
 ANALYSIS_FILE = "analysis.json"
+# Round ids reach file paths from URLs; on Windows "%5C" decodes to a folder separator
+ROUND_ID = re.compile(r"r\d{1,3}")
 
 STAGE_LABELS: dict[MatchStatus, str] = {
     MatchStatus.uploaded: "Upload received",
@@ -108,8 +111,26 @@ class MatchRepository:
                 with self._lock:
                     self._records[match_id] = record
                     self._upsert_row(record)
+                self.refresh_score(match_id)
             except (OSError, json.JSONDecodeError, TypeError, ValueError):
                 continue
+
+    def refresh_score(self, match_id: str) -> None:
+        """Score as the coached player's team saw it ("us–them"), from their round stats.
+
+        normalize writes the score before a player is chosen, in the order of the team that
+        started on CT; older match.json files also count the FACEIT knife round. Round stats
+        skip knife rounds, so once they exist they are the one score every screen shows.
+        """
+        player_id = self.analysis.get_player(match_id)
+        stats = self.analysis.round_stats(match_id, player_id) if player_id else []
+        if not stats or any(s.won is None for s in stats):
+            return
+        wins = sum(1 for s in stats if s.won)
+        with self._lock:
+            record = self._records.get(match_id)
+            if record:
+                record["match"]["score"] = f"{wins}–{len(stats) - wins}"
 
     def _restored_status(self, match_dir: Path, match_id: str) -> MatchStatus:
         """Matches parsed before the coach milestone have no analysis.json."""
@@ -315,6 +336,8 @@ class MatchRepository:
             return record
 
     def get_round_replay(self, match_id: str, round_id: str) -> dict[str, Any] | None:
+        if not ROUND_ID.fullmatch(round_id):
+            return None
         with self._lock:
             record = self._records.get(match_id)
             if not record:

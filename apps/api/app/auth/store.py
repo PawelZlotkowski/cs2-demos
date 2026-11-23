@@ -182,6 +182,12 @@ class UserStore:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.executescript(SCHEMA)
+            ask_columns = {r[1] for r in conn.execute('PRAGMA table_info(ask_messages)')}
+            if 'evidence_version' not in ask_columns:
+                conn.execute('ALTER TABLE ask_messages ADD COLUMN evidence_version TEXT')
+            if 'round' not in ask_columns:
+                # Each Studio round keeps its own Ask thread; older rows stay NULL
+                conn.execute('ALTER TABLE ask_messages ADD COLUMN round INTEGER')
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.db_path)
@@ -517,16 +523,18 @@ class UserStore:
         return [{"momentId": m, "seenAt": s, "lastT": t} for m, s, t in rows]
 
     def add_ask(self, user_id: str, match_id: str | None, player_id: str, question: str, answer: str | None,
-                citations: list[str], source: str | None, lang: str | None) -> int:
+                citations: list[str], source: str | None, lang: str | None, evidence_version: str | None = None,
+                round_no: int | None = None) -> int:
         with self._connect() as conn:
             return conn.execute(
-                "INSERT INTO ask_messages (user_id, match_id, player_id, question, answer, citations_json, source, lang, created_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (user_id, match_id, player_id, question, answer, json.dumps(citations), source, lang, iso()),
+                "INSERT INTO ask_messages (user_id, match_id, player_id, question, answer, citations_json, source, lang, created_at, evidence_version, round)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (user_id, match_id, player_id, question, answer, json.dumps(citations), source, lang, iso(), evidence_version, round_no),
             ).lastrowid or 0
 
-    def asks(self, user_id: str | None = None, match_id: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
-        q = "SELECT id, user_id, match_id, player_id, question, answer, citations_json, source, lang, created_at FROM ask_messages WHERE 1=1"
+    def asks(self, user_id: str | None = None, match_id: str | None = None, limit: int = 100,
+             evidence_version: str | None = None) -> list[dict[str, Any]]:
+        q = "SELECT id, user_id, match_id, player_id, question, answer, citations_json, source, lang, created_at, evidence_version, round FROM ask_messages WHERE 1=1"
         args: list[Any] = []
         if user_id:
             q += " AND user_id = ?"
@@ -534,14 +542,18 @@ class UserStore:
         if match_id is not None:
             q += " AND match_id = ?"
             args.append(match_id)
+        if evidence_version is not None:
+            q += ' AND evidence_version = ?'
+            args.append(evidence_version)
         q += " ORDER BY id DESC LIMIT ?"
         args.append(limit)
         with self._connect() as conn:
             rows = conn.execute(q, args).fetchall()
         return [
             {"id": i, "userId": u, "matchId": m, "playerId": p, "question": qu, "answer": a,
-             "citations": json.loads(c or "[]"), "source": s, "lang": lang, "createdAt": at}
-            for i, u, m, p, qu, a, c, s, lang, at in reversed(rows)
+             "citations": json.loads(c or "[]"), "source": s, "lang": lang, "createdAt": at, 'evidenceVersion': version,
+             "round": rnd}
+            for i, u, m, p, qu, a, c, s, lang, at, version, rnd in reversed(rows)
         ]
 
     def set_feedback(self, user_id: str, match_id: str, target: str, kind: str, verdict: str, note: str | None) -> None:

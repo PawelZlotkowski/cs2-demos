@@ -47,7 +47,13 @@ function watchContext(anchor){
 }
 function limits(){
   if(!$('loopWindow').checked)return {start:0,end:state.replay.durationSec};
-  const start=Math.max(0,Number($('windowStart').value)||0),end=Math.min(state.replay.durationSec,Number($('windowEnd').value)||0);
+  let start=Math.max(0,Number($('windowStart').value)||0),end=Math.min(state.replay.durationSec,Number($('windowEnd').value)||0);
+  const clip=playback.clip;
+  if(clip&&$('clockSource').value==='video'&&document.body.classList.contains('clip-review')){
+    const duration=$('video').duration;
+    start=Math.max(start,clip.start);
+    end=Math.min(end,clip.start+clip.duration,clip.start+(Number.isFinite(duration)?duration:clip.duration));
+  }
   if(end<=start)throw new Error('Context end must be after its start.');
   return {start,end};
 }
@@ -57,13 +63,15 @@ async function playReplay(){
   playback.playing=true;playback.last=performance.now();$('play').textContent='Pause';
   if($('clockSource').value==='video'){
     const c=playback.clip;
-    if(!c||!Number.isFinite($('video').duration)){pauseReplay();throw new Error('Select saved footage and wait for it to load.');}
+    if(!c){pauseReplay();throw new Error('Select saved footage to play the video.');}
     if($('loopWindow').checked&&(c.start>window.start+.05||c.start+c.duration<window.end-.05)){
       pauseReplay();throw new Error('This footage does not cover the marked loop. Shorten the window or use the Radar clock.');
     }
     if(playback.time<c.start||playback.time>=c.start+c.duration)seekReplay(Math.max(window.start,c.start));
     $('video').playbackRate=Number($('speed').value);
-    try{await $('video').play();}catch(e){pauseReplay();throw e;}
+    // The browser can start playback as soon as metadata arrives. A new clip
+    // or a deliberate pause can interrupt that pending play request.
+    try{await $('video').play();}catch(e){if(e.name==='AbortError'||playback.clip?.id!==c.id)return;pauseReplay();throw e;}
   }
 }
 function animateReplay(now){
@@ -74,7 +82,9 @@ function animateReplay(now){
     if(time>=window.end){
       if($('loopWindow').checked){seekReplay(window.start);}
       else{seekReplay(window.end);pauseReplay();}
-    }else seekReplay(time,$('clockSource').value==='video');
+    }else if($('clockSource').value!=='video'||Number.isFinite($('video').duration)){
+      seekReplay(time,$('clockSource').value==='video');
+    }
   }
   requestAnimationFrame(animateReplay);
 }
@@ -115,9 +125,18 @@ async function refreshFootage(){
   }
 }
 function showClipInfo(){const c=playback.clip;$('confirmFootage').disabled=!c||c.alignmentConfirmed;$('clipInfo').textContent=c?`${c.width}×${c.height} · ${c.duration.toFixed(2)} s · ${c.alignmentConfirmed?'Player and timing verified':'Verify POV and align a visible event with the radar before using as evidence.'}`:'No saved footage selected.';}
-function selectClip(id){pauseReplay();playback.clip=playback.clips.find(c=>c.id===id&&c.state==='ready')||null;
+function selectClip(id){
+  pauseReplay();
+  playback.clip=playback.clips.find(c=>c.id===id&&c.state==='ready')||null;
   $('clockSource').value=playback.clip?'video':'radar';
-  $('clipSelect').value=id;$('video').removeAttribute('src');if(playback.clip)$('video').src=playback.clip.url;$('video').load();showClipInfo();}
+  $('clipSelect').value=playback.clip?.id||'';
+  const video=$('video'),url=playback.clip?.url||null;
+  if(video.getAttribute('src')!==url||video.error){
+    if(url)video.src=url;else video.removeAttribute('src');
+    video.load();
+  }
+  showClipInfo();
+}
 async function recordContext(anchor){
   const path=footagePath();await api(path,{method:'POST',body:JSON.stringify({anchor,before:Number($('before').value),after:Number($('after').value)})});
   if(path===footagePath())await refreshFootage();message('Context recording queued. Start tools/record_label_clips.py on the host with Steam and CS2 configured. The MP4 will appear here when ready.');
@@ -156,10 +175,11 @@ $('video').onended=()=>{
   }
 };
 document.addEventListener('keydown',e=>{
-  if(e.ctrlKey||e.metaKey||e.altKey||['INPUT','TEXTAREA','SELECT','BUTTON'].includes(e.target.tagName)||!state.replay)return;
+  if(e.ctrlKey||e.metaKey||e.altKey||e.target.isContentEditable||
+     ['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY','A'].includes(e.target.tagName)||!state.replay)return;
   if(e.code==='Space'){e.preventDefault();guard(playReplay)();}
   if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();pauseReplay();seekReplay(playback.time+(e.key==='ArrowLeft'?-1:1));}
-  if(e.key.toLowerCase()==='m'){$('addMoment').click();}
+  if(e.key.toLowerCase()==='m'&&!document.body.classList.contains('clip-review')){$('addMoment').click();}
 });
 requestAnimationFrame(animateReplay);
 setInterval(()=>refreshFootage().catch(()=>{}),3000);

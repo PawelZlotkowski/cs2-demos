@@ -8,6 +8,10 @@ const FORWARD = ["content-type", "content-length", "cookie", "authorization", "o
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request): Promise<Response> {
+  // Middleware skips this route (see middleware.ts), so apply its labeller-mode 404 here
+  if (process.env.RR_WEB_MODE === "clip-labeller") {
+    return Response.json({ detail: "Not found." }, { status: 404, headers: { "Cache-Control": "no-store" } });
+  }
   const url = new URL(req.url);
   const headers = new Headers();
   for (const h of FORWARD) {

@@ -52,65 +52,43 @@ button.link {
 }
 
 .acct-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 8px 0 4px;
-  background: none;
+  display: inline-grid;
+  place-items: center;
+  width: var(--bar);
+  height: var(--bar);
+  padding: 0;
   border: 1px solid transparent;
-  border-radius: var(--r-ctl);
+  border-radius: var(--r-pill);
+  color: var(--text);
+  font-size: var(--fs-15);
+  font-weight: 700;
+  text-decoration: none;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .acct-btn:hover {
-    border-color: var(--border);
+    background: var(--surface-raised);
   }
 }
 
 .acct-btn[aria-expanded="true"] {
-  border-color: var(--border);
   background: var(--surface-raised);
-}
-
-.acct-btn img,
-.acct-initials {
-  width: 24px;
-  height: 24px;
-  border-radius: var(--r-ctl);
-  flex: none;
-}
-
-.acct-initials {
-  display: inline-grid;
-  place-items: center;
-  background: var(--surface-sunk);
-  border: 1px solid var(--border);
-  font-size: var(--fs-11);
-  font-weight: 600;
-  color: var(--text-2);
-}
-
-.acct-name {
-  max-width: 14ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--fs-13);
-  font-weight: 500;
 }
 
 .acct-menu {
   position: absolute;
   z-index: 50;
-  inset-block-start: calc(100% + 6px);
+  inset-block-start: calc(100% + var(--sp-2));
   inset-inline-end: 0;
-  min-width: 200px;
+  min-width: 220px;
   display: grid;
-  padding: 4px;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--r-panel);
+  gap: 2px;
+  padding: var(--sp-2);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-edge), var(--shadow-sheet);
+  border-radius: calc(var(--r-tile) + var(--sp-2));
   transform-origin: top right;
   animation: acct-in 140ms var(--ease-out);
 }
@@ -131,9 +109,10 @@ button.link {
 .acct-who {
   display: grid;
   gap: 2px;
-  margin: 0 0 4px;
-  padding: 6px 8px 8px;
-  border-bottom: 1px solid var(--border-soft);
+  margin: 0 0 var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-tile);
+  background: var(--tint-1);
   font-size: var(--fs-13);
 }
 
@@ -145,92 +124,87 @@ button.link {
 .acct-menu a,
 .acct-menu button {
   display: block;
-  padding: 6px 8px;
+  padding: var(--sp-2) var(--sp-3);
   border: 0;
-  border-radius: var(--r-ctl);
+  border-radius: var(--r-pill);
   background: none;
   text-align: start;
   text-decoration: none;
   font-size: var(--fs-13);
 }
 
-.acct-menu a:hover,
-.acct-menu button:hover,
+@media (hover: hover) and (pointer: fine) {
+  .acct-menu :is(a, button):hover {
+    background: var(--tint-1);
+  }
+}
+
 .acct-menu a:focus-visible,
 .acct-menu button:focus-visible {
   background: var(--surface-sunk);
 }
 
-/* ---- Admin frame: its own sidebar under the app's top bar ---- */
+/* ---- Admin frame: a floating glass rail beside the page, like the Studio's moment stack ---- */
 
 .admin {
   min-height: 0;
   display: grid;
-  grid-template-columns: 208px minmax(0, 1fr);
+  grid-template-columns: 228px minmax(0, 1fr);
+  gap: var(--gap);
+  padding-inline-start: var(--gutter);
 }
 
 .admin-nav {
+  align-self: start;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px 12px;
-  background: var(--surface-panel);
-  border-inline-end: 1px solid var(--border);
+  gap: var(--sp-3);
+  max-height: calc(100% - var(--gutter));
+  padding: var(--sp-3);
+  border-radius: var(--r-sheet);
   overflow: auto;
-}
-
-.admin-title {
-  margin: 0;
-  padding: 0 8px;
-  font-family: var(--display);
-  font-stretch: 78%;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-size: var(--fs-13);
+  scrollbar-width: none;
 }
 
 .admin-group {
   display: grid;
-  gap: 1px;
-}
-
-.admin-group-h {
-  padding: 0 8px 4px;
-  font-size: var(--fs-11);
-  font-weight: 600;
-  color: var(--text-3);
+  gap: 2px;
 }
 
 .admin-nav a {
-  display: block;
-  padding: 5px 8px;
-  border-radius: var(--r-ctl);
-  font-size: var(--fs-13);
-  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  min-height: var(--sp-10);
+  padding-inline: var(--sp-4);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-14);
+  font-weight: 500;
+  color: var(--text-3);
   text-decoration: none;
+  white-space: nowrap;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .admin-nav a:hover {
+  .admin-nav a:not([aria-current]):hover {
     color: var(--text);
-    background: var(--surface-sunk);
+    background: var(--tint-1);
   }
 }
 
 .admin-nav a[aria-current="page"] {
   color: var(--text);
-  font-weight: 600;
+  font-weight: 650;
   background: var(--surface-raised);
-  box-shadow: inset 2px 0 0 var(--text);
+  box-shadow: var(--shadow-pill);
 }
 
 .admin-note {
-  margin: auto 0 0;
-  padding: 8px;
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-tile);
+  background: var(--tint-1);
   font-size: var(--fs-12);
   color: var(--text-3);
-  border-top: 1px solid var(--border-soft);
 }
 
 .admin-body {
@@ -244,46 +218,33 @@ button.link {
 .admin-body > .main {
   display: grid;
   align-content: start;
-  gap: 20px;
-}
-
-.admin-body > .main > .page-h h1 {
-  margin-bottom: 2px;
-}
-
-.admin-body > .main > .page-h .lede {
-  margin-bottom: 0;
+  gap: var(--sp-6);
 }
 
 @media (max-width: 720px) {
   .admin {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
+    padding-inline-start: 0;
     overflow: auto;
   }
 
-  /* The sidebar becomes one scrolling row of links. */
+  /* The rail becomes one scrolling glass capsule of links, like the main nav. */
   .admin-nav {
     flex-direction: row;
     align-items: center;
-    gap: 4px;
-    padding: 8px 12px;
-    border-inline-end: 0;
-    border-bottom: 1px solid var(--border);
-    scrollbar-width: none;
+    gap: var(--sp-2);
+    margin-inline: var(--sp-3);
+    padding: 6px;
+    border-radius: var(--r-pill);
   }
 
   .admin-group {
     display: flex;
   }
 
-  .admin-group-h,
   .admin-note {
     display: none;
-  }
-
-  .admin-nav a {
-    white-space: nowrap;
   }
 
   .admin-body {
@@ -295,30 +256,40 @@ button.link {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  border: 1px solid var(--border);
-  border-radius: var(--r-panel);
-  background: var(--surface-panel);
-  overflow: hidden;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+}
+
+@media (max-width: 720px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .stat {
   display: grid;
-  gap: 2px;
-  padding: 12px 14px;
-  border-inline-end: 1px solid var(--border-soft);
-  border-bottom: 1px solid var(--border-soft);
-  margin: 0 -1px -1px 0;
+  align-content: space-between;
+  gap: var(--sp-2);
+  min-height: 92px;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-tile);
+  background: var(--tint-1);
   text-decoration: none;
+  transition: background-color var(--dur-hover) var(--ease-out);
 }
 
-a.stat:hover {
-  background: var(--surface-raised);
+@media (hover: hover) and (pointer: fine) {
+  a.stat:hover {
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-pill);
+  }
 }
 
 .stat-v {
-  font-size: var(--fs-26);
-  line-height: 1.1;
+  font-size: var(--fs-24);
+  font-weight: 700;
+  line-height: var(--lh-tight);
 }
 
 .stat-l {
@@ -328,7 +299,9 @@ a.stat:hover {
 
 .plain-list {
   list-style: none;
-  margin: 8px 0 0;
+  display: grid;
+  gap: var(--sp-1);
+  margin: var(--sp-3) 0 0;
   padding: 0;
 }
 
@@ -337,13 +310,10 @@ a.stat:hover {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 12px;
-  padding: 8px 0;
-  border-top: 1px solid var(--border-soft);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-tile);
+  background: var(--tint-1);
   font-size: var(--fs-13);
-}
-
-.plain-list li:first-child {
-  border-top: 0;
 }
 
 .plain-list li > :last-child:not(:first-child) {
@@ -352,12 +322,12 @@ a.stat:hover {
 
 .tag {
   display: inline-block;
-  padding: 0 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-ctl);
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--tint-2);
   font-size: var(--fs-11);
-  font-weight: 600;
-  line-height: 18px;
+  font-weight: 650;
+  line-height: 20px;
   color: var(--text-2);
   white-space: nowrap;
   vertical-align: 1px;
@@ -366,11 +336,10 @@ a.stat:hover {
 .notice {
   display: grid;
   gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-inline-start: 2px solid var(--text);
-  border-radius: var(--r-panel);
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--r-tile);
   background: var(--surface-raised);
+  box-shadow: var(--shadow-pill);
   font-size: var(--fs-13);
 }
 
@@ -386,10 +355,9 @@ a.stat:hover {
 }
 
 .secret code {
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-ctl);
-  background: var(--surface-sunk);
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-pill);
+  background: var(--tint-2);
   font-size: var(--fs-13);
   user-select: all;
   word-break: break-all;
@@ -435,7 +403,9 @@ a.stat:hover {
 
 .setting-list {
   list-style: none;
-  margin: 8px 0 0;
+  display: grid;
+  gap: var(--sp-1);
+  margin: var(--sp-3) 0 0;
   padding: 0;
 }
 
@@ -444,12 +414,9 @@ a.stat:hover {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 4px 16px;
   align-items: center;
-  padding: 10px 0;
-  border-top: 1px solid var(--border-soft);
-}
-
-.setting:first-child {
-  border-top: 0;
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
+  border-radius: var(--r-tile);
+  background: var(--tint-1);
 }
 
 .setting-l {
@@ -492,11 +459,19 @@ a.stat:hover {
   display: grid;
   gap: 16px;
   align-content: start;
-  padding-top: 48px;
+}
+
+/* Sign-in is one porcelain sheet on the bone ground (screens.md). */
+.shell > .main.signin {
+  align-self: start;
+  max-height: calc(100% - var(--gutter));
+  margin-top: var(--sp-8);
+  padding: var(--sp-8);
 }
 
 .signin h1 {
   margin: 0;
+  font-size: var(--fs-28);
 }
 
 .signin .err {
@@ -504,24 +479,15 @@ a.stat:hover {
 }
 
 .steam {
-  height: 40px;
+  min-height: var(--sp-12);
   width: 100%;
 }
 
 .or {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   margin: 0;
   font-size: var(--fs-12);
   color: var(--text-3);
-}
-
-.or::before,
-.or::after {
-  content: "";
-  flex: 1;
-  border-top: 1px solid var(--border);
+  text-align: center;
 }
 
 .auth-form {
@@ -540,8 +506,8 @@ a.stat:hover {
   font-weight: 400;
 }
 
-.auth-form .btn {
-  height: 36px;
+.auth-form :is(.btn, .input) {
+  min-height: var(--sp-12);
 }
 
 .auth-switch {
@@ -567,26 +533,28 @@ a.stat:hover {
 /* ---- Shared review (read-only link) ---- */
 
 .coach-voice {
-  font-family: var(--serif);
-  font-size: 16px;
-  line-height: 1.55;
-  margin: 8px 0 0;
+  font-family: var(--ui);
+  font-size: var(--fs-15);
+  line-height: var(--lh-prose);
+  margin: var(--sp-2) 0 0;
   max-width: 64ch;
 }
 
 .shared-moments {
   list-style: none;
-  margin: 24px 0;
+  margin: var(--sp-6) 0;
   padding: 0;
   display: grid;
-  gap: 24px;
+  gap: var(--sp-6);
 }
 
 .shared-moments li {
   display: grid;
   gap: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
+  padding: var(--sp-5);
+  border-radius: var(--r-sheet);
+  background: var(--glass-bg);
+  box-shadow: var(--glass-edge), var(--shadow-float);
 }
 
 .shared-moments :is(h2, h3) {

@@ -124,10 +124,10 @@ def test_select_moments_validates_and_stores(analysed):
     from app.repositories.matches import repo
 
     ids = {f.detector: f for f in repo.analysis.findings(mid, pid)}
-    mistake, good = ids["shot_while_moving"], ids["good_plays"]
+    mistake, good = ids["dry_peek"], ids["good_plays"]
     picks = [
         {"round": 1, "t0": 10.0, "t1": 18.0, "findingIds": [mistake.id], "kind": "mistake",
-         "pickedBecause": f"[{mistake.id}] Shot while moving."},
+         "pickedBecause": f"[{mistake.id}] Duel without recorded support."},
         {"round": 2, "t0": 11.0, "t1": 19.0, "findingIds": [good.id], "kind": "good",
          "pickedBecause": f"[{good.id}] Entry kill."},
     ]
@@ -153,7 +153,7 @@ def test_search_knowledge(analysed):
     out = call("search_knowledge", query="died alone and nobody traded", k=2)
     ids = [p["id"] for p in out["passages"]]
     assert len(ids) == 2 and all(i.startswith("K") for i in ids)
-    assert out["passages"][0]["title"] in {"Untraded deaths", "Trading"}
+    assert out["passages"][0]["title"] in {"Untraded deaths", "Trading", "Nearby trade outcomes and missed opportunities"}
     mirage = call("search_knowledge", query="B apartments molotov", map="de_mirage")
     assert mirage["passages"][0]["map"] == "de_mirage"
     assert all(p["map"] in ("all", "de_mirage") for p in mirage["passages"])

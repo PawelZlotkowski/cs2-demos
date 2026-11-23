@@ -41,24 +41,30 @@ The cloud target is unchanged: one shared API/parser and private storage, with a
 
 ## What the parser collects and selects
 
+Updated 20 November: [corpus, application and recording audit](coach/SHOWCASE-READINESS-AUDIT-2026-11-20.md). All 85 current labeller clips have passed full media checks; the historical verification table below remains dated to its original checkpoint.
+
 The parser collects round boundaries, kills, damage, shots, flashes, grenades, bomb events and available economy/inventory data. Replay positions, facing direction, team, health and alive state are sampled at 8 Hz. Shots carry velocity at the event tick; short full-rate windows around kills supply extra evidence. Missing optional fields must not be interpreted as confirmed absence of an action.
 
 The versioned profile is exposed at `GET /analysis-policy` (`http://127.0.0.1:3003/api/analysis-policy`). Its initial detector set is:
 
 | Candidate | Initial signal | Interpretation limit |
 |---|---|---|
-| Untraded death | Killer not traded within 5 seconds; teammate context retained | Distance and timing alone do not prove that a trade was possible |
-| Shot while moving | Rifle/pistol/sniper burst with at least half its shots above the configured movement threshold; initial threshold 34% of weapon maximum speed | Heuristic to calibrate, not an exact spread or aim-quality measurement |
+| Nearby teammate death | Selected player alive, fresh position within 5 m in 3D; distinguish personal trade, teammate trade, no trade and interrupted five-second windows | Context only. Distance and timing do not prove that a trade was possible or that no attempt was made |
+| Shot while moving | At least two moving rifle shots, at least half the burst above its configured speed proxy, and adjacent firearm combat involving the selected player | Context only. Pistols, SMGs, shotguns and scoped weapons abstain; movement does not establish poor aim or cause of death |
 | Unused utility | Available inventory evidence shows grenades held at death | Saving or lacking a safe throw can be correct |
 | Team flash | Own flash blinds a teammate for more than 1 second | May have been an agreed play; evaluate enemies affected and timing |
 | Opening duel | First kill/death context | Context for a decision, not automatically a mistake |
 | Good plays | Trades, entries, multi-kills, clutch wins, flash assists and utility damage | Outcome supports review; quality still needs context |
 
-Dry-peek, late-rotation, economy-mismatch and repeated-death-zone detectors are excluded from this profile pending better evidence/calibration. They remain available in the legacy research profile; the launcher explicitly selects `local-v1`.
+Dry-peek, late-rotation, economy-mismatch and repeated-death-zone detectors are excluded from this profile pending better evidence/calibration. They remain available through explicit `RR_ANALYSIS_PROFILE=all`. The API default and launcher both select `local-v1` (policy `local-v1.1`).
 
 The ranker groups related evidence, spreads selections across rounds and detector types, and selects **at most six** moments. It balances good plays and potential mistakes when the available evidence permits; it does not invent findings to fill a quota. The existing ranker adds approximately 5 seconds before and 3 after an event group. Recording adds the configured 1 second before and 3 after that selected window, clamps to round boundaries, and caps a clip at 60 seconds. These are cumulative margins. The LLM, when explicitly enabled, can select/explain grounded evidence; it must not invent timestamps or commands.
 
+The separate labeller groups all connected padded windows within each round, with each finding included once. It no longer splits a continuous play at 60 seconds, which could repeat footage. Its current footage picker hides older snapshots by default; archived recordings/labels remain retained. Ask answers are tied to the current analysis and knowledge-source version, so old citation IDs cannot silently become different evidence.
+
 ## Test recordings separately first
+
+The labeller recorder now retries a stalled HLAE startup once, then attempts native CS capture once using the same demo, player and ticks. Native capture uses a bounded overall timeout because its output moves from the game directory after capture. This path recorded all 14 remaining Anubis windows in the 20 November audit. Accepted labeller uploads undergo full frame decoding and tighter duration/last-event checks. These checks do not replace human POV/timing confirmation. Use prepared clips for the teacher presentation and recheck capture after game/plugin updates.
 
 CS Demo Manager 3.20.1, its CLI and ffprobe were found. Its configured database port is reachable. This is a prerequisite check, not proof of database authentication or working CS2/HLAE capture. No Steam session or game was launched during this integration check.
 
@@ -73,7 +79,7 @@ CS Demo Manager 3.20.1, its CLI and ffprobe were found. Its configured database 
 4. Check the gameplay view and compare the recorded event against the radar. Verify player identity, start/end ticks, context margins, map version and audio. ffprobe validation only proves a video stream with positive duration and dimensions; it cannot prove the POV or event is correct. X-ray is explicitly disabled in the generated recording command.
 5. If capture fails, keep reviewing radar and inspect the clip's error/log. Retry after fixing the recorder. Stop the launcher to stop its owned app/recorder process tree; it does not intentionally close an independently running Steam session. Interrupting a game-launch tool still needs manual checking.
 
-To test the LLM separately, start your self-hosted server yourself, configure `RR_LLM_BASE_URL` and `RR_LLM_MODEL` in `apps/api/.env`, then run `./start-local.ps1 -Llm`. The launcher checks that a loopback model endpoint responds; it does not download or start a model. First validate recording and inference in separate sessions. A loaded model can retain VRAM while idle, and capture/Ask do not yet have complete shared GPU lifecycle control. Combining both flags is not a validated GPU configuration.
+Since 23 November 2026 a plain `./start-local.ps1` runs the full app: the model, recording and the production web build (the owner's choice). Name `-Llm`, `-Recording` or `-Prod` to run only those parts. When nothing answers at `RR_LLM_BASE_URL`, the launcher starts llama-server itself with `RR_LLAMA_MODEL_FILE` (and `RR_LLAMA_SERVER`, default `~/llama.cpp/llama-server.exe`) from `apps/api/.env`, served as `RR_LLM_MODEL`, with `--fit-target 4096` so about 4 GB of VRAM stays free for CS2. On the RTX 5080 the 26B Gemma then answers a 3,800-token prompt in about 4.3 s instead of 2.2 s fully on the GPU. When the recorder database is down, it starts Docker Desktop and the CS:DM database container. The model and the database keep running after Studio stops; the launcher never downloads a model. Once Studio is ready, it also makes sure Tailscale Serve shares it with your other tailnet devices (the Mac) at `https://<pc>.<tailnet>.ts.net:8443`, re-pointing that port at the web port when needed. The share is tailnet only, never Funnel, and stays configured after Studio stops. Recording next to the loaded model has not yet been verified end to end.
 
 ## Verification on 25 October
 

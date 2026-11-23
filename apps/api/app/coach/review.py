@@ -14,7 +14,7 @@ from typing import Literal
 from app.coach.verify import fallback_text
 from app.core.config import settings
 from app.models.contracts import Finding, PracticeDrill, SelectedMoment
-from app.rag.ingest import Passage, load_passages
+from app.rag.ingest import Passage, load_passages, shown_text
 
 ReviewPart = Literal["summary", "wrapup"]
 PARTS: tuple[ReviewPart, ...] = ("summary", "wrapup")
@@ -96,7 +96,7 @@ def _names_detector(p: Passage, detector: str) -> bool:
 
 def _body(p: Passage) -> str:
     """The passage without its ``Detectors:`` line."""
-    return "\n".join(p.text.splitlines()[1:]).strip()
+    return shown_text(p.text)
 
 
 # --- template fallbacks ------------------------------------------------------------

@@ -22,12 +22,23 @@ From the command line:
    ```
 
    For each finding, watch the moment in the Studio and answer `c` (correct), `w` (wrong) or `u` (unsure), with an optional note. Then list what the detectors **missed** as `<detector> <t seconds> [note]` using the round clock shown in the Studio.
-3. Agreement and scores:
+3. Agreement and scores (patterns are expanded by Python, so quote them and they work the same in PowerShell):
 
    ```bash
    python -m eval.label_tool agreement data/labels/<a>.jsonl data/labels/<b>.jsonl
-   python -m eval.label_tool score data/labels/*.jsonl
+   python -m eval.label_tool agreement "data/labels/<a>-notes*.json" "data/labels/<b>-notes*.json"
+   python -m eval.label_tool score "data/labels/*.json*"
    ```
+
+   Set `RR_CORPUS_MANIFEST` to the private corpus `manifest.csv` to get the scores separately for train+validation and for test (each label's demo is looked up by `demoSha256`). Without it the scores are reported as `split unknown`. Verdicts on test-split demos are counted in `testSplitVerdicts` and a warning: they must not tune anything. The Lab page shows the same numbers.
+
+## Clip labeller exports
+
+The clip labeller exports one JSON document per labeller (`<labeller>-notes*.json`, `"format": "round-reviewer-notes-v1"`): `demos` maps `demo-<sha256>` to its metadata and provenance, and `labels` holds one entry per clip review (`kind: "clip"`, `revision`, `savedAt`, `label`). The label's `matchId` is the demo id, `finding` is the lead finding, and `footage.findings` / `footage.reviewKey` list every finding the clip shows.
+
+- Exports are cumulative: a later file repeats the earlier labels. The tools keep the newest `savedAt` per match, player, snapshot, review key and labeller, so passing every export never counts a label twice.
+- Only `complete` labels are scored. A clip that shows one finding is scored with its verdict; a clip that shows several is scored per finding only where it carries per-finding `signalReviews`, because one verdict cannot say which finding was right. Labels without a verdict are skipped; `unsure` is counted but left out of precision.
+- Exports list no missed events, so recall is `null` for detectors they contribute to.
 
 ## File format
 
@@ -52,5 +63,6 @@ One JSON object per line, one line per labelled round per labeller. File name: `
 ```
 
 - `verdict` is `correct`, `wrong` or `unsure` (unsure is left out of precision and recall).
-- Finding IDs change when detectors change, so scoring matches events by match, player, round, detector and time (within 1 s), not by ID.
+- Labelling a round again appends a line; only the newest line per labeller, match, player and round counts.
+- Finding IDs change when detectors change, so agreement pairs events one to one by match, player, round and detector: the same finding ID within 1 s first, then the nearest time within 1 s. κ is `null` when it is undefined (for example both labellers always said `correct`).
 - Detector names are the module names in `apps/api/app/analysis/detectors/`.

@@ -1,5 +1,9 @@
 "use client";
 
+import { LoadingState } from "@/components/LoadingState";
+import { ModelNotice } from "@/components/SystemNotice";
+import { PillBubble } from "@/components/PillBubble";
+
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { STEP_LABELS } from "@/components/coach/CoachPanel";
@@ -34,20 +38,21 @@ type Turn = {
   steps: string[];
   error?: boolean;
   source?: "agent" | "template";
+  verified?: boolean;
   /** Cited match refs ("M2") to match ids, from the answer event. */
   matches: Record<string, string>;
 };
 
 /** Coach page: Ask across every analysed match of one player, Plan and Knowledge (doc 29 §2.1, R06, R09, R12). */
 export default function CoachPage() {
-  const { players, error: loadError, playerId, player, pick } = useCoachedPlayer();
+  const { players, error: loadError, playerId, player, pick, retry } = useCoachedPlayer();
   const [tab, setTab] = useHashTab<Tab>(TAB_IDS, "ask");
   const [admin, setAdmin] = useState(false);
   const [language, setLanguage] = useCoachLanguage();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const nextId = useRef(1);
-  const aborts = useRef(new Set<AbortController>());
+  const aborts = useRef(new Map<number, AbortController>());
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -59,7 +64,23 @@ export default function CoachPage() {
     return () => live.forEach((c) => c.abort());
   }, []);
 
+  // `/` focuses Ask, as in the Studio.
+  useEffect(() => {
+    if (tab !== "ask") return;
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      if (e.key !== "/" || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      e.preventDefault();
+      inputRef.current?.focus();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [tab]);
+
   function pickPlayer(id: string) {
+    aborts.current.forEach((c) => c.abort());
+    aborts.current.clear();
     pick(id);
     setTurns([]);
   }
@@ -73,7 +94,7 @@ export default function CoachPage() {
     const id = nextId.current++;
     setTurns((ts) => [...ts, { id, q: question, a: "", pending: true, steps: [], matches: {} }]);
     const ctl = new AbortController();
-    aborts.current.add(ctl);
+    aborts.current.set(id, ctl);
     let answered = false;
     const fail = (msg: string) => patch(id, (x) => ({ ...x, a: msg, pending: false, error: true }));
     try {
@@ -91,6 +112,7 @@ export default function CoachPage() {
               a: ev.data.answer,
               pending: false,
               source: ev.data.source,
+              verified: ev.data.verified,
               matches: ev.data.matches ?? {},
             }));
           } else {
@@ -104,8 +126,13 @@ export default function CoachPage() {
     } catch (e) {
       if (!ctl.signal.aborted) fail(e instanceof Error ? e.message : "The coach did not answer.");
     } finally {
-      aborts.current.delete(ctl);
+      aborts.current.delete(id);
     }
+  }
+
+  function stop(id: number) {
+    aborts.current.get(id)?.abort();
+    patch(id, (x) => ({ ...x, a: "Answer stopped.", pending: false, error: true }));
   }
 
   function onSubmit(e: FormEvent) {
@@ -117,7 +144,7 @@ export default function CoachPage() {
   const open = SUGGESTIONS.filter((q) => !asked.has(q));
 
   return (
-    <main className={`main page-coach${tab === "knowledge" ? " wide" : ""}`} id="content">
+    <main className={`main page-coach edge-scroll${tab === "knowledge" ? " wide" : ""}`} id="content">
       <header className="page-h">
         <div>
           <h1>Coach</h1>
@@ -142,6 +169,7 @@ export default function CoachPage() {
       </header>
 
       <nav className="subtabs" aria-label="Coach">
+        <PillBubble value={tab} />
         {TABS.map((t) => (
           <a
             key={t.id}
@@ -160,11 +188,11 @@ export default function CoachPage() {
       {tab === "knowledge" ? (
         <KnowledgeTab admin={admin} />
       ) : loadError ? (
-        <p className="err" role="alert">
-          Could not load your players: {loadError}. Check that the API is running on port 8000.
-        </p>
+        <div className="sheet state-sheet"><p role="alert">Your reviewed players could not be loaded.</p>
+          <button className="btn btn-line" onClick={retry}>Try again</button>
+        </div>
       ) : players === null ? (
-        <p className="meta">Loading players…</p>
+        <LoadingState label="Loading reviewed players…" />
       ) : players.length === 0 ? (
         <div className="empty">
           <p>No reviewed matches yet. Add a match and pick a player, and the coach can compare your matches here.</p>
@@ -174,6 +202,7 @@ export default function CoachPage() {
         </div>
       ) : (
         <>
+          <ModelNotice />
           <div className="coach-who">
             {players.length > 1 ? (
               <label className="who-pick">
@@ -217,7 +246,7 @@ export default function CoachPage() {
                   {x.pending ? (
                     <span className="thinking">{x.steps.length ? `${x.steps[x.steps.length - 1]}…` : "Thinking…"}</span>
                   ) : x.error ? (
-                    x.a
+                    <><p role="alert">{x.a}</p><button className="btn btn-line" onClick={() => void ask(x.q)}>Ask again</button></>
                   ) : (
                     <CoachText
                       text={x.a}
@@ -227,11 +256,10 @@ export default function CoachPage() {
                     />
                   )}
                 </div>
-                {!x.pending && x.source === "template" ? (
-                  <div className="aa-note">
-                    Written from the findings: the coach model is off or its answer did not pass the checks.
-                  </div>
-                ) : null}
+                {x.pending && <button type="button" className="btn btn-line" onClick={() => stop(x.id)}>Stop</button>}
+                {!x.pending && x.source && <p className="aa-note">
+                  {x.source === "template" ? "Written from the finding templates." : x.verified ? "Model answer, checked against the findings." : "Written by the coach model."}
+                </p>}
               </div>
             ))}
           </section>
@@ -249,13 +277,6 @@ export default function CoachPage() {
               </ul>
             ) : null}
             <form className="ask-row" onSubmit={onSubmit}>
-              <p className="ask-ctx">
-                <span aria-hidden>{player?.name ?? "Player"}</span>
-                <span aria-hidden>
-                  {player?.matches ?? 0} {player?.matches === 1 ? "match" : "matches"}
-                </span>
-                <span aria-hidden>{COACH_LANGUAGES.find((l) => l.id === language)?.label}</span>
-              </p>
               <div className="ask-field">
                 <label className="sr-only" htmlFor="coach-page-ask">
                   Question about your matches
@@ -266,11 +287,20 @@ export default function CoachPage() {
                   id="coach-page-ask"
                   placeholder="Ask about your habits across matches"
                   autoComplete="off"
+                  aria-keyshortcuts="/"
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                 />
-                <button type="submit" className="ask-send" disabled={!draft.trim() || !playerId}>
-                  Ask
+                <button
+                  type="submit"
+                  className="ask-send"
+                  aria-label="Send question"
+                  title="Send question"
+                  disabled={!draft.trim() || !playerId}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M8 13V3m-5 5 5-5 5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                 </button>
               </div>
             </form>

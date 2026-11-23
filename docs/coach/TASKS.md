@@ -2,6 +2,8 @@
 
 Source plan: [AI-COACH-PLAN.md](./AI-COACH-PLAN.md). The owner assigns each task (`Owner` column); agents pick only tasks assigned to them or explicitly handed over.
 
+**20 November 2026:** owner-assigned detection quality corrections and web research are recorded under RR11–RR13/RR16 in the current delivery plan; see [the research and implementation record](DETECTION-QUALITY-RESEARCH-2026-11-20.md). This historical T-task board does not acquire a second active backlog. Human-labelled quality evaluation and complete RAG remain open.
+
 **Rules for agents picking a task**
 
 - Read AGENTS.md, [19 Decisions](../handoff/19-DECISIONS.md) and the plan section named in the task first.

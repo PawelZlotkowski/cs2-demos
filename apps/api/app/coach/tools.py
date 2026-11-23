@@ -18,8 +18,10 @@ job for the CS Demo Manager recorder (``app/processing/moment_clips.py``).
 from __future__ import annotations
 
 import functools
+import inspect
 import json
 import logging
+import statistics
 import threading
 from collections import OrderedDict
 from collections.abc import Callable
@@ -29,9 +31,11 @@ from pydantic import BaseModel, Field
 
 from app.auth.scope import allowed, can_write
 from app.analysis.detectors import DETECTORS
+from app.analysis.detectors.economy_mismatch import TEAM_BUY_EQUIP, TEAM_SAVE_EQUIP, is_pistol_round
 from app.analysis.match_data import MatchData, RoundData, build_match_data
 from app.maps.zones import zone_at
-from app.models.contracts import Finding, SelectedMoment
+from app.analysis.ranker import MIN_EACH, MIN_GAP_S, MIN_MOMENTS, TARGET
+from app.models.contracts import Finding, RoundStats, SelectedMoment
 
 logger = logging.getLogger(__name__)
 
@@ -75,12 +79,15 @@ class _Data:
     def match(self, match_id: str) -> MatchData:
         if not allowed(match_id):
             raise ToolError(f"Unknown match_id {match_id!r}.")
+        if not self.repo.get(match_id):
+            # Deleted since it was cached: never serve it again
+            with self._lock:
+                self._cache.pop(match_id, None)
+            raise ToolError(f"Unknown match_id {match_id!r}.")
         with self._lock:
             if match_id in self._cache:
                 self._cache.move_to_end(match_id)
                 return self._cache[match_id]
-        if not self.repo.get(match_id):
-            raise ToolError(f"Unknown match_id {match_id!r}.")
         if not self.repo.has_analysis_input(match_id):
             raise ToolError("This match has no analysis data. It was parsed before the coach existed.")
         analysis, replays = self.repo.load_analysis_input(match_id)
@@ -97,6 +104,11 @@ class _Data:
         if not self.repo.analysis.has_analysis(match_id, player_id):
             raise ToolError("No analysis for that player in this match.")
         return self.repo.analysis.findings(match_id, player_id, **filters)
+
+    def stats(self, match_id: str, player_id: str) -> list[RoundStats]:
+        if not allowed(match_id):
+            raise ToolError(f"Unknown match_id {match_id!r}.")
+        return self.repo.analysis.round_stats(match_id, player_id)
 
 
 data = _Data()
@@ -211,7 +223,7 @@ def get_round_stats(match_id: MatchId, player_id: PlayerId, round: RoundNo) -> d
     """Numbers for the coached player in one round (kills, deaths, damage, utility thrown,
     flashes, money, trades, time alive). Every number here may be quoted when you cite a
     finding from the same round."""
-    stats = next((s for s in data.repo.analysis.round_stats(match_id, player_id) if s.round == round), None)
+    stats = next((s for s in data.stats(match_id, player_id) if s.round == round), None)
     if stats is None:
         raise ToolError(f"No stats for round {round}.")
     return stats.model_dump(by_alias=True, exclude={"player_id"}, exclude_none=True)
@@ -223,7 +235,7 @@ def get_match_totals(match_id: MatchId, player_id: PlayerId) -> dict[str, Any]:
     won, kills, deaths, assists, damage, damage per round (ADR), headshot kills, utility
     thrown, opening kills and deaths, trade kills. Use it for questions about the whole match.
     These numbers may be quoted without citing a finding."""
-    stats = data.repo.analysis.round_stats(match_id, player_id)
+    stats = data.stats(match_id, player_id)
     if not stats:
         raise ToolError("No round stats for this player.")
     total = lambda attr: sum(getattr(s, attr) for s in stats)
@@ -271,12 +283,14 @@ def get_finding(
     match_id: MatchId,
     player_id: PlayerId,
     finding_id: Annotated[str, Field(pattern=r"^F\d+$", description="Finding id, e.g. F12.")],
+    round: Annotated[int | None, Field(description="Only a finding from this round.")] = None,
 ) -> dict[str, Any]:
     """One finding with its full evidence. The evidence holds every number you may quote
     about it (distances in m, times in s, speeds in u/s, money in $)."""
-    f = next((f for f in data.findings(match_id, player_id) if f.id == finding_id), None)
+    # A round-bound Ask binds round, so another round's finding stays out of reach
+    f = next((f for f in data.findings(match_id, player_id, round_no=round) if f.id == finding_id), None)
     if f is None:
-        raise ToolError(f"No finding {finding_id} for this player.")
+        raise ToolError(f"No finding {finding_id} for this player" + (f" in round {round}." if round else "."))
     match = data.match(match_id)
     row = _finding_row(f)
     row["evidence"] = f.evidence
@@ -288,9 +302,16 @@ def get_finding(
 def get_round_timeline(match_id: MatchId, round: RoundNo) -> dict[str, Any]:
     """What happened in a round, in order: kills (who, weapon, headshot, callout), grenades
     thrown (type, thrower, callout) and bomb plant/defuse, each with its round clock time t
-    in seconds. Names are player names. Cite times as [t:34.5]."""
+    in seconds, plus each side's buy (pistol round, eco, force or half buy, full buy).
+    Names are player names. Cite times as [t:34.5]."""
     match = data.match(match_id)
     rd = _round(match, round)
+    buy: Any = "pistol round"
+    if not is_pistol_round(match, round):
+        medians = {s: statistics.median(e.equip_value for p, e in rd.economy.items() if rd.sides.get(p) == s)
+                   for s in ("CT", "T") if any(rd.sides.get(p) == s for p in rd.economy)}
+        buy = {s: "full buy" if m >= TEAM_BUY_EQUIP else "eco" if m <= TEAM_SAVE_EQUIP else "force or half buy"
+               for s, m in medians.items()}
     events: list[dict[str, Any]] = []
     for k in rd.kills:
         events.append(
@@ -317,6 +338,7 @@ def get_round_timeline(match_id: MatchId, round: RoundNo) -> dict[str, Any]:
         "winner": rd.winner,
         "reason": rd.reason,
         "duration": round_t(rd.duration),
+        "buy": buy,
         "events": events,
     }
     if truncated:
@@ -397,12 +419,8 @@ class MomentPick(BaseModel):
 def select_moments(
     match_id: MatchId,
     player_id: PlayerId,
-    moments: Annotated[list[MomentPick], Field(description="Your 5-6 picks.")],
+    moments: Annotated[list[MomentPick], Field(description=f"Your {MIN_MOMENTS}-{TARGET} picks.")],
 ) -> dict[str, Any]:
-    """Validate and store your 5-6 picked moments for the player. Returns ok and the stored
-    moment ids, or the list of problems to fix. Rules: every finding id exists, each window
-    contains its findings and is at most 30 s long, at least 2 mistakes and 2 good plays when
-    the match has them, no two moments within 10 s in the same round."""
     from app.coach.verify import verify_moments
 
     _check_write()
@@ -415,6 +433,15 @@ def select_moments(
     return {"ok": True, "moments": [m.id for m in stored]}
 
 
+# Built from the ranker's rules, which the checker applies too (a docstring cannot be an f-string)
+select_moments.__doc__ = inspect.unwrap(select_moments).__doc__ = (
+    f"""Validate and store your {MIN_MOMENTS}-{TARGET} picked moments for the player. Returns ok and the stored
+    moment ids, or the list of problems to fix. Rules: every finding id exists, each window
+    contains its findings and is at most 30 s long, at least {MIN_EACH} mistakes and {MIN_EACH} good plays when
+    the match has them, no two moments within {MIN_GAP_S:.0f} s in the same round."""
+)
+
+
 @tool
 def search_knowledge(
     query: Annotated[str, Field(min_length=2, description="What to look up, in English, e.g. 'trading distance'.")],
@@ -422,16 +449,20 @@ def search_knowledge(
         Literal["de_ancient", "de_anubis", "de_mirage"] | None, Field(description="Also search this map's notes.")
     ] = None,
     k: Annotated[int, Field(ge=1, le=6, description="How many passages.")] = 3,
+    match_id: Annotated[str | None, Field(description="The current match; its map is searched when map is left out.")] = None,
 ) -> dict[str, Any]:
     """Search the coaching knowledge base (fundamentals and map notes) for passages that
     explain why something is a mistake and what to do instead. Cite a passage as [K7].
     Search in English even when you answer in Polish or Dutch."""
     from app.rag.index import default_index
+    from app.rag.ingest import shown_text
 
+    if map is None and match_id:
+        map = data.match(match_id).map_name or None  # type: ignore[assignment]
     passages = default_index().search(query, map_name=map, k=k)
     return {
         "passages": [
-            {"id": p.id, "title": p.title, "map": p.map, "source": p.source, "text": p.text[:700]}
+            {"id": p.id, "title": p.title, "map": p.map, "source": p.source, "text": shown_text(p.text)[:700]}
             for p in passages
         ]
     }

@@ -39,9 +39,9 @@ function SignIn() {
 
   if (state && !state.authEnabled) {
     return (
-      <main className="main narrow" id="content">
+      <main className="main narrow signin" id="content">
         <h1>No sign-in needed</h1>
-        <p className="meta">Accounts are off, so this PC uses the app as one person, who is also the admin.</p>
+        <p className="lede">Accounts are off, so this PC uses the app as one person, who is also the admin.</p>
         <Link className="btn btn-fill" href="/">
           Go home
         </Link>
@@ -75,7 +75,7 @@ function SignIn() {
     <main className="main narrow signin" id="content">
       <h1>{setup ? "Create the admin account" : mode === "create" ? "Create an account" : mode === "reset" ? "Set a new password" : "Sign in"}</h1>
       {setup ? (
-        <p className="meta">
+        <p className="lede">
           This is the first account on this PC, so it becomes the admin and takes over the matches already here.
         </p>
       ) : null}
@@ -85,10 +85,13 @@ function SignIn() {
         </p>
       ) : null}
 
-      {mode !== "reset" && !closed ? (
+      {/* Only when the API has Steam set up. state is null on the server, so the API address in the
+          href is always the browser's /api one, never the server's internal one. */}
+      {state?.steam && mode !== "reset" && !closed ? (
         <>
           <a className="btn btn-fill steam" href={api.steamStartUrl({ next, invite: invite || undefined })}>
-            {mode === "create" ? "Create an account with Steam" : "Sign in with Steam"}
+            {/* Steam's own wording for its sign-in button */}
+            {mode === "create" ? "Create an account with Steam" : "Sign in through Steam"}
           </a>
           <p className="or">
             <span>or with a username</span>
@@ -124,7 +127,7 @@ function SignIn() {
               <span>
                 Name shown in the app <span className="meta">(optional)</span>
               </span>
-              <input className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={40} />
+              <input className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={40} autoComplete="nickname" />
             </label>
           ) : null}
           <label>

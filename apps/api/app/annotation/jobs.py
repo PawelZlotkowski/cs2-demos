@@ -169,7 +169,11 @@ class Jobs:
                 self.store.job_state(job['id'], 'complete', result={'demo': result['id']})
                 (self.store.root / 'uploads' / job['payload']['upload']).unlink(missing_ok=True)
             else:
-                self.store.add_snapshot(job['payload']['demo'], job['payload']['player'], result)
+                expected = job['payload'].get('expectedSnapshot')
+                if expected:
+                    self.store.accept_reanalysis(job['payload']['demo'], job['payload']['player'], result, expected_id=expected)
+                else:
+                    self.store.add_snapshot(job['payload']['demo'], job['payload']['player'], result)
                 if job['payload'].get('autoRecord'):
                     from app.annotation.batches import Batches, BatchRequest
                     Batches(self.store).create(job['payload']['demo'], job['payload']['player'],

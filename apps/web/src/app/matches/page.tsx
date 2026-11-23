@@ -1,23 +1,18 @@
 "use client";
 
+import { LoadingState } from "@/components/LoadingState";
+import { useSystemStatus } from "@/components/SystemNotice";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ConfirmButton, Secret } from "@/components/admin/ui";
-import { useAuth } from "@/components/auth/AuthProvider";
+import { FolderShape, MatchFolder, RecurringFindings, UploadFolder } from "@/components/review/MatchFolders";
+import { PillBubble } from "@/components/PillBubble";
+import { modelLabel } from "@/components/coach/CoachExplanation";
 import { api } from "@/lib/api/client";
 import { useCoachLanguage } from "@/lib/coach/language";
-import type { MatchRow, SystemStatus } from "@/lib/contracts";
+import type { MatchRow } from "@/lib/contracts";
 import { errorText } from "@/lib/format";
-
-const STATUS_LABEL: Partial<Record<string, string>> = {
-  complete: "Reviewed",
-  awaiting_player: "Pick a player",
-  awaiting_setup: "Set up review",
-  inspecting: "Reading players",
-  ready_to_parse: "Starting review",
-  failed: "Failed",
-};
 
 /**
  * Matches: the signed-in player's matches (every match on this PC with accounts off), who wrote
@@ -27,25 +22,40 @@ export default function MatchesPage() {
   const router = useRouter();
   const [rows, setRows] = useState<MatchRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [system, setSystem] = useState<SystemStatus | null>(null);
+  const system = useSystemStatus();
+  const [attempt, setAttempt] = useState(0);
+  const [listError, setListError] = useState(false);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [language] = useCoachLanguage();
-  const { state } = useAuth();
+  const [filter, setFilter] = useState("All");
+  const optionsRef = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [shareOn, setShareOn] = useState(false);
 
   useEffect(() => {
-    api
-      .listMatches()
-      .then(setRows)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "The API did not answer."));
-    api.getSystem().then(setSystem).catch(() => undefined);
+    let live = true;
+    setListError(false);
+    api.listMatches().then((data) => { if (live) setRows(data); })
+      .catch(() => { if (live) setListError(true); });
+    return () => { live = false; };
+  }, [attempt]);
+  useEffect(() => {
     api
       .features()
       .then((f) => setShareOn(!!f.shareLinks))
       .catch(() => undefined);
   }, []);
+
+  const processingMatches = rows?.some((r) => !["complete", "failed", "awaiting_player", "awaiting_setup"].includes(r.status));
+  useEffect(() => {
+    if (!processingMatches) return;
+    let live = true;
+    const timer = window.setInterval(() => {
+      api.listMatches().then((next) => { if (live) setRows(next); }).catch(() => undefined);
+    }, 10000);
+    return () => { live = false; window.clearInterval(timer); };
+  }, [processingMatches]);
 
   const update = (id: string, patch: Partial<MatchRow>) =>
     setRows((rs) => rs?.map((r) => (r.id === id ? { ...r, ...patch } : r)) ?? rs);
@@ -65,130 +75,62 @@ export default function MatchesPage() {
     }
   }
 
-  return (
-    <main className="main wide page-list" id="content">
-      <header className="page-h">
-        <div>
-          <h1>Matches</h1>
-          <p className="lede">
-            {state?.authEnabled ? "Your matches" : "Every match on this computer"}, newest first, with the model that wrote its review.
-          </p>
-        </div>
-        <Link className="btn btn-fill" href="/upload">
-          Add match
-        </Link>
-      </header>
+  const selected = rows?.find((m) => m.id === open);
+  useEffect(() => {
+    if (selected && !optionsRef.current?.open) optionsRef.current?.showModal();
+  }, [selected]);
 
-      {error ? (
-        <p className="err" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {rows === null ? (
-        <p className="meta">Loading matches…</p>
-      ) : rows.length === 0 ? (
-        <div className="empty">
-          <p>No matches yet. Add a demo to start.</p>
+  const reviewed = rows?.filter((m) => m.status === "complete").length ?? 0;
+  const processing = rows?.filter((m) => m.status !== "complete" && m.status !== "failed").length ?? 0;
+  const failed = rows?.filter((m) => m.status === "failed").length ?? 0;
+  const visible = rows?.filter((r) => filter === "All" || r.map.toLowerCase().replace(/^de_/, "") === filter.toLowerCase());
+
+  return (
+    <main id="content" className="main library">
+      <FolderShape />
+      <header className="library-heading">
+        <h1>Your matches</h1>
+        {!!rows?.length && <p>{[reviewed ? `${reviewed} reviewed` : "", processing ? `${processing} in progress` : "", failed ? `${failed} failed` : ""].filter(Boolean).join(", ")}</p>}
+        <div className="library-filter seg" role="group" aria-label="Filter matches by map">
+          <PillBubble value={filter} />
+          {["All", "Anubis", "Ancient"].map((map) => <button key={map} type="button" aria-pressed={filter === map}
+            onClick={() => setFilter(map)}>{map}</button>)}
         </div>
-      ) : (
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr>
-                <th scope="col">Map</th>
-                <th scope="col" className="n">Score</th>
-                <th scope="col">Played</th>
-                <th scope="col">Player</th>
-                <th scope="col" className="n">Moments</th>
-                <th scope="col">Review written by</th>
-                <th scope="col">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((m) => {
-                const ready = m.status === "complete" && m.playerId;
-                return (
-                  <Fragment key={m.id}>
-                  <tr>
-                    <td>
-                      <Link className="row-open" href={ready || m.status === "awaiting_player" ? `/studio/${m.id}` : `/processing/${m.id}`}>
-                        {m.title || m.map}
-                      </Link>
-                      {m.title ? <span className="meta"> {m.map}</span> : null}
-                    </td>
-                    <td className="n num">{m.score}</td>
-                    <td>{m.when}</td>
-                    <td>{m.playerName ?? <span className="meta">{STATUS_LABEL[m.status] ?? m.status}</span>}</td>
-                    <td className="n num">{m.moments || ""}</td>
-                    <td>
-                      {m.playerId ? (
-                        <>
-                          <span className="mono">{m.model ?? "templates"}</span>
-                          {m.versions ? (
-                            <span className="meta">
-                              {" "}
-                              · {m.versions} earlier {m.versions === 1 ? "review" : "reviews"} kept
-                            </span>
-                          ) : null}
-                        </>
-                      ) : null}
-                    </td>
-                    <td className="row-actions">
-                      {ready ? (
-                        confirm === m.id ? (
-                          <span className="confirm">
-                            Review again with <span className="mono">{served ?? "templates"}</span>?{" "}
-                            <button type="button" className="link" disabled={busy === m.id} onClick={() => void rerun(m.id)}>
-                              {busy === m.id ? "Starting…" : "Re-run"}
-                            </button>{" "}
-                            <button type="button" className="link" onClick={() => setConfirm(null)}>
-                              Cancel
-                            </button>
-                          </span>
-                        ) : (
-                          <button type="button" className="link" onClick={() => setConfirm(m.id)}>
-                            Re-run the coach
-                          </button>
-                        )
-                      ) : null}{" "}
-                      <button
-                        type="button"
-                        className="link"
-                        aria-expanded={open === m.id}
-                        aria-controls={`more-${m.id}`}
-                        onClick={() => setOpen(open === m.id ? null : m.id)}
-                      >
-                        More
-                      </button>
-                    </td>
-                  </tr>
-                  {open === m.id ? (
-                    <tr className="row-more" id={`more-${m.id}`}>
-                      <td colSpan={7}>
-                        <MatchActions
-                          row={m}
-                          shareOn={shareOn && !!ready}
-                          onRenamed={(title) => update(m.id, { title })}
-                          onDeleted={() => setRows((rs) => rs?.filter((r) => r.id !== m.id) ?? rs)}
-                        />
-                      </td>
-                    </tr>
-                  ) : null}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+      </header>
+      {listError ? <section className="sheet state-sheet">
+        <p role="alert">Your match library could not be loaded.</p>
+        <button type="button" className="btn btn-line" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
+      </section> : !rows ? <LoadingState label="Loading matches…" shape="folder" /> : <>
+        {rows.length > 0 && !visible?.length && <p className="library-empty" role="status">No matches on {filter} yet.</p>}
+        <div className="folder-grid">
+          {visible?.map((row) => <MatchFolder key={row.id} row={row} expanded={open === row.id}
+            onMore={() => { setConfirm(null); setOpen(row.id); }} />)}
+          <UploadFolder />{rows.length > 0 && <RecurringFindings />}
         </div>
-      )}
-      <p className="meta note-below">
-        A re-run uses the model llama-server is serving now
-        {llm ? (llm.state === "ok" ? `, ${served ?? "unknown"}` : llm.state === "off" ? " (the coach model is off, so templates)" : ", which is not reachable") : ""}
-        . To review with another model, start llama-server with it and check{" "}
-        <Link href="/settings#system">Settings, System</Link>. The earlier review is kept.
-      </p>
+      </>}
+      <dialog ref={optionsRef} className="folder-dialog sheet" aria-labelledby="match-options-title"
+        onClose={() => { setOpen(null); setConfirm(null); }}>
+        {selected && <>
+          <header><div><h2 id="match-options-title">{selected.title || selected.map}</h2>
+            <p className="meta">{[selected.when, selected.playerName].filter(Boolean).join(", ")}</p></div>
+            <button type="button" className="btn btn-line" onClick={() => optionsRef.current?.close()}>Close</button>
+          </header>
+          <div id="library-actions">
+            {selected.playerId && <p>Review written by {selected.model ? modelLabel(selected.model) : "the finding templates"}.</p>}
+            <MatchActions key={selected.id} row={selected} shareOn={shareOn && selected.status === "complete" && !!selected.playerId}
+              onRenamed={(title) => update(selected.id, { title })}
+              onDeleted={() => { optionsRef.current?.close(); setRows((rs) => rs?.filter((r) => r.id !== selected.id) ?? rs); }} />
+            {selected.status === "complete" && selected.playerId && <div className="rerun-controls">
+              {confirm === selected.id ? <>
+                <p>Review again with {llm?.state === "off" ? "the finding templates" : served ? modelLabel(served) : "the currently configured coach"}? The earlier review will be kept.</p>
+                <button className="btn btn-fill" disabled={busy === selected.id} onClick={() => void rerun(selected.id)}>{busy ? "Starting…" : "Re-run"}</button>
+                <button className="btn btn-line" onClick={() => setConfirm(null)}>Cancel</button>
+              </> : <button className="btn btn-line" onClick={() => setConfirm(selected.id)}>Re-run the coach</button>}
+            </div>}
+            {error && <p role="alert" className="err">{error}</p>}
+          </div>
+        </>}
+      </dialog>
     </main>
   );
 }
@@ -285,7 +227,7 @@ function MatchActions({
         ) : (
           <ConfirmButton
             label="Delete match"
-            question={`Delete ${row.title || row.map} ${row.score}, its review, clips and notes?`}
+            question={`Delete ${row.title || row.map}, its review, clips and notes?`}
             onConfirm={async () => {
               await api.deleteMatch(row.id);
               onDeleted();

@@ -23,9 +23,19 @@ def load_templates(lang: str) -> dict[str, str]:
     return json.loads((TEMPLATES_DIR / f"findings.{lang}.json").read_text(encoding="utf-8"))
 
 
+class _Value(str):
+    """A field value. In a template, `{kills:kill|kills}` picks the word form for that number."""
+
+    def __format__(self, spec: str) -> str:
+        if "|" not in spec:
+            return super().__format__(spec)
+        one, many = spec.split("|", 1)
+        return one if self == "1" else many
+
+
 class _Fields(dict):
     def __missing__(self, key: str) -> str:
-        return "?"
+        return _Value("?")
 
 
 def render(key: str, lang: str, fields: dict[str, Any]) -> str:
@@ -41,5 +51,5 @@ def render(key: str, lang: str, fields: dict[str, Any]) -> str:
 
 def _fmt(v: Any) -> str:
     if isinstance(v, float) and v.is_integer():
-        return str(int(v))
-    return str(v)
+        return _Value(int(v))
+    return _Value(v)

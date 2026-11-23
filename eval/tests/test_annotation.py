@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'apps' / 'api'))
 from app.annotation.server import create_app
 from app.annotation.store import Store, Conflict
 from app.annotation.jobs import Jobs
+from app.annotation.worker import version_info
 from app.models.annotation import ReviewSave, Provenance
 
 DEMO = 'demo-' + 'a' * 64
@@ -26,7 +27,7 @@ def seed(store):
                     'players': [{'id': PLAYER, 'name': 'Selected player', 'team': 'CT'}]})
     rounds = [{'number': 1, 'id': 'r1', 'startTick': 640, 'endTick': 1280, 'durationSec': 10., 'side': 'CT', 'winner': 'T'},
               {'number': 2, 'id': 'r2', 'startTick': 1600, 'endTick': 2240, 'durationSec': 10., 'side': 'CT', 'winner': 'CT'}]
-    store.add_snapshot(DEMO, PLAYER, {'id': 'frozen-snapshot', 'rounds': rounds, 'warnings': [],
+    store.add_snapshot(DEMO, PLAYER, {'id': 'frozen-snapshot', 'rounds': rounds, 'warnings': [], 'version': version_info(),
                                      'policy': {'detectors': ['untraded_death']},
                                      'findings': [{'id': 'F1', 'round': 1, 'detector': 'untraded_death', 't': 5., 'evidence': {}}]})
     folder = store.root / 'matches' / DEMO

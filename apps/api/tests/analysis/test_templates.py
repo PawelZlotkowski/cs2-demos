@@ -37,3 +37,12 @@ def test_render_fills_zone_fallback_and_formats_numbers():
     text = render("untraded_death", "pl", {"killerName": "X", "tradeWindowS": 5.0, "teammatesAlive": 3, "nearestTeammateM": 12.5, "zone": "A site"})
     assert "5 s" in text and "A site" in text
     assert not re.search(r"\{\w+\}", text)
+
+
+def test_english_counts_agree_with_their_nouns():
+    one = render("good_plays.clutch", "en", {"enemiesAlive": 1, "killsInClutch": 1.0})
+    assert "against 1 enemy, with 1 kill." in one
+    many = render("good_plays.clutch", "en", {"enemiesAlive": 3, "killsInClutch": 2})
+    assert "against 3 enemies, with 2 kills." in many
+    missing = render("good_plays.utility_damage", "en", {"utilityDamage": 40})
+    assert missing.endswith("to ? enemies.")

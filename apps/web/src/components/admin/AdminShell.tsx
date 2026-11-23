@@ -48,16 +48,15 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="admin">
-      <nav className="admin-nav" aria-label="Admin">
-        <p className="admin-title">{labOnly ? "Lab" : "Admin"}</p>
+      <nav className="admin-nav glass" aria-label="Admin">
         {labOnly ? (
           <Link href="/admin/lab" aria-current="page">
             Lab
           </Link>
         ) : (
+          // Groups are set apart by space alone; headings over four-link lists only add noise.
           groups.map((g) => (
             <div key={g} className="admin-group">
-              <span className="admin-group-h">{g}</span>
               {SECTIONS.filter((s) => s.group === g).map((s) => (
                 <Link key={s.href} href={s.href} aria-current={current(s.href)}>
                   {s.label}

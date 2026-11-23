@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { LoadingState } from "@/components/LoadingState";
+import { PillBubble } from "@/components/PillBubble";
+
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { api } from "@/lib/api/client";
 import type { KnowledgeRow, MapZone } from "@/lib/contracts";
 import { MAPS } from "@/lib/replay/maps";
@@ -8,25 +11,57 @@ import { MAPS } from "@/lib/replay/maps";
 const MAP_IDS = ["de_ancient", "de_anubis"] as const;
 type MapId = (typeof MAP_IDS)[number];
 
+const MD_LINK = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+
+/** Passage text with its Markdown source links as real links instead of raw "[text](url)". */
+function PassageText({ text }: { text: string }) {
+  return <p>{passageLinks(text)}</p>;
+}
+
+/** The parts of PassageText, for places that need them inline (a citation's passage in coach prose). */
+export function passageLinks(text: string): ReactNode[] {
+  const parts: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(MD_LINK)) {
+    const at = m.index ?? 0;
+    parts.push(text.slice(last, at));
+    parts.push(
+      <a key={at} className="link" href={m[2]} target="_blank" rel="noreferrer">
+        {m[1]}
+      </a>,
+    );
+    last = at + m[0].length;
+  }
+  parts.push(text.slice(last));
+  return parts;
+}
+
 /** Coach page, Knowledge: what the retriever searches, by callout (doc 29 §2.3, R12). */
 export function KnowledgeTab({ admin }: { admin: boolean }) {
   const [map, setMap] = useState<MapId>("de_ancient");
-  const [zones, setZones] = useState<MapZone[]>([]);
+  // null while loading; [] when the map has no callouts drawn (the API answers 404)
+  const [zones, setZones] = useState<MapZone[] | null>(null);
   const [zone, setZone] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<KnowledgeRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [flagging, setFlagging] = useState<string | null>(null);
   const [flagNote, setFlagNote] = useState("");
+  const [flagError, setFlagError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
+    let live = true;
     setZone(null);
-    api.getZones(map).then(setZones).catch(() => setZones([]));
+    setZones(null);
+    api.getZones(map).then((next) => { if (live) setZones(next); }).catch(() => { if (live) setZones([]); });
+    return () => { live = false; };
   }, [map]);
 
   useEffect(() => {
     let live = true;
+    setError(null);
+    setRows(null);
     const timer = window.setTimeout(() => {
       api
         .browseKnowledge({ map, zone: zone ?? undefined, q: q.trim() || undefined })
@@ -48,7 +83,14 @@ export function KnowledgeTab({ admin }: { admin: boolean }) {
   async function flag(e: FormEvent, id: string) {
     e.preventDefault();
     if (!flagNote.trim()) return;
-    await api.flagPassage(id, flagNote.trim()).catch(() => undefined);
+    try {
+      await api.flagPassage(id, flagNote.trim());
+    } catch (err) {
+      // Keep the form and the note so nothing typed is lost.
+      setFlagError(err instanceof Error ? err.message : "Unable to save the flag.");
+      return;
+    }
+    setFlagError(null);
     setFlagging(null);
     setFlagNote("");
     setReload((n) => n + 1);
@@ -61,6 +103,7 @@ export function KnowledgeTab({ admin }: { admin: boolean }) {
       <div className="know-side">
         <div className="filters">
           <div className="seg seg-plain" role="group" aria-label="Map">
+            <PillBubble value={map} />
             {MAP_IDS.map((m) => (
               <button key={m} type="button" aria-pressed={map === m} onClick={() => setMap(m)}>
                 {MAPS[m].displayName}
@@ -71,7 +114,7 @@ export function KnowledgeTab({ admin }: { admin: boolean }) {
         <figure className="know-radar">
           {meta.radarImage ? <img src={meta.radarImage} alt="" width={1024} height={1024} /> : null}
           <svg viewBox="0 0 1024 1024" role="group" aria-label={`${meta.displayName} callouts`}>
-            {zones.map((z) => (
+            {zones?.map((z) => (
               <g key={z.name}>
                 {z.polygons.map((poly, i) => (
                   <polygon
@@ -86,10 +129,17 @@ export function KnowledgeTab({ admin }: { admin: boolean }) {
               </g>
             ))}
           </svg>
-          <figcaption className="meta">Click a callout to read what the coach knows about it.</figcaption>
         </figure>
+        {zones ? (
+          <p className="meta know-hint">
+            {zones.length
+              ? "Pick a callout to read what the coach knows about it."
+              : `${meta.displayName} has no callouts drawn yet. Search the passages instead.`}
+          </p>
+        ) : null}
         <ul className="zone-list" aria-label="Callouts">
-          {zones.map((z) => (
+          {/* The API lists zones smallest first (the order zone_at tests them); people scan names */}
+          {zones?.toSorted((a, b) => a.name.localeCompare(b.name)).map((z) => (
             <li key={z.name}>
               <button type="button" aria-pressed={zone === z.name} onClick={() => setZone(zone === z.name ? null : z.name)}>
                 {z.name}
@@ -107,7 +157,7 @@ export function KnowledgeTab({ admin }: { admin: boolean }) {
           </label>
           {zone ? (
             <button type="button" className="btn btn-line" onClick={() => setZone(null)}>
-              {zone}, clear
+              Clear {zone}
             </button>
           ) : null}
           {rows ? (
@@ -118,24 +168,27 @@ export function KnowledgeTab({ admin }: { admin: boolean }) {
           ) : null}
         </div>
         {error ? (
-          <p className="err" role="alert">{error}</p>
+          <div className="sheet state-sheet">
+            <p role="alert">{error}</p>
+            <button type="button" className="btn btn-line" onClick={() => setReload((n) => n + 1)}>
+              Reload passages
+            </button>
+          </div>
         ) : !rows ? (
-          <p className="meta">Loading…</p>
-        ) : (
+          <LoadingState label="Loading passages…" />
+        ) : !rows.length ? <p role="status">{q || zone ? "No passages match this search. Try another term or callout." : "No passages have been added for this map."}</p> : (
           <ul className="passages">
             {rows.map((r) => (
               <li key={r.id}>
                 <div className="psg-h">
-                  <h3>
-                    <span className="mono">{r.id}</span> {r.title}
-                  </h3>
+                  <h2>{r.title}</h2>
                   <span className="meta">
                     {r.source}
                     {r.side !== "any" ? `, ${r.side} side` : ""}
                     {r.cited ? `, cited in ${r.cited} ${r.cited === 1 ? "explanation" : "explanations"}` : ""}
                   </span>
                 </div>
-                <p>{r.text}</p>
+                <PassageText text={r.text} />
                 {r.zones.length ? <p className="meta">Callouts: {r.zones.join(", ")}</p> : null}
                 {r.flags.length ? (
                   <p className="psg-flag">Flagged as wrong: {r.flags.join("; ")}</p>
@@ -157,12 +210,13 @@ export function KnowledgeTab({ admin }: { admin: boolean }) {
                     <button type="submit" className="btn btn-line" disabled={!flagNote.trim()}>
                       Flag
                     </button>
-                    <button type="button" className="link" onClick={() => setFlagging(null)}>
+                    <button type="button" className="link" onClick={() => { setFlagging(null); setFlagError(null); }}>
                       Cancel
                     </button>
+                    {flagError ? <p className="meta" role="alert">{flagError}</p> : null}
                   </form>
                 ) : (
-                  <button type="button" className="link small" onClick={() => setFlagging(r.id)}>
+                  <button type="button" className="link small" onClick={() => { setFlagging(r.id); setFlagError(null); }}>
                     Flag as wrong
                   </button>
                 )}
@@ -170,7 +224,7 @@ export function KnowledgeTab({ admin }: { admin: boolean }) {
             ))}
           </ul>
         )}
-        {admin ? <AddNote map={map} zones={zones} onAdded={() => setReload((n) => n + 1)} /> : null}
+        {admin ? <AddNote map={map} zones={zones ?? []} onAdded={() => setReload((n) => n + 1)} /> : null}
       </div>
     </section>
   );

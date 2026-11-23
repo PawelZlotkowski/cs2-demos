@@ -1,0 +1,105 @@
+ROUND REVIEWER — OZNACZANIE WŁASNYCH DEM
+
+Cel: wrzucasz własne demo, wybierasz gracza, oglądasz nagrane momenty i oceniasz,
+czy warto je było wybrać, co detektor wykrył poprawnie oraz co należy poprawić.
+Moment wybrany przez detektor nie jest automatycznie błędem gracza.
+
+1. INSTALACJA NA WINDOWS
+
+Potrzebujesz Windows z działającym CS2, Docker Desktop (Linux containers / WSL 2),
+Python 3.11 lub nowszego, Steam, CS2, CS Demo Manager oraz jego narzędzi HLAE i FFmpeg.
+Nie potrzebujesz lokalnego modelu językowego ani płatnego klucza API.
+
+Docker: https://docs.docker.com/desktop/setup/install/windows-install/
+Python: https://www.python.org/downloads/windows/
+CS Demo Manager: https://cs-demo-manager.com/docs/installation
+Nagrywanie i instalacja HLAE/FFmpeg: https://cs-demo-manager.com/docs/guides/video
+
+Uruchom Docker Desktop, zaloguj się do Steam, zainstaluj i uruchom raz CS2.
+Zainstaluj CS Demo Manager. W jego ustawieniach wideo zainstaluj HLAE oraz FFmpeg.
+Po instalacji programów otwórz nowy terminal, żeby odświeżyć PATH.
+
+Pobierz gałąź labellera, nie main. W PowerShell:
+
+git clone --branch codex/labeller-recording --single-branch https://github.com/PawelZlotkowski/cs2-demos.git RoundReviewer
+cd RoundReviewer
+powershell -NoProfile -ExecutionPolicy Bypass -File .\labeler.ps1 update
+
+Możesz też rozpakować całą paczkę źródłową otrzymaną od Pawła.
+Pierwsza instalacja buduje obraz Dockera i potrzebuje internetu.
+Wersja z poprawkami z 20 listopada pokazuje reviewSchemaVersion: 3 oraz
+policy.version: local-v1.1 pod http://127.0.0.1:8765/api/config.
+Jeżeli ich nie ma, masz starszy kod lub nieprzebudowany obraz.
+
+2. BAZA I NAGRYWANIE
+
+Otwórz „Open labeller.cmd”. Wybierz 1, aby otworzyć labeller.
+Wybierz D, aby przygotować bazę PostgreSQL dla CS Demo Managera.
+Launcher wyświetli połączenie; hasło znajdziesz w swoim labeler.env.
+W CS Demo Manager: Settings > Database > External, wpisz te dane i Connect.
+Zwykle host to 127.0.0.1, port 5432, użytkownik postgres, baza csdm.
+Jeśli masz już działającą bazę CS Demo Managera, launcher może jej użyć.
+
+Sprawdź ścieżkę do CS2 i wykonaj krótkie nagranie próbne w CS Demo Manager.
+W launcherze wybierz 2 — Record queued clips. W przeglądarce recorder ma być connected.
+Pozostaw Docker i Steam uruchomione, a Windows aktywny podczas nagrywania.
+
+3. TWOJE DEMO I TWOJE OCENY
+
+- Otwórz http://127.0.0.1:8765 i wpisz swój unikalny identyfikator, np. alex_v2.
+  Używaj go przy kolejnych sesjach. Nowy identyfikator oznacza nową serię ocen;
+  nie usuwa wcześniejszej pracy.
+- Zaimportuj własny plik .dem lub .dem.zst z Ancient albo Anubis.
+  ZIP/RAR najpierw rozpakuj. Poczekaj na listę graczy.
+- Wybierz dokładnie gracza, którego chcesz ocenić. Zostaw zaznaczone
+  Automatically record all detected moments i kliknij Prepare player.
+- Poczekaj na gotowy klip i wybierz Review next clip.
+- Footage check: potwierdź właściwego gracza, moment zdarzenia i wystarczający
+  kontekst. Wybierz problem, jeśli POV/czas jest błędny, brakuje kontekstu albo
+  wideo nie działa. Opisz go — taka ocena trafia do naprawy, nie do treningu.
+- Was this moment worth selecting for coaching?: wybierz, czy moment jest
+  przydatny, nieprzydatny, czy nie da się ocenić. Normalny ruch z bronią może być
+  prawidłowo wykryty, ale nie dawać użytecznej lekcji.
+- What did you notice?: napisz dlaczego, co gracz mógł poprawić i co program
+  powinien wykrywać inaczej. W Optional review details ustaw język notatki.
+- Opcjonalnie oceń każdy sygnał osobno: Correct / Wrong / Unsure. Następnie
+  osobno oceń decyzję gracza. Kilka detekcji w jednej akcji pozostaje jednym
+  klipem, ale może otrzymać różne oceny.
+- Kliknij Save note and next clip. Szkice zapisują się automatycznie.
+  Przy konflikcie zapisu skopiuj niezapisany tekst i użyj Reload saved note.
+
+Brak komunikacji głosowej lub widoczności przeciwnika oznacza niepewność.
+Nie zakładaj, że gracz wiedział wszystko, co pokazuje radar.
+Trade do 5 m opisuje bliskość i wynik; sam brak trade'a nie dowodzi złej decyzji.
+Strzelanie w ruchu zależy m.in. od broni i sytuacji. Nie oceniaj go automatycznie.
+
+Labeller wybiera te klipy za pomocą detektorów, bez uruchamiania LLM.
+Oceny posłużą do ulepszenia detektorów oraz późniejszego wyboru momentów przez model.
+Aby zgłosić pominięty moment, użyj Review full round i dodaj własną obserwację.
+Przegląd po obejrzeniu kandydatów jest oznaczony jako candidate-exposed.
+
+4. WYŚLIJ OCENY PAWŁOWI
+
+W launcherze wybierz 6 — Export my notes. Podaj pełną ścieżkę do pliku JSON
+w istniejącym folderze oraz ten sam identyfikator labellera co w przeglądarce.
+Wyślij ten JSON Pawłowi. Zawiera oceny, szkice, wersję detekcji i dane źródłowe;
+nie zawiera MP4 ani całego dema. Właściciel importuje go opcją 7.
+Dema i klipy do wizualnej weryfikacji przekaż osobno, jeśli się na to umówicie.
+
+5. AKTUALIZACJA I POWRÓT
+
+Przed aktualizacją wyeksportuj notatki i zrób kopię opcją 8 — Back up workspace.
+Zatrzymaj recorder po zakończeniu bieżącej sesji. W folderze projektu:
+
+git pull --ff-only
+powershell -NoProfile -ExecutionPolicy Bypass -File .\labeler.ps1 update
+
+Odśwież przeglądarkę. Dla wcześniej analizowanych dem wybierz ponownie Prepare player.
+Stare reguły blokują nowe oceny do czasu przeliczenia, zachowując wcześniejsze notatki.
+Uruchom recorder ponownie opcją 2. Sam git pull nie aktualizuje kontenera ani
+już uruchomionego procesu recordera.
+
+Nie kasuj wolumenów Dockera. Git nie jest kopią Twoich dem ani notatek.
+Po błędzie zachowaj dokładny komunikat. Log nagrywania znajduje się w
+.local\portable-recorder.stderr.log. Szczegóły: docs\LABELER-SETUP.md.
+Pierwszy poprawny klip na Twoim PC trzeba sprawdzić wizualnie: gracz, zdarzenie i czas.

@@ -1,0 +1,42 @@
+{
+  "date": "2026-11-20",
+  "purpose": "Read-only behavioural smoke over cached telemetry, not human precision/recall; trade subject changed so trade counts are not comparable quality scores.",
+  "baseline": "153408688d8c6d22760570e25b609a0ee91fc295",
+  "uniqueTelemetryInputs": 2,
+  "records": [
+    {
+      "inputSha256": "4849a3f2593a9c1bbb93f84e859a76d81a8f64c2f26c269da359ef2a6cdc64c3",
+      "map": "de_anubis",
+      "rounds": 21,
+      "players": 10,
+      "counts": {
+        "before_shot_while_moving": 73,
+        "after_shot_while_moving": 13,
+        "after_shot_while_moving_mistakes": 0,
+        "before_untraded_death": 103,
+        "after_untraded_death": 14,
+        "after_untraded_death_mistakes": 0,
+        "before_good_plays": 28,
+        "after_good_plays": 4,
+        "after_good_plays_mistakes": 0
+      }
+    },
+    {
+      "inputSha256": "1559ea05fd55f9d48617d7ce7759a4a84adffeea3f835491f19bea6b83d4711a",
+      "map": "de_ancient",
+      "rounds": 21,
+      "players": 10,
+      "counts": {
+        "before_shot_while_moving": 83,
+        "after_shot_while_moving": 11,
+        "after_shot_while_moving_mistakes": 0,
+        "before_untraded_death": 101,
+        "after_untraded_death": 18,
+        "after_untraded_death_mistakes": 0,
+        "before_good_plays": 30,
+        "after_good_plays": 8,
+        "after_good_plays_mistakes": 0
+      }
+    }
+  ]
+}

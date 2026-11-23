@@ -1,281 +1,281 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { LoadingState } from "@/components/LoadingState";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api } from "@/lib/api/client";
-import type { Match, ReplayEvent, ReviewFocus, StatusResponse } from "@/lib/contracts";
 import { NotFound, isNotFound } from "@/components/NotFound";
+import { PillBubble } from "@/components/PillBubble";
+import { StatusIsland } from "@/components/StatusIsland";
 import { PlayerPicker, type PickerPlayer } from "@/components/processing/PlayerPicker";
-import { makeRosterLookup } from "@/lib/replay/roster";
-import { COACH_LANGUAGES, useCoachLanguage } from "@/lib/coach/language";
-import type { CoachLanguage } from "@/lib/contracts";
+import { RunLog, type StageObservations } from "@/components/processing/RunLog";
+import { api } from "@/lib/api/client";
+import { useCoachLanguage } from "@/lib/coach/language";
+import { REPLAY_READY_STATUSES, type Match, type ReviewFocus, type StatusResponse } from "@/lib/contracts";
 import { askToNotify, notifyPermission, notifyReviewReady } from "@/lib/notify";
+import { getMapMeta } from "@/lib/replay/maps";
+import { makeRosterLookup } from "@/lib/replay/roster";
 
-const TERMINAL = new Set(["complete", "failed"]);
 const FOCUSES: { id: ReviewFocus; label: string; detail: string }[] = [
-  { id: "overall", label: "Overall", detail: "A balanced review of your shooting, utility and teamwork." },
-  { id: "shooting", label: "Shooting", detail: "Movement while firing, opening duels and successful fights." },
-  { id: "utility", label: "Utility", detail: "Your flashes, grenade damage and utility held at death." },
-  { id: "teamwork", label: "Teamwork", detail: "Your trades, support and flashes. Still a single-player review." },
+  { id: "overall", label: "Overall", detail: "Review shooting, utility and teamwork together." },
+  { id: "shooting", label: "Shooting", detail: "Review movement while firing, opening duels and successful fights." },
+  { id: "utility", label: "Utility", detail: "Review flashes, grenade damage and utility held at death." },
+  { id: "teamwork", label: "Teamwork", detail: "Review this player’s trades, support and flashes." },
 ];
 
-/** Every kill in the match, paged; the picker only needs actor and victim. */
-async function allKills(matchId: string): Promise<ReplayEvent[]> {
-  const out: ReplayEvent[] = [];
-  for (let offset = 0; ; offset += 2000) {
-    const page = await api.getEvents(matchId, { offset, limit: 2000 });
-    out.push(...page.events.filter((e) => e.type === "kill"));
-    if (offset + page.events.length >= page.total || page.events.length === 0) return out;
-  }
-}
+const LANGUAGES = [{ id: "en", label: "English" }, { id: "pl", label: "Polski" }] as const;
 
-function withKillCounts(match: Match, kills: ReplayEvent[]): PickerPlayer[] {
+/** Legacy demos can reach the picker after parsing, with real kills and deaths available. */
+async function rosterWithStats(match: Match): Promise<PickerPlayer[]> {
   const roster = match.players ?? [];
   const lookup = makeRosterLookup(roster);
-  const k = new Map<string, number>();
-  const d = new Map<string, number>();
-  for (const e of kills) {
-    const killer = lookup(e.actorId);
-    const victim = lookup(e.victimId);
-    if (victim) d.set(victim.id, (d.get(victim.id) ?? 0) + 1);
-    if (killer && killer.id !== victim?.id && killer.team !== victim?.team) {
-      k.set(killer.id, (k.get(killer.id) ?? 0) + 1);
+  const kills = new Map<string, number>();
+  const deaths = new Map<string, number>();
+  for (let offset = 0; ; ) {
+    const page = await api.getEvents(match.id, { offset, limit: 2000 });
+    for (const event of page.events) {
+      if (event.type !== "kill") continue;
+      const killer = lookup(event.actorId);
+      const victim = lookup(event.victimId);
+      if (victim) deaths.set(victim.id, (deaths.get(victim.id) ?? 0) + 1);
+      if (killer && victim && killer.team !== victim.team) kills.set(killer.id, (kills.get(killer.id) ?? 0) + 1);
     }
+    offset += page.events.length;
+    if (!page.events.length || offset >= page.total) break;
   }
-  return roster.map((p) => ({ ...p, kills: k.get(p.id) ?? 0, deaths: d.get(p.id) ?? 0 }));
+  return roster.map((p) => ({ ...p, kills: kills.get(p.id) ?? 0, deaths: deaths.get(p.id) ?? 0 }));
+}
+
+function ChoicePills<T extends string>({ name, options, value, onChange }: {
+  name: string; options: readonly { id: T; label: string }[]; value: T; onChange: (v: T) => void;
+}) {
+  return <div className="setup-choices">
+    <PillBubble value={value} />
+    {options.map((option) => <label key={option.id}>
+      <input type="radio" name={name} value={option.id} checked={value === option.id}
+        onChange={() => onChange(option.id)} />
+      <span lang={option.id === "pl" ? "pl" : undefined}>{option.label}</span>
+    </label>)}
+  </div>;
 }
 
 export default function ProcessingPage() {
-  const params = useParams<{ id: string }>();
+  const { id } = useParams<{ id: string }>();
+  return <ProcessingMatch key={id} id={id} />;
+}
+
+function ProcessingMatch({ id }: { id: string }) {
   const router = useRouter();
-  const id = params.id;
   const [status, setStatus] = useState<StatusResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [players, setPlayers] = useState<PickerPlayer[] | null>(null);
-  const [picking, setPicking] = useState<string | null>(null);
-  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
-  const [focus, setFocus] = useState<ReviewFocus>("overall");
+  const previous = useRef<StatusResponse | null>(null);
+  const [observed, setObserved] = useState<StageObservations>({});
+  const [pollError, setPollError] = useState<string | null>(null);
   const [pollKey, setPollKey] = useState(0);
-  const loadedPlayers = useRef(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    async function poll() {
-      try {
-        const s = await api.getStatus(id);
-        if (cancelled) return;
-        setStatus(s);
-        if (s.status === "complete") {
-          notifyReviewReady(id, "The coach has picked your moments. Open the tab to start the review.");
-          // Radar is ready — open Studio; clips may still be recording.
-          router.replace(`/studio/${id}`);
-          return;
-        }
-        if (s.status === "failed") {
-          setError(s.error ?? "Unable to process this demo. Upload it again, or try another demo.");
-          return;
-        }
-        // The Radar is ready here; stop and let the viewer choose whose game to analyse.
-        if (s.status === "awaiting_player" || s.status === "awaiting_setup") {
-          setPicking(null);
-          return;
-        }
-        timer = setTimeout(poll, 800);
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Unable to check progress. Check the API is running, then reload the page.");
-          timer = setTimeout(poll, 1500);
-        }
-      }
-    }
-
-    poll();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [id, router, pollKey]);
-
-  const beforeParsing = status?.status === "awaiting_setup";
-  const awaiting = status?.status === "awaiting_player" || beforeParsing;
-
-  useEffect(() => {
-    document.title = `${awaiting ? "Set up your review" : error ? "Processing failed" : "Processing demo"} · Round Reviewer`;
-  }, [awaiting, error]);
-
-  useEffect(() => {
-    if (!awaiting || loadedPlayers.current) return;
-    loadedPlayers.current = true;
-    (async () => {
-      try {
-        const m = await api.getMatch(id);
-        setPlayers(beforeParsing ? (m.players ?? []) : withKillCounts(m, await allKills(id)));
-      } catch (e) {
-        loadedPlayers.current = false;
-        setError(e instanceof Error ? e.message : "Unable to load the players. Reload the page to try again.");
-      }
-    })();
-  }, [awaiting, beforeParsing, id]);
-
-  const [coachLang, setCoachLang] = useCoachLanguage();
+  const [match, setMatch] = useState<Match | null>(null);
+  const [players, setPlayers] = useState<PickerPlayer[] | null>(null);
+  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [loadKey, setLoadKey] = useState(0);
+  const [hasRounds, setHasRounds] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focus, setFocus] = useState<ReviewFocus>("overall");
+  const [coachLanguage, setCoachLanguage] = useCoachLanguage();
+  const language = coachLanguage === "pl" ? "pl" : "en";
+  const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("unsupported");
   useEffect(() => setPermission(notifyPermission()), []);
 
-  const choose = useCallback(
-    async (playerId: string) => {
-      setPicking(playerId);
-      setError(null);
+  const receive = useCallback((next: StatusResponse) => {
+    const last = previous.current;
+    const changes: StageObservations = {};
+    const seenAt = new Date();
+    for (const stage of next.stages) {
+      const prior = last?.stages.find((s) => s.id === stage.id);
+      if (prior && prior.state !== stage.state) changes[stage.id] = seenAt;
+    }
+    if (Object.keys(changes).length) setObserved((times) => ({ ...times, ...changes }));
+    previous.current = next;
+    setStatus(next);
+    setPollError(null);
+  }, []);
+
+  useEffect(() => {
+    if (busy) return;
+    let live = true;
+    let timer: ReturnType<typeof setTimeout>;
+    async function poll() {
       try {
-        const s = await api.selectPlayer(id, playerId, coachLang === "nl" ? "en" : coachLang, focus);
-        setStatus(s);
-        setPollKey((k) => k + 1);
+        const next = await api.getStatus(id);
+        if (!live || submitting.current) return;
+        receive(next);
+        if (next.status === "complete" || next.status === "failed") return;
+        const paused = next.status === "awaiting_setup" || next.status === "awaiting_player";
+        timer = setTimeout(poll, paused ? 2500 : 800);
       } catch (e) {
-        setPicking(null);
-        setError(e instanceof Error ? e.message : "Unable to start the analysis. Pick the player again to retry.");
+        if (!live) return;
+        const message = e instanceof Error ? e.message : "Unable to reach the API.";
+        setPollError(message);
+        if (!isNotFound(message)) timer = setTimeout(poll, 1500);
       }
-    },
-    [id, coachLang, focus],
-  );
+    }
+    void poll();
+    return () => { live = false; clearTimeout(timer); };
+  }, [id, busy, pollKey, receive]);
 
-  const done = status ? TERMINAL.has(status.status) : Boolean(error);
-  const failed = status?.status === "failed";
+  const phase = status?.status;
+  const beforeParse = phase === "awaiting_setup";
+  const awaiting = beforeParse || phase === "awaiting_player";
+  const ready = phase === "complete";
+  const failed = phase === "failed";
+  const replayPhase = !!phase && REPLAY_READY_STATUSES.has(phase);
+  const wantMatch = awaiting || replayPhase || phase === "ready_to_parse" || phase === "parsing" || phase === "normalizing";
 
-  // Whole-round clips; hidden when that recorder is off (the coach records its moments instead)
-  const clips = status?.clips?.clips.some((c) => c.status !== "skipped") ? status.clips : null;
-  const clipDetail =
-    clips && clips.total > 0
-      ? clips.done < clips.total
-        ? `Gameplay clips recording — ${clips.done} of ${clips.total} ready. Radar opens first.`
-        : `${clips.done} of ${clips.total} gameplay clips ready.`
-      : null;
+  useEffect(() => {
+    document.title = `${awaiting ? "Set up your review" : ready ? "Review ready" : failed ? "Processing failed" : "Processing demo"} · Round Reviewer`;
+    if (!ready) return;
+    notifyReviewReady(id, "Your review is ready. Open the tab to see your moments.");
+    const timer = setTimeout(() => router.replace(`/studio/${id}`), 700);
+    return () => clearTimeout(timer);
+  }, [awaiting, failed, ready, id, router]);
 
+  useEffect(() => {
+    if (!wantMatch) return;
+    let live = true;
+    setRosterError(null);
+    api.getMatch(id).then(async (m) => {
+      if (!live) return;
+      setMatch(m);
+      if (!awaiting) return;
+      setPlayers(m.players ?? []);
+      if (!beforeParse && m.players?.length) {
+        const detailed = await rosterWithStats(m).catch(() => null);
+        if (live && detailed) setPlayers(detailed);
+      }
+    }).catch((e: unknown) => {
+      if (live) setRosterError(e instanceof Error ? e.message : "Unable to read this match.");
+    });
+    return () => { live = false; };
+  }, [id, wantMatch, awaiting, beforeParse, loadKey]);
 
-  if (!status && isNotFound(error)) {
-    return <NotFound title="This match isn't here" detail="It may have been deleted, or the link is wrong." />;
+  useEffect(() => {
+    if (!replayPhase || ready) return;
+    let live = true;
+    let timer: ReturnType<typeof setTimeout>;
+    async function checkReplay() {
+      const rounds = await api.getRounds(id).catch(() => null);
+      if (!live) return;
+      if (rounds?.length) setHasRounds(true);
+      else timer = setTimeout(checkReplay, 2500);
+    }
+    void checkReplay();
+    return () => { live = false; clearTimeout(timer); };
+  }, [id, replayPhase, ready]);
+
+  const selected = players?.find((p) => p.id === selectedId);
+  async function startReview(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected || !awaiting || submitting.current) return;
+    submitting.current = true;
+    setBusy(true);
+    setSubmitError(null);
+    try {
+      receive(await api.selectPlayer(id, selected.id, language, focus));
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : "Unable to start the review. Try again.");
+    } finally {
+      submitting.current = false;
+      setBusy(false);
+      setPollKey((n) => n + 1);
+    }
   }
-  return (
-    <main className="main" id="content">
-      <h1>{awaiting ? "Set up your review" : "Preparing your demo"}</h1>
-      <p className="lede">
-        {awaiting
-          ? beforeParsing
-            ? "The player list is ready. Choose one player and what you want to work on. Full parsing has not started."
-            : "The replay is ready. Choose one player and what you want to work on."
-          : status && ["parsing", "normalizing", "detecting", "selecting", "explaining", "ready_to_parse"].includes(status.status)
-            ? "Preparing the replay and your personal review using the choices you confirmed."
-            : "Unpacking the file and reading its player list. You will choose a player and review focus before full parsing starts."}
-      </p>
-      {error ? (
-        <p className="err" role="alert">
-          {error} {failed ? <Link href="/upload">Choose another demo</Link> : null}
-        </p>
-      ) : null}
-      {awaiting && status?.error ? (
-        <p className="err" role="alert">
-          {status.error}
-        </p>
-      ) : null}
 
-      {awaiting ? (
-        <>
-          {players ? (
-            <PlayerPicker players={players} busyId={picking} selectedId={selectedPlayer} onPick={setSelectedPlayer} />
-          ) : (
-            <p className="meta">Loading players…</p>
-          )}
-          <fieldset className="review-focus" disabled={picking !== null}>
-            <legend>What would you like to focus on?</legend>
-            <div className="review-focus-options">
-              {FOCUSES.map((option) => (
-                <label key={option.id} className="review-focus-option" data-selected={focus === option.id}>
-                  <input type="radio" name="review-focus" value={option.id} checked={focus === option.id} onChange={() => setFocus(option.id)} />
-                  <span><strong>{option.label}</strong><span className="meta">{option.detail}</span></span>
-                </label>
-              ))}
-            </div>
+  async function retry() {
+    if (submitting.current) return;
+    submitting.current = true;
+    setBusy(true);
+    setSubmitError(null);
+    try {
+      const next = await api.retryProcessing(id);
+      // A new attempt: earlier stage times belong to the failed run.
+      previous.current = null;
+      setObserved({});
+      receive(next);
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : "Unable to start processing again. Try again.");
+    } finally {
+      submitting.current = false;
+      setBusy(false);
+      setPollKey((n) => n + 1);
+    }
+  }
+
+  if (isNotFound(pollError)) return <NotFound title="This match isn’t here" detail="It may have been deleted, or the link is wrong." />;
+  const mapLabel = match?.mapName || match?.map;
+  const rawMap = mapLabel && mapLabel !== "…" ? mapLabel : null;
+  const map = rawMap && (getMapMeta(rawMap) ?? getMapMeta(`de_${rawMap.toLowerCase()}`));
+  const mapName = map ? map.displayName : rawMap;
+  const mapImage = map ? map.radarImage : null;
+  const showPreview = !!mapName || hasRounds || !!rosterError;
+  const solo = !awaiting && !showPreview && !ready && !failed;
+  const studioHref = `/studio/${id}`;
+  return <main className="main processing-page" id="content">
+    <StatusIsland status={status} disconnected={!!pollError} />
+    <div className="processing-layout" data-solo={solo}>
+      {pollError && <div className="processing-message sheet" role="alert">
+        <p>{pollError}</p><button type="button" className="btn btn-line" onClick={() => setPollKey((n) => n + 1)}>Check again</button>
+      </div>}
+      {awaiting ? <form className="setup-sheet sheet" onSubmit={startReview} aria-labelledby="setup-title">
+        <header className="setup-heading">
+          <div><h1 id="setup-title">Who should the coach review?</h1>
+            {(mapName || players) && <p>{mapName && <strong>{mapName}</strong>}{mapName && players && ", "}
+              {players && `${players.length} ${players.length === 1 ? "player" : "players"} in this demo`}</p>}
+          </div>
+          {mapImage && <span aria-hidden="true" className="setup-map" style={{ backgroundImage: `url(${mapImage})` }} />}
+        </header>
+        {players?.length ? <PlayerPicker players={players} selectedId={selectedId} busyId={busy ? selectedId : null} onPick={setSelectedId} />
+          : !rosterError && !players ? <LoadingState label="Reading the demo roster…" />
+          : <div className="roster-message" role="status"><p>{rosterError || "The demo roster has no players available to review."}</p>
+            {!rosterError && <Link className="btn btn-fill" href="/upload">Choose another demo</Link>}
+            {rosterError && <button type="button" className="btn btn-line" onClick={() => setLoadKey((n) => n + 1)}>Reload roster</button>}
+          </div>}
+        <div className="setup-preferences">
+          <fieldset disabled={busy}><legend>Review focus</legend>
+            <ChoicePills name="review-focus" options={FOCUSES} value={focus} onChange={setFocus} />
+            <p>{FOCUSES.find((f) => f.id === focus)?.detail}</p>
           </fieldset>
-          <p className="meta lang-row" style={{ marginTop: 16 }}>
-            <label>
-              Coach language{" "}
-              <select disabled={picking !== null} value={coachLang === "nl" ? "en" : coachLang} onChange={(e) => setCoachLang(e.target.value as CoachLanguage)}>
-                {COACH_LANGUAGES.filter((l) => l.id !== "nl").map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </p>
-          <p className="meta">{selectedPlayer ? `Reviewing ${players?.find((p) => p.id === selectedPlayer)?.name ?? "selected player"} · ${FOCUSES.find((f) => f.id === focus)?.label}` : "Select a player above to continue."} You can inspect all rounds; the focus controls which findings and moments the coach selects.</p>
-          <button type="button" className="btn btn-fill" disabled={!selectedPlayer || picking !== null} onClick={() => selectedPlayer && void choose(selectedPlayer)}>
-            {picking ? "Starting review…" : "Start review"}
-          </button>
-          {!beforeParsing ? <p className="meta" style={{ marginTop: 8 }}>
-            <Link className="link" href={`/studio/${id}`}>
-              Watch the replay without analysis
-            </Link>
-          </p> : null}
-        </>
-      ) : null}
-
-      <ol className={`stage-list${awaiting ? " compact" : ""}`} aria-live="polite">
-        {(status?.stages ?? []).map((stage) => (
-          <li key={stage.id} data-state={stage.state} data-stage={stage.id}>
-            <span className="s-ic" aria-hidden />
-            <strong>{stage.label}</strong>
-            <span className="meta" style={{ gridColumn: "3", textAlign: "right" }}>
-              {stage.state}
-            </span>
-            {stage.detail ? <div className="meta">{stage.detail}</div> : null}
-            {stage.progress ? (
-              <div className="meta">
-                {stage.progress.done} / {stage.progress.total}
-              </div>
-            ) : null}
-          </li>
-        ))}
-        {clips && clips.total > 0 ? (
-          <li
-            data-state={
-              clips.done >= clips.total
-                ? "done"
-                : clips.clips.some((c) => c.status === "recording")
-                  ? "active"
-                  : "pending"
-            }
-          >
-            <span className="s-ic" aria-hidden />
-            <strong>Gameplay clips</strong>
-            <span className="meta" style={{ gridColumn: "3", textAlign: "right" }}>
-              {clips.done >= clips.total ? "done" : "recording"}
-            </span>
-            <div className="meta">
-              {clips.done} / {clips.total}
-            </div>
-          </li>
-        ) : null}
-      </ol>
-      {clipDetail ? <p className="meta">{clipDetail}</p> : null}
-      {!status && !error ? <p className="meta">Waiting for status…</p> : null}
-      {status && !done && !awaiting ? (
-        <p className="meta" style={{ marginTop: 12 }}>
-          Status: {status.status}
-        </p>
-      ) : null}
-      {status && !done && !awaiting && ["detecting", "selecting", "recording", "explaining"].includes(status.status) ? (
-        <p className="meta" style={{ marginTop: 8 }}>
-          {permission === "granted" ? (
-            "You can switch to another tab: this one tells you when the review is ready."
-          ) : permission === "default" ? (
-            <button type="button" className="link" onClick={() => void askToNotify().then(setPermission)}>
-              Tell me when the review is ready
-            </button>
-          ) : null}
-        </p>
-      ) : null}
-    </main>
-  );
+          <fieldset disabled={busy}><legend>Coach language</legend>
+            <ChoicePills name="coach-language" options={LANGUAGES} value={language} onChange={setCoachLanguage} />
+          </fieldset>
+        </div>
+        {(submitError || status?.error) && <p className="err" role="alert">{submitError || status?.error}</p>}
+        <footer className="setup-footer">
+          <p>{selected ? <>Reviewing <strong>{selected.name}</strong></> : "Choose a player to continue."}</p>
+          <button type="submit" className="btn btn-fill" disabled={!selected || busy}>{busy ? "Starting review…" : "Start review"}</button>
+        </footer>
+        {hasRounds && <Link className="setup-radar-link" href={studioHref}>Watch the radar</Link>}
+      </form> : failed ? <section className="processing-summary sheet">
+        <h1>Unable to process this demo</h1>
+        <p>{status?.error || "Processing stopped before the review was ready."} Retry to process the same demo again, or choose another one.</p>
+        {submitError && <p className="err" role="alert">{submitError}</p>}
+        <div className="preview-actions">
+          <button type="button" className="btn btn-fill" disabled={busy} onClick={() => void retry()}>{busy ? "Retrying…" : "Retry processing"}</button>
+          <Link className="btn btn-line" href="/upload">Choose another demo</Link>
+        </div>
+      </section> : ready ? <section className="processing-summary sheet">
+        <h1>Your review is ready</h1><Link className="btn btn-fill" href={studioHref}>Open Studio</Link>
+      </section> : showPreview ? <section className="processing-preview sheet">
+        <header><h1>{mapName ?? "Preparing your demo"}</h1><p>{hasRounds ? "The replay is ready to watch while your review finishes." : "Preparing the replay for your review."}</p></header>
+        {mapImage && <div className="processing-map" role="img" aria-label={`${mapName} map overview`} style={{ backgroundImage: `url(${mapImage})` }} />}
+        {rosterError && <p className="err" role="alert">{rosterError}</p>}
+        <div className="preview-actions">
+          {rosterError && <button className="btn btn-line" onClick={() => setLoadKey((n) => n + 1)}>Reload match details</button>}
+          {hasRounds && <Link className="btn btn-fill" href={studioHref}>Watch the radar</Link>}
+          {permission === "default" && <button type="button" className="btn btn-line" onClick={() => void askToNotify().then(setPermission)}>Notify me when ready</button>}
+          {permission === "granted" && <span className="meta">We’ll notify you when the review is ready.</span>}
+        </div>
+      </section> : <h1 className="sr-only">Preparing your demo</h1>}
+      {(status || !pollError) && <RunLog status={status} observed={observed} />}
+    </div>
+  </main>;
 }

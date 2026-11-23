@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadingState } from "@/components/LoadingState";
+import { sourceNote } from "@/components/coach/CoachExplanation";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/lib/api/client";
@@ -7,9 +9,10 @@ import type { CoachLanguage, MomentExplanation, ReviewWrapUp } from "@/lib/contr
 import { COACH_LANGUAGES } from "@/lib/coach/language";
 import { CoachText, type CiteHandlers } from "@/components/coach/CoachText";
 
-type Load<T> = { kind: "loading" } | { kind: "done"; data: T } | { kind: "error"; message: string };
+type Load<T> = { kind: "loading" } | { kind: "done"; data: T } | { kind: "error"; message: string; retry: () => void };
 
 function useReview<T>(fetcher: () => Promise<T>, deps: unknown[]): Load<T> {
+  const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<Load<T>>({ kind: "loading" });
   useEffect(() => {
     let live = true;
@@ -18,21 +21,14 @@ function useReview<T>(fetcher: () => Promise<T>, deps: unknown[]): Load<T> {
       .then((data) => live && setState({ kind: "done", data }))
       .catch(
         (e: unknown) =>
-          live && setState({ kind: "error", message: e instanceof Error ? e.message : "The coach did not answer." }),
+          live && setState({ kind: "error", retry: () => setAttempt((n) => n + 1), message: e instanceof Error ? e.message : "The coach did not answer." }),
       );
     return () => {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [...deps, attempt]);
   return state;
-}
-
-function sourceNote(e: MomentExplanation): string {
-  if (e.source === "agent") return `Written by ${e.model ?? "the coach model"} and checked against the findings.`;
-  if (e.verifierErrors.some((x) => /no moments/i.test(x))) return "";
-  if (e.verifierErrors.length) return "Written from the findings, because the coach model's text did not pass the checks.";
-  return "Written from the findings. The coach model is off.";
 }
 
 function CoachBlock({
@@ -66,15 +62,15 @@ function CoachBlock({
         </label>
       </div>
       {state.kind === "loading" ? (
-        <p className="meta thinking">{loadingText}</p>
+        <LoadingState label={loadingText} />
       ) : state.kind === "error" ? (
-        <p className="meta err">{state.message}</p>
+        <div><p role="alert">{state.message}</p><button className="btn btn-line" onClick={state.retry}>Try again</button></div>
       ) : (
         <>
           <p className="expl">
             <CoachText text={state.data.text} {...cites} />
           </p>
-          {sourceNote(state.data) ? <p className="expl-note">{sourceNote(state.data)}</p> : null}
+          <p className="expl-note">{sourceNote(state.data)}</p>
         </>
       )}
     </section>
@@ -139,9 +135,10 @@ export function ReviewWrapUpPanel({
   language,
   onLanguage,
   total,
+  seen,
   actions,
   ...cites
-}: Shared & { total: number; actions: ReactNode }) {
+}: Shared & { total: number; seen: number; actions: ReactNode }) {
   const wrap = useReview<ReviewWrapUp>(
     () => api.getReviewWrapUp(matchId, playerId, language),
     [matchId, playerId, language],
@@ -151,8 +148,8 @@ export function ReviewWrapUpPanel({
   const drills = wrap.kind === "done" ? wrap.data.drills : [];
   return (
     <>
-      <h2 className="ins-head">You reviewed all {total} moments</h2>
-      <p className="picked">Here is what to take into your next match.</p>
+      <h2 className="ins-head">Match debrief</h2>
+      <p className="picked">{seen} of {total} moments seen.</p>
       <CoachBlock
         title="Coach"
         state={text}

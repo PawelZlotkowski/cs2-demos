@@ -2,9 +2,11 @@
 
 Signal: a flash thrown by the player blinded a teammate or the player for more
 than ``MIN_BLIND_S``. One finding per flash (blinds on the same tick).
+Blinds on players who are already dead are ignored.
 
 Severity = 0.3 + 0.15 per teammate blinded + 0.2 * min(1, longest blind / 3 s),
-minus 0.15 when the same flash blinded at least as many enemies.
+minus 0.15 when the same flash blinded at least as many enemies. The longest
+blind is the teammates' when any were hit, otherwise the player's own.
 
 Known false positives: planned "pop" flashes where the teammate turns away late.
 """
@@ -31,13 +33,15 @@ def detect(match: MatchData, round_no: int, player_id: str) -> list[FindingDraft
     enemies = set(rd.enemies(player_id))
     drafts: list[FindingDraft] = []
     for tick, blinds in sorted(by_tick.items()):
-        friendly = [b for b in blinds if (b.victim in mates or b.victim == player_id) and b.duration > MIN_BLIND_S]
+        # Dead players still get blind events while spectating
+        blinds = [b for b in blinds if b.duration > MIN_BLIND_S and b.victim in rd.alive_at(b.t)]
+        friendly = [b for b in blinds if b.victim in mates or b.victim == player_id]
         if not friendly:
             continue
         mates_hit = [b for b in friendly if b.victim in mates]
         self_hit = any(b.victim == player_id for b in friendly)
-        enemies_hit = [b for b in blinds if b.victim in enemies and b.duration > MIN_BLIND_S]
-        longest = max(b.duration for b in friendly)
+        enemies_hit = [b for b in blinds if b.victim in enemies]
+        longest = max(b.duration for b in mates_hit or friendly)
         severity = 0.3 + 0.15 * len(mates_hit) + 0.2 * min(1.0, longest / 3.0)
         if len(enemies_hit) >= len(friendly):
             severity -= 0.15

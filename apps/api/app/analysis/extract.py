@@ -44,34 +44,41 @@ def extract_analysis(
     sides_by_round = _sides_by_round(parsed, rounds_meta)
     economy_by_round = _economy_by_round(parsed, rounds_meta)
 
+    round_starts = sorted(int(r["tick"]) for _, r in _rows(parsed.round_starts))
+    next_starts = [int(m["startTick"]) for m in rounds_meta[1:]] + [math.inf]
     rounds: list[dict[str, Any]] = []
     prev_end = 0
-    for meta in rounds_meta:
+    for meta, next_start in zip(rounds_meta, next_starts):
         start, end = int(meta["startTick"]), int(meta["endTick"])
+        # Kills and damage after the round end (exit kills, bomb deaths) count until the next round starts
+        post_end = min(next_start, next((s for s in round_starts if s > end), math.inf))
 
-        def in_round(tick: int, *, from_prev_end: bool = False) -> bool:
+        def in_round(tick: int, *, from_prev_end: bool = False, until_next: bool = False) -> bool:
             lo = prev_end if from_prev_end else start
-            return lo <= tick <= end
+            return lo <= tick <= end or (until_next and end < tick < post_end)
 
         def t_of(tick: int) -> float:
             return round(tick_to_seconds(tick, start, tick_rate), 3)
 
-        kills = [
-            {
-                "tick": int(row["tick"]),
-                "t": t_of(int(row["tick"])),
-                "attacker": steam_id(row.get("attacker_steamid")),
-                "victim": steam_id(row.get("user_steamid")),
-                "weapon": _str(row.get("weapon")),
-                "headshot": _bool(row.get("headshot")),
-                "assister": steam_id(row.get("assister_steamid")),
-                "flashAssist": _bool(row.get("assistedflash")),
-                "attackerPos": _xyz(row, "attacker_"),
-                "victimPos": _xyz(row, "user_"),
-            }
-            for _, row in _rows(parsed.deaths)
-            if in_round(int(row["tick"])) and steam_id(row.get("user_steamid"))
-        ]
+        kills, post_kills = [], []
+        for _, row in _rows(parsed.deaths):
+            tick = int(row["tick"])
+            if not in_round(tick, until_next=True) or not steam_id(row.get("user_steamid")):
+                continue
+            (kills if tick <= end else post_kills).append(
+                {
+                    "tick": tick,
+                    "t": t_of(tick),
+                    "attacker": steam_id(row.get("attacker_steamid")),
+                    "victim": steam_id(row.get("user_steamid")),
+                    "weapon": _str(row.get("weapon")),
+                    "headshot": _bool(row.get("headshot")),
+                    "assister": steam_id(row.get("assister_steamid")),
+                    "flashAssist": _bool(row.get("assistedflash")),
+                    "attackerPos": _xyz(row, "attacker_"),
+                    "victimPos": _xyz(row, "user_"),
+                }
+            )
         shots = [
             {
                 "tick": int(row["tick"]),
@@ -84,18 +91,30 @@ def extract_analysis(
             for _, row in _rows(parsed.weapon_fires)
             if in_round(int(row["tick"])) and steam_id(row.get("user_steamid"))
         ]
-        hurts = [
-            {
-                "tick": int(row["tick"]),
-                "t": t_of(int(row["tick"])),
-                "attacker": steam_id(row.get("attacker_steamid")),
-                "victim": steam_id(row.get("user_steamid")),
-                "damage": int(_num(row.get("dmg_health")) or 0),
-                "weapon": _str(row.get("weapon")),
-            }
-            for _, row in _rows(parsed.hurts)
-            if in_round(int(row["tick"])) and steam_id(row.get("user_steamid"))
-        ]
+        hurts, post_hurts = [], []
+        hp: dict[str, int] = {}  # health left per victim; every round starts at 100
+        for _, row in _rows(parsed.hurts):
+            tick, victim = int(row["tick"]), steam_id(row.get("user_steamid"))
+            if not victim or not in_round(tick, until_next=True):
+                continue
+            # Store the health actually lost: dmg_health is the hit's damage (an AWP body shot reads
+            # 440) and rounds fractions down. Health after the hit matches the game's damage_total.
+            left = hp.get(victim, 100)
+            after = _num(row.get("health"))
+            if after is None:  # no health column: cap the hit at the health left
+                after = max(0, left - int(_num(row.get("dmg_health")) or 0))
+            damage = max(0, left - int(after))
+            hp[victim] = int(after)
+            (hurts if tick <= end else post_hurts).append(
+                {
+                    "tick": tick,
+                    "t": t_of(tick),
+                    "attacker": steam_id(row.get("attacker_steamid")),
+                    "victim": victim,
+                    "damage": damage,
+                    "weapon": _str(row.get("weapon")),
+                }
+            )
         blinds = [
             {
                 "tick": int(row["tick"]),
@@ -134,15 +153,17 @@ def extract_analysis(
                     }
                 )
         grenades.sort(key=lambda g: g["tick"])
+        # demoparser2's item_purchase has steamid and item_name; the older names stay as a fallback
         purchases = [
             {
                 "tick": int(row["tick"]),
                 "t": t_of(int(row["tick"])),
-                "player": steam_id(row.get("user_steamid")),
-                "item": _str(row.get("weapon") or row.get("item")),
+                "player": steam_id(row.get("steamid")) or steam_id(row.get("user_steamid")),
+                "item": _str(row.get("item_name")) or _str(row.get("weapon") or row.get("item")),
             }
             for _, row in _rows(parsed.purchases)
-            if in_round(int(row["tick"]), from_prev_end=True) and steam_id(row.get("user_steamid"))
+            if in_round(int(row["tick"]), from_prev_end=True)
+            and (steam_id(row.get("steamid")) or steam_id(row.get("user_steamid")))
         ]
         bomb: list[dict[str, Any]] = []
         for df, btype in (
@@ -180,6 +201,9 @@ def extract_analysis(
                 "kills": kills,
                 "shots": shots,
                 "hurts": hurts,
+                # After the round end, for round stats only (detectors read kills/hurts)
+                "postKills": post_kills,
+                "postHurts": post_hurts,
                 "blinds": blinds,
                 "grenades": grenades,
                 "purchases": purchases,

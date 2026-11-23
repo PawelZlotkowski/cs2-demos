@@ -1,4 +1,31 @@
-import type { ReplayEvent, ReplayPlayer } from "@/lib/contracts";
+import type { ReplayEvent, ReplayPlayer, ReplaySample, RoundStats } from "@/lib/contracts";
+
+/** Competitive rounds in the selected player's review exclude warm-up and knife rounds. */
+export function playerRoundScore(stats: RoundStats[]): [number, number] | null {
+  if (!stats.length || stats.some((r) => r.won == null)) return null;
+  const wins = stats.filter((r) => r.won).length;
+  return [wins, stats.length - wins];
+}
+
+export type MatchRating = { rating: number; kpr: number; dpr: number; adr: number; kast: number };
+
+/**
+ * One overall number for the coached player's match: the community approximation of
+ * HLTV Rating 2.0 (1.00 is an average performance), computed from the per-round stats.
+ */
+export function matchRating(stats: RoundStats[]): MatchRating | null {
+  const n = stats.length;
+  if (!n) return null;
+  const per = (f: (r: RoundStats) => number) => stats.reduce((a, r) => a + f(r), 0) / n;
+  const kpr = per((r) => r.kills);
+  const dpr = per((r) => r.deaths);
+  const apr = per((r) => r.assists);
+  const adr = per((r) => r.damage);
+  const kast = 100 * per((r) => Number(r.kills > 0 || r.assists > 0 || r.survived || r.deathTraded === true));
+  const impact = 2.13 * kpr + 0.42 * apr - 0.41;
+  const rating = 0.0073 * kast + 0.3591 * kpr - 0.5329 * dpr + 0.2372 * impact + 0.0032 * adr + 0.1587;
+  return { rating, kpr, dpr, adr, kast };
+}
 
 export type RosterLookup = (id: string | null | undefined) => ReplayPlayer | undefined;
 
@@ -9,7 +36,8 @@ export type RosterLookup = (id: string | null | undefined) => ReplayPlayer | und
  */
 export function makeRosterLookup(roster: ReplayPlayer[]): RosterLookup {
   const exact = new Map(roster.map((p) => [p.id, p]));
-  const approx = new Map(roster.map((p) => [String(Number(p.id)), p]));
+  // Numeric ids only: a non-numeric id ("p3" on a shared link) would collapse to "NaN"
+  const approx = new Map(roster.filter((p) => /^\d+$/.test(p.id)).map((p) => [String(Number(p.id)), p]));
   return (id) => {
     if (!id) return undefined;
     return exact.get(id) ?? approx.get(String(Number(id)));
@@ -58,26 +86,20 @@ export type LaneMark = {
   you?: boolean;
 };
 
-/** Players alive per side after each kill, from the followed player's point of view. */
-export type AliveStep = { t: number; us: number; them: number };
+/** Step changes measured in this round's replay samples, grouped by the side played. */
+export type AliveStep = { t: number; T: number; CT: number };
 
-export function aliveSteps(
-  events: ReplayEvent[],
-  roster: ReplayPlayer[],
-  lookup: RosterLookup,
-  focus: ReplayPlayer | undefined,
-): AliveStep[] {
-  const side = focus?.team ?? "CT";
-  let us = roster.filter((p) => p.team === side).length || 5;
-  let them = roster.filter((p) => p.team && p.team !== side).length || 5;
-  const out: AliveStep[] = [{ t: 0, us, them }];
-  for (const e of events) {
-    if (e.type !== "kill") continue;
-    const victim = lookup(e.victimId);
-    if (!victim) continue;
-    if (victim.team === side) us = Math.max(0, us - 1);
-    else them = Math.max(0, them - 1);
-    out.push({ t: e.t, us, them });
+export function aliveSteps(samples: ReplaySample[], lookup: RosterLookup): AliveStep[] {
+  const out: AliveStep[] = [];
+  for (const sample of samples) {
+    if (!sample.players.length) continue;
+    const step = { t: sample.t, T: 0, CT: 0 };
+    for (const p of sample.players) {
+      const side = lookup(p.id)?.team;
+      if (side && p.alive) step[side]++;
+    }
+    const last = out[out.length - 1];
+    if (!last || step.T !== last.T || step.CT !== last.CT) out.push(step);
   }
   return out;
 }

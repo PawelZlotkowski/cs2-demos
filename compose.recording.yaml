@@ -1,0 +1,20 @@
+# Docker web + Windows-host API, for testing gameplay recording and the local model.
+#
+# CS Demo Manager, CS2 and HLAE cannot run in a Linux container, so the API runs on Windows
+# (tools/start-host-api.ps1, port 8000) and the web container forwards /api to it through
+# host.docker.internal. Start the model and the host API first, then:
+#
+#   docker compose -f compose.yaml -f compose.recording.yaml up --build -d --no-deps web
+#
+# Open http://localhost:3000. The api service in compose.yaml is not started in this mode.
+
+services:
+  web:
+    build:
+      args:
+        # Rewrites are fixed at build time (apps/web/next.config.ts), so this is a build argument.
+        API_INTERNAL_URL: http://host.docker.internal:8000
+    environment:
+      # Server-side fetches and the streamed upload route use it at run time.
+      API_INTERNAL_URL: http://host.docker.internal:8000
+    depends_on: !reset []

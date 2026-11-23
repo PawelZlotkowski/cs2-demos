@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 
-from app.analysis.extract import extract_analysis, steam_id
+from app.analysis.extract import extract_analysis, is_knife_round, steam_id
 from app.maps.metadata import display_map_name, get_map_meta, world_to_radar
 from app.processing.parse_demo import ParsedDemo
 from app.processing.time_utils import tick_to_seconds
@@ -30,7 +30,10 @@ def normalize_parsed(match_id: str, parsed: ParsedDemo) -> dict[str, Any]:
     # Prefer freeze_end ticks as round starts; pair with round_end rows that have a winner
     ends = parsed.round_ends.copy()
     if len(ends):
-        ends = ends[ends["winner"].notna() | ((ends["round"] > 0) & (ends["tick"] > 1))].copy()
+        if "is_match_started" in ends:
+            # Warm-up rows precede the match start. The final round's row also reads
+            # False (game over), so only the leading rows are dropped.
+            ends = ends[ends["is_match_started"].fillna(False).astype(bool).cummax()]
         ends = ends[ends["tick"] > 1].reset_index(drop=True)
 
     freeze = parsed.freeze_ends.copy() if len(parsed.freeze_ends) else pd.DataFrame(columns=["tick"])
@@ -43,24 +46,28 @@ def normalize_parsed(match_id: str, parsed: ParsedDemo) -> dict[str, Any]:
     # Build player roster with best-known team from tick mid-match
     roster = _build_roster(parsed)
 
-    for idx, end_row in ends.iterrows():
+    prev_end = 0  # end of the last kept (or dropped knife) round
+    for _, end_row in ends.iterrows():
+        winner = _normalize_winner(end_row.get("winner"))
+        if winner is None:
+            # Half-time, restart and recording-start markers: no round was played
+            continue
         end_tick = int(end_row["tick"])
-        winner_raw = end_row.get("winner")
-        winner = _normalize_winner(winner_raw)
         reason = end_row.get("reason")
         reason_s = str(reason) if pd.notna(reason) else None
 
-        # Start: last freeze_end before this end_tick, else previous end
-        start_tick = 0
-        for ft in freeze_ticks:
-            if ft < end_tick:
-                start_tick = ft
-            else:
-                break
-        if start_tick <= 0 and rounds_meta:
-            start_tick = rounds_meta[-1]["endTick"]
+        # Start: last freeze_end since the previous round ended, else previous end.
+        # A freeze_end can start only one round, so two ends never share a start.
+        start_tick = max((ft for ft in freeze_ticks if prev_end < ft < end_tick), default=0)
+        if start_tick <= 0 and prev_end:
+            start_tick = prev_end
         if start_tick <= 0:
             start_tick = max(0, end_tick - tick_rate * 90)
+        knife = not prev_end and _is_knife_round(parsed, start_tick, end_tick)
+        prev_end = end_tick
+        if knife:
+            # FACEIT knife round for sides: not part of the match, so the pistol round is round 1
+            continue
 
         round_number = len(rounds_meta) + 1
         round_id = f"r{round_number}"
@@ -95,16 +102,16 @@ def normalize_parsed(match_id: str, parsed: ParsedDemo) -> dict[str, Any]:
             }
         )
 
-    ct_score = sum(1 for r in rounds_meta if r["winner"] == "CT")
-    t_score = sum(1 for r in rounds_meta if r["winner"] == "T")
-    # won[] relative to CT for display; UI can flip with focus later
-    won = [1 if r["winner"] == "CT" else 0 for r in rounds_meta]
+    analysis = extract_analysis(match_id, parsed, rounds_meta, roster)
+    # won[] per round for the team that started on CT; sides swap at half-time and in overtime
+    first_ct = {p for p, s in analysis["rounds"][0]["sides"].items() if s == "CT"} if rounds_meta else set()
+    won = [_started_ct_won(r, first_ct) for r in analysis["rounds"]]
 
     match = {
         "id": match_id,
         "map": display_map_name(map_raw),
         "mapName": map_raw,
-        "score": f"{ct_score}–{t_score}",
+        "score": f"{sum(won)}–{len(won) - sum(won)}",
         "when": "just now",
         "rounds": len(rounds_meta),
         "won": won,
@@ -118,7 +125,7 @@ def normalize_parsed(match_id: str, parsed: ParsedDemo) -> dict[str, Any]:
     return {
         "match": match,
         "rounds": rounds_meta,
-        "analysis": extract_analysis(match_id, parsed, rounds_meta, roster),
+        "analysis": analysis,
         "round_replays": round_replays,
         "events": _flatten_events(round_replays),
         "perf": {
@@ -129,6 +136,23 @@ def normalize_parsed(match_id: str, parsed: ParsedDemo) -> dict[str, Any]:
     }
 
 
+def _is_knife_round(parsed: ParsedDemo, start_tick: int, end_tick: int) -> bool:
+    def weapons(df: pd.DataFrame) -> list[dict[str, str]]:
+        if not len(df) or "weapon" not in df:
+            return []
+        rows = df[(df["tick"] >= start_tick) & (df["tick"] <= end_tick)]
+        return [{"weapon": str(w)} for w in rows["weapon"]]
+
+    return is_knife_round(weapons(parsed.deaths), weapons(parsed.weapon_fires))
+
+
+def _started_ct_won(rnd: dict[str, Any], first_ct: set[str]) -> int:
+    """1 when the team that started on CT won: its side is where most of its players are now."""
+    now = [s for p, s in rnd["sides"].items() if p in first_ct]
+    side = max(("CT", "T"), key=now.count) if now else "CT"
+    return int(rnd["winner"] == side)
+
+
 def _normalize_winner(raw: Any) -> str | None:
     if raw is None or (isinstance(raw, float) and math.isnan(raw)):
         return None
@@ -137,7 +161,7 @@ def _normalize_winner(raw: Any) -> str | None:
         return "CT"
     if s in ("T", "TERRORIST"):
         return "T"
-    return s if s else None
+    return None  # e.g. a "draw" row (winner 10) on a match restart: not a played round
 
 
 def _build_roster(parsed: ParsedDemo) -> list[dict[str, Any]]:

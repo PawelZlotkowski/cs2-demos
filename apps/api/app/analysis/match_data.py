@@ -140,6 +140,9 @@ class RoundData:
     bomb: list[BombEvent] = field(default_factory=list)
     frames: list[Frame] = field(default_factory=list)
     kill_windows: list[KillWindow] = field(default_factory=list)
+    # After the round end until the next round starts: round stats only, never detectors
+    post_kills: list[Kill] = field(default_factory=list)
+    post_hurts: list[Hurt] = field(default_factory=list)
 
     def teammates(self, pid: str) -> list[str]:
         side = self.sides.get(pid)
@@ -220,6 +223,32 @@ def _pos(v: Any) -> tuple[float, float, float] | None:
     return (float(v[0]), float(v[1]), float(v[2]) if len(v) > 2 and v[2] is not None else 0.0)
 
 
+def _kill(k: dict[str, Any]) -> Kill:
+    return Kill(
+        tick=int(k["tick"]),
+        t=float(k["t"]),
+        attacker=k.get("attacker"),
+        victim=k["victim"],
+        weapon=k.get("weapon") or "",
+        headshot=bool(k.get("headshot")),
+        assister=k.get("assister"),
+        flash_assist=bool(k.get("flashAssist")),
+        attacker_pos=_pos(k.get("attackerPos")),
+        victim_pos=_pos(k.get("victimPos")),
+    )
+
+
+def _hurt(h: dict[str, Any]) -> Hurt:
+    return Hurt(
+        tick=int(h["tick"]),
+        t=float(h["t"]),
+        attacker=h.get("attacker"),
+        victim=h["victim"],
+        damage=int(h.get("damage") or 0),
+        weapon=h.get("weapon") or "",
+    )
+
+
 def build_match_data(
     analysis: dict[str, Any],
     round_replays: dict[str, dict[str, Any]] | None = None,
@@ -245,21 +274,8 @@ def build_match_data(
                 )
                 for pid, e in (r.get("economy") or {}).items()
             },
-            kills=[
-                Kill(
-                    tick=int(k["tick"]),
-                    t=float(k["t"]),
-                    attacker=k.get("attacker"),
-                    victim=k["victim"],
-                    weapon=k.get("weapon") or "",
-                    headshot=bool(k.get("headshot")),
-                    assister=k.get("assister"),
-                    flash_assist=bool(k.get("flashAssist")),
-                    attacker_pos=_pos(k.get("attackerPos")),
-                    victim_pos=_pos(k.get("victimPos")),
-                )
-                for k in r.get("kills") or []
-            ],
+            kills=[_kill(k) for k in r.get("kills") or []],
+            post_kills=[_kill(k) for k in r.get("postKills") or []],
             shots=[
                 Shot(
                     tick=int(s["tick"]),
@@ -271,17 +287,8 @@ def build_match_data(
                 )
                 for s in r.get("shots") or []
             ],
-            hurts=[
-                Hurt(
-                    tick=int(h["tick"]),
-                    t=float(h["t"]),
-                    attacker=h.get("attacker"),
-                    victim=h["victim"],
-                    damage=int(h.get("damage") or 0),
-                    weapon=h.get("weapon") or "",
-                )
-                for h in r.get("hurts") or []
-            ],
+            hurts=[_hurt(h) for h in r.get("hurts") or []],
+            post_hurts=[_hurt(h) for h in r.get("postHurts") or []],
             blinds=[
                 Blind(
                     tick=int(b["tick"]),

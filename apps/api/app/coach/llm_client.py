@@ -15,7 +15,8 @@ system is self-hosted by decision.
 - Sampling: per model family (``SAMPLING_PROFILES``), picked from the model
   name or ``RR_LLM_SAMPLING``, with ``RR_LLM_TEMPERATURE`` / ``TOP_P`` /
   ``TOP_K`` / ``MIN_P`` overrides, so models are compared on their own
-  recommended settings (docs/coach/MODEL-OPTIONS.md).
+  recommended settings (docs/coach/MODEL-OPTIONS.md). A fixed ``RR_LLM_SEED``
+  goes with every request so runs can be repeated.
 
 ``MockLLMClient`` replays scripted responses so tests need no GPU.
 """
@@ -139,6 +140,10 @@ def split_thinking(content: str | None, reasoning: str | None = None) -> tuple[s
     if found:
         reasoning = (reasoning or "") + "\n".join(found)
         content = THINK_RE.sub("", content)
+    # The chat template can open <think> itself, so only the closing tag reaches the content
+    if "</think>" in content:
+        head, _, content = content.rpartition("</think>")
+        reasoning = (reasoning or "") + head
     # An unterminated think block (cut off by max_tokens) leaves no answer
     if "<think>" in content:
         head, _, tail = content.partition("<think>")
@@ -172,6 +177,7 @@ class LLMClient:
                 "min_p": settings.llm_min_p,
             }
         )
+        self.seed = settings.llm_seed
         self._http = httpx.Client(timeout=timeout_s or settings.llm_timeout_seconds, transport=transport)
 
     def close(self) -> None:
@@ -184,6 +190,13 @@ class LLMClient:
             return r.status_code == 200
         except httpx.HTTPError:
             return False
+
+    def sampling_values(self, thinking: bool) -> dict[str, Any]:
+        """The sampling and seed every request sends (traces record them for reproducibility)."""
+        values: dict[str, Any] = sampling_for(self.sampling, thinking, self.sampling_overrides)
+        if self.seed is not None:
+            values["seed"] = self.seed
+        return values
 
     def _payload(
         self,
@@ -198,7 +211,7 @@ class LLMClient:
             "model": self.model,
             "messages": messages,
             "chat_template_kwargs": {"enable_thinking": thinking},
-            **sampling_for(self.sampling, thinking, self.sampling_overrides),
+            **self.sampling_values(thinking),
         }
         if temperature is not None:
             payload["temperature"] = temperature
@@ -293,8 +306,11 @@ def parse_completion(body: dict[str, Any], latency_s: float = 0.0) -> ChatResult
         fn = c.get("function") or {}
         raw = fn.get("arguments") or "{}"
         try:
-            args = json.loads(raw) if isinstance(raw, str) else dict(raw)
+            args = json.loads(raw) if isinstance(raw, str) else raw
         except json.JSONDecodeError:
+            args = None
+        # null, [] or a bare string are valid JSON but not arguments
+        if not isinstance(args, dict):
             args = {"__invalid_json__": raw}
         calls.append(ToolCall(id=c.get("id") or f"call_{i}", name=fn.get("name") or "", arguments=args, raw_arguments=raw if isinstance(raw, str) else json.dumps(raw)))
     return ChatResult(

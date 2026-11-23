@@ -1,0 +1,15 @@
+# CLI deployments of the clip labeller (Vercel project round-reviewer-labels, Root Directory
+# apps/web) upload only the web app. Demos, data, recordings, Python services and local
+# environment files never leave this PC.
+/*
+!/apps
+/apps/*
+!/apps/web
+/apps/web/node_modules
+/apps/web/.next
+/apps/web/tsconfig.tsbuildinfo
+/apps/web/.env
+/apps/web/.env.*
+!/apps/web/.env.example
+!/apps/web/.env.labeler.example
+/apps/web/tests

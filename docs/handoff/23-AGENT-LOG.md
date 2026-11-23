@@ -1,6 +1,58 @@
 # Agent working log
 
+## 20 November 2026 — Own-demo labeller handoff
+
+Confirmed recipient workflow: import their own demo, choose a player, record candidates,
+assess moment selection and explain improvements. Added separate selection usefulness,
+per-signal verdicts and explicit footage-quality feedback; blocked stale detector reviews
+and kept unusable footage out of training exports. Updated Git/start/reset guidance and
+Polish friend instructions; the owner then authorised publication. Published the isolated
+update as `6882f6f` on `codex/labeller-recording`; the Studio working branch remains unchanged.
+Full suite 479 passed / 3 skipped / 3 subtests; extracted Linux kit 191 passed / 1 skipped /
+3 subtests; four JS suites and Windows launcher passed. Fresh Ancient/Anubis imports
+covered 47 rounds; two native captures and note export/import succeeded. Updated the
+local labeller, retaining all 85 ready clips and byte-identical 7 round/10 clip revisions.
+[Verification and publication state](../coach/LABELLER-HANDOFF-2026-11-20.md).
+
+## 20 November 2026 — Corpus, application and showcase audit
+
+Used only the owner's `Documents/cs_replays` corpus; excluded private grenade-practice recordings. Checked 102 training files, identified two unselectable first fragments, and fully parsed four fresh Ancient/Anubis matches (93 rounds, 86 findings, 64 non-overlapping groups). All five existing labeller snapshots retained; all 7 round and 10 clip-label revisions unchanged. All 85 current clips are ready, fully decoded and exported; inspected before/after frames from 28 additional clips.
+
+Corrected stale Ask evidence/knowledge versions, stale saves, cache invalidation/equivalent snapshot retention, long-chain overlap, historical footage in the current picker, wrong-player whole-round reuse, incomplete media metadata and validation, and native capture's incorrect startup watchdog. Default API profile is local-v1. Real native CS capture recovered the remaining 14 Anubis clips; the worker now falls back once after two HLAE startup failures. Restored the existing recorder supervisor. No fabricated human labels, hosted model, commit or push.
+
+Combined suite: 464 passed, 3 skipped, 3 subtests; final recorder follow-up: 19 passed / 3 subtests. Web typecheck/build and four JavaScript checks passed; isolated PostgreSQL labeller integration: 28 passed, temporary container removed. Browser radar/POV, current Ask response/history and the deduplicated footage picker checked. A real local Qwen EN/PL smoke exposed unsupported technique inference and Polish kill terminology; added versioned prompts and targeted verifier guards. Rerun: 9.66/11.07 s with valid citations; Polish grammar still needs review. Stopped the temporary model server. Mac/Tailscale/cloud storage and broad semantic quality remain rehearsal/evaluation gates. [Audit and repeatable tools](../coach/SHOWCASE-READINESS-AUDIT-2026-11-20.md).
+
 Concise log for the next engineer or agent. British spelling.
+
+## 20 November 2026 — Recalculated saved reviews and checked gameplay clips
+
+Applied the owner's requested follow-up to five Studio reviews and five prepared labeller player profiles, preserving selected players/focus/language. The live labeller now serves `local-v1.1`, with 57 ready grouped clips for the owner's Ancient and two Anubis demos (35 reused, 22 newly captured). Four additional Ancient audit captures succeeded. All existing 7 round-review and 10 clip-label revisions were retained exactly; old snapshots and Studio seen/rating state were archived before IDs changed. Two historical non-owner queues remain paused; roster-only imports were not assigned a player.
+
+Visual frame inspection covered 20 observations from 18 files. Successful trade, no trade despite an attempt, interrupted windows and another teammate's trade were checked against POV/kill feed and telemetry. Moving fire remains context, including smoke and pistol examples; no precision/recall or universal timing claim. Two old end-of-round clips have insufficient aftermath. Across five new batches: zero overlapping windows/repeated evidence; the three old batches had 76 overlapping pairs. See [the audit](../coach/DETECTION-QUALITY-CLIP-AUDIT-2026-11-20.md) for counts and private evidence paths.
+
+Fixed float subtraction misclassifying a full five-second trade window. Added safe snapshot archival/current-review scoping and retained compatibility with imported notes. Affected regression suite: **109 passed**; focused check: **17 passed**. Live API streamed all 57 ready files, returned new snapshot IDs/policy and passed database integrity/history checks. No LLM, human-label fabrication, commit or push.
+
+## 20 November 2026 — Detection precision safeguards and gameplay research
+
+Owner requested nearby trades from the selected player's perspective (5 m), fewer unsupported moving-shot judgements, no repeated selected actions, and web research for better detection and RAG. Work is mapped to existing RR11–RR13/RR16; these delivery tasks are not marked complete. See [research and implementation report](../coach/DETECTION-QUALITY-RESEARCH-2026-11-20.md) and [source manifest](../../data/knowledge/research-sources-2026-11-20.json).
+
+### Changed
+
+- Shared nearby-trade event logic: selected player alive, fresh position, 3D distance at most 5 m, existing 5 s response window. Successful personal trades use the same rule in D10 and stats and count each revenge kill once. D1 now describes nearby teammate deaths; no trade, teammate retaliation and interrupted windows are context, with opportunity/visibility explicitly unknown.
+- Moving shots require at least two moving rifle shots and adjacent firearm combat involving the selected player. Pistols, SMGs, shotguns and scoped weapons abstain pending calibration. Retained speed thresholds are labelled as legacy proxies. Outputs are context and cannot independently lead mistake clips.
+- Ranker and selection verifier reject reused finding IDs and overlapping selected windows; ranker limits chained groups and respects small target counts. Recording padding may still repeat surrounding context at the edges.
+- Policy versions `local-v1.1` / `legacy-all-v1.1`; selection prompt v2, explanation/Ask v4, updated EN/PL/NL templates. Prompts forbid turning uncertain observations or retrieved principles into unsupported match-specific causal claims.
+- Sixteen checked sources cover mechanics, geometry, telemetry, tutorials and external datasets. Eight original conditional notes enter the existing RAG; overconfident fundamentals were corrected. No external dataset/video was bulk imported. Ingest excludes source catalogues and explicitly places personal notes last. All 150 existing curated passage IDs retain their file/title identity; persistent citation snapshots are still required for general corpus changes.
+
+### Verified
+
+- Full API suite: **335 passed, 3 skipped in 118.80 s** with isolated data, authentication disabled only in the test process, broad analysis profile, model and recording off. Focused regression run: **119 passed**. Commands and limitations are in the report. No frontend changes were made by this task.
+- EN/PL trade/movement/crouch retrieval smoke passed against 158 passages; source manifest IDs and report links checked. `git diff --check` passed. Ruff was unavailable in the API virtual environment.
+- Read-only cached telemetry smoke deduplicated five stored reviews into two inputs (Ancient/Anubis, 21 playable rounds each). Across all players, 156 moving-shot mistakes became 24 contextual observations. This measures output behaviour, not precision/recall. Aggregate hashes/counts are in [the smoke record](../coach/DETECTION-QUALITY-SMOKE-2026-11-20.json).
+
+### Remaining evidence and limits
+
+No new parser fields, raw demo reparse, clip adjudication or validated weapon model. `data/labels/` has no adjudicated fixture rounds, so new boundary tests are synthetic. The local model health request on port 8080 timed out; no real llama.cpp end-to-end quality or latency result is claimed. The repository's existing broader drafts and ordinal citation scheme still need the planned review/versioning work. Fresh analysis is required; saved reviews, labels and recordings were not rewritten. Existing owner work was preserved, with no commit or push.
 
 ## 26 September 2026 — Knowledge search, clip queue and the coach in the Studio (T30–T32, T40, T43, T45), same branch
 

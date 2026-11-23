@@ -7,6 +7,7 @@ import { formatClock } from "@/lib/replay/time";
 type PovClipProps = {
   clip: MomentClip;
   src: string | null;
+  onMediaError: () => void;
   /** Fills the stage (Gameplay view) instead of sitting in the corner of the radar. */
   main: boolean;
   playerName: string;
@@ -15,7 +16,6 @@ type PovClipProps = {
   playing: boolean;
   rate: number;
   onSeek: (t: number) => void;
-  onRetry: (clipId: string) => void;
   onEnlarge: () => void;
   /** The clock reached the end of the clip while it filled the stage. */
   onEnd: () => void;
@@ -32,13 +32,13 @@ const DRIFT = 0.25;
 export function PovClip({
   clip,
   src,
+  onMediaError,
   main,
   playerName,
   t,
   playing,
   rate,
   onSeek,
-  onRetry,
   onEnlarge,
   onEnd,
 }: PovClipProps) {
@@ -74,33 +74,14 @@ export function PovClip({
 
   const span = `${formatClock(clip.t0)} to ${formatClock(end)}`;
 
-  // Clips switched off: say nothing on the stage; the Gameplay button's tooltip gives the reason
-  if (!src && clip.status === "skipped") return null;
-
-  if (!src) {
-    const text =
-      clip.status === "queued" || clip.status === "recording"
-        ? `Recording ${playerName}'s view of ${span}…`
-        : clip.status === "failed"
-          ? (clip.error ?? "Unable to record this clip. The radar still covers the moment.")
-          : (clip.error ?? "Gameplay recording is off.");
-    return (
-      <div className={`pov pov-note${clip.status === "failed" ? " is-failed" : ""}`} role="status">
-        <span>{text}</span>
-        {clip.status === "failed" ? (
-          <button type="button" onClick={() => onRetry(clip.id)}>
-            Retry
-          </button>
-        ) : null}
-      </div>
-    );
-  }
+  if (!src) return null;
 
   return (
     <figure className={`pov${main ? " is-main" : ""}${inside ? "" : " is-outside"}`}>
       <video
         ref={videoRef}
         src={src}
+        onError={onMediaError}
         muted={muted}
         playsInline
         preload="auto"

@@ -197,8 +197,12 @@ def browse_knowledge(
 
 @router.get("/maps/{map_name}/zones", response_model=list[MapZone])
 def zones(map_name: str) -> list[MapZone]:
-    found = knowledge.map_zones(f"de_{_map_key(map_name)}")
-    if not found:
+    from app.maps.metadata import get_map_meta
+
+    key = f"de_{_map_key(map_name)}"
+    found = knowledge.map_zones(key)
+    # A supported map without a zones file yet has none to draw, which is not an error
+    if not found and not get_map_meta(key):
         raise HTTPException(status_code=404, detail="No zones for that map.")
     return found
 

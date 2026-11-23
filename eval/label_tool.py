@@ -9,8 +9,9 @@ Run from the repo root with the API venv active:
     # 2. Agreement on the shared rounds (Cohen's kappa)
     python -m eval.label_tool agreement data/labels/a.jsonl data/labels/b.jsonl
 
-    # 3. Precision / recall per detector over any set of label files
-    python -m eval.label_tool score data/labels/*.jsonl
+    # 3. Precision / recall per detector over any set of label files (JSONL or
+    #    clip labeller exports); RR_CORPUS_MANIFEST splits it by train and test
+    python -m eval.label_tool score "data/labels/*.json"
 
 Format: see data/labels/README.md. Labels never contain demo data beyond IDs,
 round numbers, times and the labeller's notes.
@@ -19,6 +20,7 @@ round numbers, times and the labeller's notes.
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 import sys
 from collections import Counter, defaultdict
@@ -114,18 +116,16 @@ def cmd_label(args: argparse.Namespace) -> None:
 # --- reading labels ---
 
 
+def expand(patterns: Iterable[str]) -> list[Path]:
+    """File patterns expanded by Python, so ``data/labels/*.json`` also works in PowerShell."""
+    return list(dict.fromkeys(Path(m) for p in patterns for m in (sorted(glob.glob(p)) or [p])))
+
+
 def read_labels(paths: Iterable[Path]) -> list[dict[str, Any]]:
-    records = []
-    for p in paths:
-        for line in Path(p).read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                records.append(json.loads(line))
-    return records
+    """Round records from JSONL files and clip labeller exports, newest label kept (``app.services.labels``)."""
+    from app.services.labels import read_label_files
 
-
-def _event_key(record: dict[str, Any], row: dict[str, Any]) -> tuple:
-    # IDs shift when detectors change, so events are matched by what and when
-    return (record["matchId"], record["playerId"], record["round"], row["detector"], round(float(row["t"]) / MATCH_TOLERANCE_S))
+    return read_label_files(paths)
 
 
 # --- agreement ---
@@ -140,28 +140,39 @@ def cohen_kappa(a: list[str], b: list[str]) -> float | None:
     ca, cb = Counter(a), Counter(b)
     expected = sum(ca[k] * cb[k] for k in set(ca) | set(cb)) / (n * n)
     if expected == 1.0:
-        return 1.0 if observed == 1.0 else None
+        return None  # both always gave the same one verdict: chance agreement is total
     return (observed - expected) / (1 - expected)
 
 
 def agreement(a_records: list[dict[str, Any]], b_records: list[dict[str, Any]]) -> dict[str, Any]:
-    def verdicts(records):
-        out = {}
-        for r in records:
-            for row in r["findings"]:
-                out[_event_key(r, row)] = row["verdict"]
-        return out
+    def rows(records):
+        return [((r["matchId"], r["playerId"], r["round"], row["detector"]), row) for r in records for row in r["findings"]]
 
-    va, vb = verdicts(a_records), verdicts(b_records)
-    shared = sorted(set(va) & set(vb))
-    a = [va[k] for k in shared]
-    b = [vb[k] for k in shared]
+    ra, rb = rows(a_records), rows(b_records)
+    by_key: dict[tuple, list[int]] = defaultdict(list)
+    for j, (key, _row) in enumerate(rb):
+        by_key[key].append(j)
+    # IDs shift when detectors change: the same finding ID first, then the nearest time within the tolerance, one to one
+    candidates = sorted(
+        (x.get("findingId") != rb[j][1].get("findingId"), abs(float(x["t"]) - float(rb[j][1]["t"])), i, j)
+        for i, (key, x) in enumerate(ra)
+        for j in by_key[key]
+        if abs(float(x["t"]) - float(rb[j][1]["t"])) <= MATCH_TOLERANCE_S
+    )
+    used_a, used_b, matched = set(), set(), []
+    for _same, _dt, i, j in candidates:
+        if i not in used_a and j not in used_b:
+            used_a.add(i)
+            used_b.add(j)
+            matched.append((ra[i][0][3], ra[i][1]["verdict"], rb[j][1]["verdict"]))
+    a = [x for _d, x, _y in matched]
+    b = [y for _d, _x, y in matched]
     by_detector: dict[str, list[tuple[str, str]]] = defaultdict(list)
-    for k in shared:
-        by_detector[k[3]].append((va[k], vb[k]))
+    for det, x, y in matched:
+        by_detector[det].append((x, y))
     return {
-        "sharedFindings": len(shared),
-        "rawAgreement": round(sum(x == y for x, y in zip(a, b)) / len(shared), 3) if shared else None,
+        "sharedFindings": len(matched),
+        "rawAgreement": round(sum(x == y for x, y in zip(a, b)) / len(matched), 3) if matched else None,
         "kappa": None if (k := cohen_kappa(a, b)) is None else round(k, 3),
         "perDetector": {
             d: {"n": len(pairs), "agree": sum(x == y for x, y in pairs)} for d, pairs in sorted(by_detector.items())
@@ -170,7 +181,7 @@ def agreement(a_records: list[dict[str, Any]], b_records: list[dict[str, Any]]) 
 
 
 def cmd_agreement(args: argparse.Namespace) -> None:
-    result = agreement(read_labels([Path(args.a)]), read_labels([Path(args.b)]))
+    result = agreement(read_labels(expand([args.a])), read_labels(expand([args.b])))
     print(json.dumps(result, indent=2))
 
 
@@ -179,11 +190,13 @@ def cmd_agreement(args: argparse.Namespace) -> None:
 
 def score(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Per detector: precision = correct / (correct + wrong);
-    recall = correct / (correct + missed). Unsure verdicts are left out."""
+    recall = correct / (correct + missed). Unsure verdicts are left out. Clip labeller
+    exports list no missed events, so recall is None where they contribute."""
     counts: dict[str, Counter] = defaultdict(Counter)
     for r in records:
         for row in r["findings"]:
             counts[row["detector"]][row["verdict"]] += 1
+            counts[row["detector"]]["noMissedList"] += r.get("missed") is None
         for row in r.get("missed") or []:
             counts[row["detector"]]["missed"] += 1
     out = {}
@@ -195,13 +208,32 @@ def score(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             "missed": fn,
             "unsure": c["unsure"],
             "precision": round(tp / (tp + fp), 3) if tp + fp else None,
-            "recall": round(tp / (tp + fn), 3) if tp + fn else None,
+            "recall": round(tp / (tp + fn), 3) if tp + fn and not c["noMissedList"] else None,
         }
     return out
 
 
+def score_by_split(records: list[dict[str, Any]], splits: dict[str, str] | None) -> dict[str, Any]:
+    """Scores for train+validation and for test, by each label's demo in the corpus manifest (None: not set)."""
+    if splits is None:
+        return {"bySplit": {"split unknown": score(records)}, "testSplitVerdicts": None}
+    groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for r in records:
+        split = splits.get(r["matchId"])
+        groups["test" if split == "test" else "train+validation" if split in ("train", "val") else "not in manifest"].append(r)
+    return {
+        "bySplit": {name: score(rs) for name, rs in sorted(groups.items())},
+        "testSplitVerdicts": sum(len(r["findings"]) for r in groups.get("test", [])),
+    }
+
+
 def cmd_score(args: argparse.Namespace) -> None:
-    print(json.dumps(score(read_labels(Path(p) for p in args.files)), indent=2))
+    from app.services.labels import manifest_splits
+
+    out = score_by_split(read_labels(expand(args.files)), manifest_splits())
+    print(json.dumps(out, indent=2))
+    if out["testSplitVerdicts"]:
+        print(f"Warning: {out['testSplitVerdicts']} verdicts are on test-split demos; keep them out of any tuning.", file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> None:

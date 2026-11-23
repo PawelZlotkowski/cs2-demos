@@ -1,0 +1,128 @@
+Build and deploy a shared Round Reviewer clip-labelling website using my connected Vercel account. I record the clips myself on my Windows PC. Friends receive a website address and a personal access code, watch assigned clips, and write what the selected player did well or could improve. I need an admin panel and a separate reviewer panel within the same application.
+
+Work in the current cs2-demos-studio repository. On my PC it is C:\Users\pawel\Documents\cs2-demos-studio. Read AGENTS.md, README.md, docs/planning/FINAL-DELIVERY-PLAN.md, docs/consolidation/README.md and docs/planning/VERCEL-CLIP-LABELLER-SETUP.txt. Treat this request as the assigned clip-labelling scope. Follow the existing no-commit/no-push rule. Preserve current unrelated working-tree edits. Use your connected Vercel tools or CLI to deploy this workspace to a dedicated clip-labeller project after validation.
+
+Deliver the working implementation, migrations, local export path, tests, deployment configuration and concise operator instructions. Continue through the deployed pilot when the necessary connected services are available. If a provider connection or credential is missing, finish the independent implementation and name the exact missing setting. Ask before accepting a paid subscription or changing a billing plan.
+
+Inspect and reuse the current implementation.
+
+- apps/web is Next.js 15 with React 19. Check installed versions before using newer framework examples.
+- apps/web/src/app/layout.tsx currently applies AuthProvider and the Studio shell globally. AuthProvider fetches the FastAPI authentication API. apps/web/next.config.ts currently rewrites /api/:path* to API_INTERNAL_URL, defaulting to localhost.
+- apps/api/app/annotation/batches.py defines ClipLabel and the note-only flow. media.py contains footage identity, validation, source timing and ready-state handling. store.py holds source metadata and provenance. transfer.py implements round-reviewer-notes-v1 imports, immutable revisions, idempotency and conflict checks. examples.py provides eligible human notes to the local coach.
+- apps/api/app/models/annotation.py is the Python contract baseline. Extend Pydantic contracts first for the portable clip manifest, then mirror the contract in TypeScript.
+- apps/api/app/annotation_static contains the existing local reviewer workflow. labeler.ps1, labeler.sh, compose.labeler.yaml and tools/package_labeler.py provide the local launcher and portable package.
+- apps/api/app/auth/store.py and deps.py show the existing hashed-session, account-status and role semantics. Preserve the existing Studio account behaviour while applying equivalent checks to the cloud labeller.
+
+Use one apps/web codebase with RR_WEB_MODE=clip-labeller in the dedicated Vercel project. Add /label/login, /label for reviewers and /label/admin for the owner. Use /api/labeler/* for the new server endpoints. In clip-labeller mode, use a minimal labelling shell, disable the local API rewrite for this deployment and route users to the appropriate panel. Gate unrelated Studio routes in that mode. With the environment variable unset, existing Studio entry points and auth continue to work. Keep the Python recording/parser services local for this workflow. Store accounts, sessions, assignments, source metadata and labels in Supabase PostgreSQL. Store MP4 files in a new dedicated private Cloudflare R2 bucket in my existing Cloudflare account, using Standard storage. Supabase is database-only for this workflow.
+
+Implement the following authentication model.
+
+1. The admin adds a reviewer with a display name and a unique export handle matching [A-Za-z0-9_]{1,40}. The server assigns an immutable account ID and reviewer role. The admin can activate, deactivate, regenerate code, and revoke sessions. Keep old labels associated with the account after these actions.
+2. Generate a code containing at least 100 bits of randomness using a cryptographic random source. A readable grouped base32 representation is suitable. Accept pasted codes with predictable case/separator normalisation. Show the raw code only at generation, with a Copy code button. Store an HMAC-SHA-256 digest using LABELER_CODE_PEPPER and a unique index. Treat codes as account credentials. Keep them out of URLs, logs, analytics and localStorage.
+3. Login takes one code field. The server verifies it, checks that the account is active and creates an independent random session token with at least 256 bits of entropy. Store only its hash in PostgreSQL. Use a Secure, HttpOnly, SameSite=Lax cookie with a bounded expiry and explicit local-development behaviour. A seven-day reviewer session and a twelve-hour admin session are reasonable initial defaults. Logout invalidates that session server-side.
+4. Deactivation and code regeneration must invalidate active sessions transactionally. Account status and credential version are checked on protected requests. Reactivation requires issuance of a fresh code. Handle concurrent login and revocation so an obsolete code cannot create a surviving session during rotation.
+5. Use persistent rate limiting for the public login endpoint, uniform invalid-code responses, bounded request size and server-side validation. Use same-origin/CSRF protection for cookie-authenticated mutations. Derive account ID and role from the session for all saves, reads, signing and admin actions.
+6. Supply an idempotent local bootstrap command that creates the first admin and generates its code using trusted server credentials. Supply an explicit admin recovery command. Normal admin-panel account creation always produces reviewers. Protect the final active admin from accidental deactivation.
+
+Use Supabase as a server-accessed database service. Keep SUPABASE_SECRET_KEY and R2 credentials server-only. Enable RLS and revoke anon/authenticated/PUBLIC access to app tables, views and mutation RPCs as appropriate. Browser clients receive scoped R2 upload URLs or short-lived playback URLs from authorised Next.js endpoints. The database server secret bypasses RLS, so centralise and test role, active-session, assignment and publication checks for every endpoint. Grant necessary RPC execution to the server role only, with explicit search_path and input validation. Browser calls directly to the Supabase data API must not expose notes or account records.
+
+Keep the data model small and explicit. It needs accounts, sessions, login-rate counters, collections, collection assignments, clips with upload/publication state and immutable R2 object keys, multipart upload sessions, private source manifests, current per-reviewer review state and append-only review revisions. Persist object keys rather than expiring playback URLs. Create a stable cloud workspace origin ID consisting of 32 lowercase hexadecimal characters for note exports. Use database-generated monotonic revision numbers. Enforce uniqueness for account handles, reviewer/clip heads, assignment pairs, import identities and retry request IDs. Preserve private source data separately from the fields returned to a reviewer.
+
+Implement private R2 storage through the S3-compatible API.
+
+- Use the Node.js runtime and a compatible AWS SDK v3 S3 client/presigner, or an equally supported implementation. Configure region auto and the exact R2_ENDPOINT from the bucket settings, including its jurisdiction when applicable. Scope the runtime Object Read & Write credentials to the dedicated bucket. Keep r2.dev public access disabled and public custom domains unconfigured. Use the S3 endpoint for presigned URLs.
+- Authorise each upload session for the admin and a draft clip. Assign its bucket, key and upload ID on the server. Never sign an arbitrary key, bucket, endpoint or part chosen by a browser without matching the stored upload session. Use short-lived presigned UploadPart URLs. The server performs CreateMultipartUpload, ListParts, CompleteMultipartUpload and AbortMultipartUpload; media bytes go directly from browser to R2.
+- Start with fixed 8 MiB parts and at most three concurrent part requests across uploads. Persist upload ID, expected byte count/hash and part information in PostgreSQL. On resume, reselect and verify the matching local file, reconcile with R2 ListParts, refresh expired part URLs and retry missing parts. Treat ETags as opaque completion tokens, never as the file SHA-256. Verify SDK checksum/header behaviour against R2 compatibility. Parts except the final part must satisfy R2's size rules.
+- Finalisation must be retry-safe across R2 and PostgreSQL, which cannot share a transaction. Reconcile an already completed object after a timeout, check size/type and immutable upload identity, then mark the matching clip ready once. Prevent parallel sessions or stale retries from overwriting ready media. Publish only after the database records success. Preserve resumable state on transient failures. Handle R2's default seven-day incomplete-upload expiry with a clear restart action. Explicit cancellation/collection cleanup aborts only the authorised pending uploads; preserve published media and review history.
+- Configure the production bucket CORS using the setup document: exact website origin, GET/HEAD/PUT, allowed request headers, and exposed ETag/Content-Length/Content-Range/Accept-Ranges. Use separate test resources and exact origins for preview/local development. Browser upload code must actually be able to read ETag. CORS is a browser permission, not an authentication boundary.
+- Sign GET only after checking the active session, assignment and published clip, with a five-minute expiry and byte-range playback support. The object has video/mp4 Content-Type. Return signing responses with Cache-Control: no-store and keep signed URLs out of application logs/analytics. Renew only for still-authorised reviewers, preserving playback position. Verify the browser downloads video directly from R2 without proxying bytes through Vercel.
+
+Build these admin flows.
+
+- Add reviewer, show/copy newly generated code, view their status and progress, activate/deactivate, regenerate code and revoke sessions.
+- Create, rename, publish and archive collections. Group and filter by Ancient or Anubis, demo and selected player. Display truthful counts from saved data.
+- Import a local export folder containing manifest.json and clips/*.mp4. Provide a file-selection fallback for browsers with different folder-picker support. Populate the context fields from the manifest.
+- Show per-file progress, retry/resume and any errors. Register small manifest metadata first. Upload directly to private R2 using the multipart flow above. Repeated imports of the same source identity and hash converge. An existing reviewed clip's media or source context must remain immutable. Changed media needs a new version.
+- Finalise a clip only after checking the expected object exists and its size/type match. Local media validation and SHA-256 originate from the exporter. Recheck manifest and browser file hashes before upload. A supplied hash alone is not server-side byte verification. Retain failed/incomplete uploads as resumable drafts and publish an explicit set of ready clips. Bound concurrent uploads and API metadata batches so they stay comfortably below Vercel's body-size limit.
+- Assign a collection to one or more reviewers. Keep each person's annotations separate even when they review the same clip.
+- View/filter notes and download one compatible notes file per reviewer. Archive collections without erasing review history. Give incomplete-upload cleanup an explicit admin action scoped to that collection.
+- Show stored bytes, pending upload reservations and clear upload limits. Enforce configurable byte/file/count limits on the server, including concurrent reservations. Link the owner to Cloudflare usage and explain that this app cannot account for other buckets. Retain local originals and make a collection's storage cost visible before upload.
+
+Implement the local Export clips for web action as part of the same task.
+
+- Make it accessible from the existing Windows labeller menu using a human-readable list of demo/player/batch names and a destination folder. Reuse current storage access. Docker volume access should happen inside a one-off container with a destination bind mount.
+- Write a versioned round-reviewer-clips-v1 manifest and selected ready MP4s to that host folder. Export the metadata required by the current notes importer, including full demo metadata/provenance, decompressed demo SHA-256, map, sourceMatchId, playerId, snapshotId, round, finding and original footage identity/context. Preserve real evidence and original map limits.
+- Each file entry needs a relative safe path, byte count and SHA-256. Validate existing footage with the current media helpers. Handle retries and partial exports consistently. Keep original recordings available. Bound copying/hashing memory for large collections.
+- Reuse the old import/export identity conventions. Plain MP4 filenames do not provide enough source evidence to invent a valid manifest.
+- Update the portable package manifest and operator docs for any added commands/modules.
+
+Build the reviewer flow for non-technical users.
+
+- Login contains one field labelled Access code and a Continue button. The reviewer can copy/paste the code I send.
+- The home page shows assigned collections and Continue reviewing, with map/demo context and the person's own progress. A return visit resumes their own unfinished work.
+- The clip page has a large playable video, selected-player display name, map/round context, replay and speed controls, one textarea labelled What went well or could be improved?, Save and next, and Skip for now.
+- Notes are required for a completed review. Good play, Needs improvement and Unsure are optional chips, mapped to the existing assessment values. Store language as en or pl. Text-only notes remain valid.
+- Explain beside the save action that saving confirms the reviewer checked the displayed player and event. Set the explicit confirmFootage flag only from that action. Reporting wrong footage or insufficient context keeps a draft/skipped state and surfaces the issue to the admin.
+- Save drafts with visible status and recover unsent text after a network interruption. Scope browser drafts by account and clip. Log out cleanly and prevent the next person on a shared browser from receiving the previous user's draft. Advance only after the server confirms the final save. Keyboard shortcuts must leave ordinary typing intact.
+- Use a client request ID and previous revision for each save. One transaction must recheck session/account/assignment, append the revision and update the current head. Retry of the same request must return its existing result, even if a later revision has since been saved. Conflicting tab edits must preserve both the existing server version and unsent text for resolution.
+- Keep other reviewers' notes, detector verdicts and coach answers hidden during independent clip judgement. Internal source IDs remain available to the admin/export path.
+- Get five-minute signed playback URLs only after authorisation. Verify byte-range seeking and renewal after expiry, preserving currentTime. Existing signed URLs can remain valid until expiry after access revocation. Prevent issuance of new URLs immediately when an account or assignment is revoked.
+
+Follow .cursor/skills/rr-porcelain-ui/SKILL.md for the new UI, including its referenced accessibility/design guidance and required checks. Reuse existing Mona Sans and tokens. Make the video and note the dominant controls. Use British spelling and truthful empty/loading/error states. Assess desktop and a 390-pixel viewport with keyboard and reduced motion.
+
+Make cloud exports work with apps/api/app/annotation/transfer.py.
+
+- Download labels per reviewer as round-reviewer-notes-v1. Use the stable cloud workspace origin, stable unique labeller handle and increasing integer revisions. Export the latest draft or complete record for every review key so withdrawals propagate.
+- Recreate the existing clip-label payload from the immutable source manifest and saved review. Preserve matchId, playerId, snapshotId, round, finding, footage.id, explicit alignment confirmation, notes, assessment, language, inputMode, reviewMode and provenance. Convert skipped work to an appropriate draft without fabricating a completed judgement.
+- Preserve current source permission and dataset split decisions. Only completed aligned notes from permitted training matches become local coach examples under the existing rules.
+- Validate a cloud-export fixture through the actual Python importer twice, then test a later revision and withdrawal. Verify retrieval from a different demo identity. Reserve separate handles when the same human also labels locally under another working copy and explain that mapping to the owner.
+- The initial return path is admin download followed by the existing local Import notes action. Explain when the notes become available to Qwen. Use the self-hosted model boundary already established by this repository.
+
+Provision and deploy using my connected Vercel capabilities.
+
+- Inspect the available Vercel projects and choose/create a dedicated round-reviewer-labels project for this workflow. Use the same source repository with apps/web as Root Directory, the Next.js framework, npm ci and npm run build. If several equally plausible projects exist, ask which one while continuing independent implementation.
+- Connect/create the dedicated Supabase database project through an available integration, or state the specific account-access step needed. Apply reproducible migrations and restrictive grants. Create the dedicated cs2-demo-clips R2 bucket in my existing Cloudflare account, or supply the exact dashboard steps if that connection is unavailable. Use Standard storage, bucket-scoped object credentials and the documented CORS policy. Use free allowances for the pilot and quote provider costs before any paid-plan activation. Preserve my existing buckets and data.
+- Implement and document these variables: RR_WEB_MODE=clip-labeller, SUPABASE_URL, SUPABASE_SECRET_KEY, LABELER_CODE_PEPPER, LABELER_SITE_URL, R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET=cs2-demo-clips. Keep credentials and pepper in server environment configuration with no NEXT_PUBLIC prefix. R2_ENDPOINT defaults conceptually to https://ACCOUNT_ID.r2.cloudflarestorage.com; copy the actual endpoint when using an EU-jurisdiction bucket. Use the canonical production URL and deliberate preview origins. Verify SDK compatibility with the installed framework. Supply a placeholder-only .env example and document any additional upload limits.
+- Keep preview writes isolated from production. Configure the dedicated production site's Vercel protection settings so invited reviewers can reach the application code-login screen. Check protected application routes from a signed-out browser.
+- Bootstrap the owner securely and provide the deployed admin and reviewer URLs. Give me short instructions for recording, exporting, publishing, generating codes, assigning reviews and importing the resulting labels locally.
+- Make rollbacks preserve recorded notes and media. Take an export before incompatible schema changes and document database/media backup ownership. Deliver the actual deployment result and any genuinely unverified steps.
+
+Use these real acceptance checks.
+
+1. An admin creates Alex and Jamie, assigns clips and generates distinct codes. Each code logs into the correct reviewer account. Each note is attributed server-side to that account.
+2. Alex cannot access admin actions, Jamie's private review state or an unassigned collection by changing URLs, body fields or clip IDs. Direct unauthenticated Supabase table access and unsigned R2 object access are denied. A reviewer cannot sign upload parts, and forged keys/upload IDs cannot escape an admin's authorised draft upload. No R2 secret appears in client bundles or responses.
+3. Deactivating Alex blocks existing sessions. Regenerating Jamie's code invalidates both the prior code and existing sessions. Previously saved notes remain attributable. Concurrent login/save/revocation behaves consistently.
+4. Upload a real MP4 larger than one 8 MiB part through the normal browser flow, interrupt/resume after a completed part, retry a manifest import and confirm the stored clip count. Exercise CORS with the real site Origin and read the ETags. Recover when multipart completion succeeds but the database response fails. Failed uploads stay out of reviewer queues, and retrying a completed session cannot replace published media.
+5. Test video playback and seeking, draft recovery, save retry without duplicate revisions, two-tab conflicts, skip/resume, logout and reviewer identity changes on a shared browser.
+6. Complete a real Ancient clip and an Anubis clip with two reviewers. Export labels and run the actual local importer and coach-example eligibility checks.
+7. Confirm previously uploaded clips and label saving work when the local recording/API services are offline. Confirm normal Studio mode still builds and opens its original routes.
+8. Run the relevant Python/TypeScript contract checks, npm run typecheck, npm run build and the UI checks required by the Porcelain skill. Add focused tests for auth boundaries, transactional saves and cross-language transfer compatibility. Report observed results separately from remaining deployment checks.
+
+Current storage sizing is useful for the deployment choice. The local ready queue has 101 clips totalling 1,092,395,986 bytes, with the largest about 17.1 MB. That collection fits within R2 Standard's current 10 GB-month included storage before other account usage. Check the setup document's operation allowances and existing account usage; a new bucket does not create a separate free allowance. Supabase holds database records only. Verify pricing before provisioning paid resources and report actual usage assumptions without promising an unlimited free service.
+
+Consult these official references when implementing provider-specific behaviour.
+
+Vercel request limits
+https://vercel.com/docs/functions/limitations
+
+Vercel marketplace storage integrations
+https://vercel.com/docs/marketplace-storage
+
+Cloudflare R2 S3 credentials and bucket-scoped permissions
+https://developers.cloudflare.com/r2/api/tokens/
+
+Cloudflare R2 presigned URLs and browser CORS
+https://developers.cloudflare.com/r2/api/s3/presigned-urls/
+https://developers.cloudflare.com/r2/buckets/cors/
+
+Cloudflare R2 multipart uploads, S3 compatibility and JavaScript SDK
+https://developers.cloudflare.com/r2/objects/upload-objects/
+https://developers.cloudflare.com/r2/api/s3/api/
+https://developers.cloudflare.com/r2/examples/aws/aws-sdk-js-v3/
+
+Supabase grants, RLS and server-secret behaviour
+https://supabase.com/docs/guides/database/postgres/row-level-security
+
+Cloudflare R2 and Supabase database pricing
+https://developers.cloudflare.com/r2/pricing/
+https://supabase.com/pricing

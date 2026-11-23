@@ -93,6 +93,9 @@ def test_round_explain_queues_a_clip_and_lists_it(analysed):
 
 
 def test_knowledge_passage_route(analysed):
-    r = client.get("/knowledge/K1")
-    assert r.status_code == 200 and r.json()["id"] == "K1" and r.json()["text"]
+    from app.rag.index import default_index
+
+    kid = default_index().search("trading a teammate", k=1)[0].id  # ids come from file and section, not order
+    r = client.get(f"/knowledge/{kid}")
+    assert r.status_code == 200 and r.json()["id"] == kid and r.json()["text"]
     assert client.get("/knowledge/K999").status_code == 404

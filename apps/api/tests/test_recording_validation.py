@@ -31,3 +31,31 @@ def test_unreadable_or_audio_only_capture_cannot_be_ready(tmp_path, monkeypatch,
     monkeypatch.setattr(video_clips.subprocess, 'run', lambda *a, **kw: SimpleNamespace(returncode=exit_code, stdout=json.dumps({'streams': streams, 'format': {'duration': duration}})))
     with pytest.raises(RuntimeError, match='not a readable video'):
         validate_recorded_media(tmp_path / 'capture.mp4')
+
+
+def test_recording_timeout_kills_the_whole_process_tree(monkeypatch):
+    """subprocess.run killed only cmd.exe, then waited on the pipe csdm and CS2 hold (audit 22 Nov #12)."""
+    import os
+    import subprocess
+
+    from app.processing import video_clips
+
+    calls = []
+
+    class Hung:
+        pid = 4242
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def communicate(self, timeout=None):
+            raise subprocess.TimeoutExpired('csdm', timeout)
+
+        def kill(self):
+            calls.append('kill')
+
+    monkeypatch.setattr(video_clips.subprocess, 'Popen', Hung)
+    monkeypatch.setattr(video_clips.subprocess, 'run', lambda cmd, **kw: calls.append(cmd))
+    with pytest.raises(RuntimeError, match='timed out'):
+        video_clips.run_csdm(['csdm', 'video', 'match.dem'], timeout=1)
+    assert calls == ([['taskkill', '/PID', '4242', '/T', '/F']] if os.name == 'nt' else ['kill'])

@@ -1,27 +1,48 @@
-FROM python:3.13-slim@sha256:b3575dcf816cdacc5292df77a6e3e59b8941631078373a045efa2ac1e9c5c3b2 AS runtime
+FROM python:3.13-slim@sha256:b3575dcf816cdacc5292df77a6e3e59b8941631078373a045efa2ac1e9c5c3b2 AS base
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONPATH=/app/apps/api RR_ANNOTATION_DIR=/data \
     POLARS_MAX_THREADS=2 OMP_NUM_THREADS=2
 WORKDIR /app
-COPY docker/requirements-labeler.lock /app/docker/requirements-labeler.lock
+COPY docker/requirements-labeler-core.lock /app/docker/requirements-labeler-core.lock
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir -r docker/requirements-labeler.lock \
+    && pip install --no-cache-dir -r docker/requirements-labeler-core.lock \
     && groupadd --gid 10001 labeler \
     && useradd --uid 10001 --gid 10001 --create-home labeler \
     && mkdir /data && chown labeler:labeler /data
-RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('Systran/faster-whisper-small', revision='536b0662742c02347bc0e980a01041f333bce120', local_dir='/opt/voice-model')" \
-    && rm -rf /opt/voice-model/.cache
-ENV HF_HUB_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1
-COPY apps/api/app /app/apps/api/app
-COPY eval /app/eval
 USER labeler
 EXPOSE 8765
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=5 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3)"
 CMD ["python", "-m", "eval.label_tool", "serve", "--host", "0.0.0.0", "--port", "8765", "--data-dir", "/data"]
 
+FROM base AS core
+COPY apps/api/app /app/apps/api/app
+COPY eval /app/eval
+
+FROM core AS test-core
+USER root
+RUN pip install --no-cache-dir pytest==9.1.1 httpx==0.28.1
+COPY tools/record_label_clips.py tools/test_record_label_clips.py /app/tools/
+COPY apps/api/tests /app/apps/api/tests
+USER labeler
+CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "eval/tests", "apps/api/tests/analysis", "tools/test_record_label_clips.py"]
+
+FROM base AS voice
+USER root
+COPY docker/requirements-labeler.lock /app/docker/requirements-labeler.lock
+RUN pip install --no-cache-dir -r docker/requirements-labeler.lock
+RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('Systran/faster-whisper-small', revision='536b0662742c02347bc0e980a01041f333bce120', local_dir='/opt/voice-model')" \
+    && rm -rf /opt/voice-model/.cache
+ENV HF_HUB_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1
+USER labeler
+
+FROM voice AS runtime
+COPY apps/api/app /app/apps/api/app
+COPY eval /app/eval
+
 FROM runtime AS test
 USER root
 RUN pip install --no-cache-dir pytest==9.1.1 httpx==0.28.1
+COPY tools/record_label_clips.py tools/test_record_label_clips.py /app/tools/
 USER labeler
-CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "eval/tests/test_annotation.py", "eval/tests/test_annotation_media.py", "eval/tests/test_annotation_batches.py", "eval/tests/test_annotation_voice.py"]
+CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "eval/tests/test_annotation.py", "eval/tests/test_annotation_media.py", "eval/tests/test_annotation_batches.py", "eval/tests/test_annotation_voice.py", "eval/tests/test_annotation_transfer.py", "eval/tests/test_clip_export.py", "eval/tests/test_cloud_notes.py", "eval/tests/test_grouped_clips.py", "tools/test_record_label_clips.py"]

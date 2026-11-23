@@ -12,6 +12,9 @@ def main():
     parser.add_argument('demos', nargs='+', type=Path)
     parser.add_argument('--url', default='http://127.0.0.1:8765')
     parser.add_argument('--output', type=Path, default=Path('qa-out/labeler-smoke.json'))
+    selection = parser.add_mutually_exclusive_group(required=True)
+    selection.add_argument('--player', help='Exact Steam ID or roster name. Never falls back to another player.')
+    selection.add_argument('--technical-first-player', action='store_true', help='Explicitly test the first roster entry (technical QA only).')
     args = parser.parse_args()
     results = []
     with httpx.Client(base_url=args.url, timeout=120, trust_env=False, headers={'X-Annotation-Request': '1'}) as client:
@@ -42,8 +45,13 @@ def main():
             imported = wait(job)
             identity = imported['demo']
             meta = next(d for d in request('GET', '/api/demos') if d['id'] == identity)
-            player = meta['players'][0]['id']  # Technical verification only; never assume this is the owner.
-            print('Roster ready:', meta['map'], len(meta['players']), 'players; selecting first for technical QA', flush=True)
+            candidates = meta['players'][:1] if args.technical_first_player else [
+                p for p in meta['players'] if p['id'] == args.player or p['name'].casefold() == args.player.casefold()]
+            if len(candidates) != 1:
+                raise ValueError('Choose one exact player from this roster: ' + ', '.join(
+                    f"{p['name']} ({p['id']})" for p in meta['players']))
+            player = candidates[0]['id']
+            print('Roster ready:', meta['map'], len(meta['players']), 'players; selected', candidates[0]['name'], player, flush=True)
             wait(request('POST', f'/api/demos/{identity}/select', json={'playerId': player}))
             rounds = request('GET', f'/api/demos/{identity}/players/{player}/rounds?labeller=qa_smoke')
             rnd = rounds['rounds'][0]['number']
@@ -56,7 +64,8 @@ def main():
             results.append({'demo': identity, 'map': meta['map'], 'player': player, 'round': rnd,
                             'rounds': len(rounds['rounds']), 'eventsInFirstRound': len(detail['replay']['events']),
                             'revision': review['revision'], 'seconds': round(time.monotonic()-started, 2),
-                            'playerSelection': 'First roster player, technical QA only'})
+                            'playerName': candidates[0]['name'],
+                            'playerSelection': 'First roster player, technical QA only' if args.technical_first_player else 'Explicit selected player'})
             print('Verified', meta['map'], len(rounds['rounds']), 'rounds; saved draft revision', review['revision'], flush=True)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(results, indent=2), encoding='utf-8')

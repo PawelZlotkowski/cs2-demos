@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { PillBubble } from "@/components/PillBubble";
 import { api } from "@/lib/api/client";
 
 const LAB_KEY = "rr.lab";
@@ -16,71 +17,81 @@ export function labRemembered(): boolean {
   }
 }
 
+const links = [
+  { href: "/", label: "Home" },
+  { href: "/matches", label: "Matches" },
+  { href: "/progress", label: "Progress" },
+  { href: "/coach", label: "Coach" },
+];
+
 export function NavLinks() {
   const pathname = usePathname() ?? "/";
-  const inStudio = pathname.startsWith("/studio");
-  const [lab, setLab] = useState(false);
+  const inReview = pathname.startsWith("/studio/") || pathname.startsWith("/processing/");
+  const [open, setOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    // Remembered per browser so the link does not pop in on every page; refreshed in the background.
-    try {
-      setLab(window.localStorage.getItem(LAB_KEY) === "1");
-    } catch {
-      /* storage blocked */
-    }
-    api
-      .features()
-      .then((f) => {
-        setLab(f.lab);
-        try {
-          window.localStorage.setItem(LAB_KEY, f.lab ? "1" : "0");
-        } catch {
-          /* storage blocked */
-        }
-      })
-      .catch(() => undefined);
+    api.features().then((features) => {
+      window.localStorage.setItem(LAB_KEY, features.lab ? "1" : "0");
+    }).catch(() => undefined);
   }, []);
 
-  // When the bar is short of room the nav scrolls; fade the edge that has more links behind it.
+  useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
-    const nav = navRef.current;
-    if (!nav) return;
-    const update = () => {
-      const more = nav.scrollWidth - nav.clientWidth;
-      nav.dataset.fade = more <= 1 ? "" : `${nav.scrollLeft > 1 ? "l" : ""}${nav.scrollLeft < more - 1 ? "r" : ""}`;
+    if (!open) return;
+    const dismiss = (event: PointerEvent) => {
+      if (!navRef.current?.contains(event.target as Node)) setOpen(false);
     };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(nav);
-    nav.addEventListener("scroll", update, { passive: true });
-    return () => {
-      ro.disconnect();
-      nav.removeEventListener("scroll", update);
-    };
-  }, [lab, inStudio]);
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, [open]);
 
-  const current = (href: string) => (pathname === href || pathname.startsWith(`${href}/`) ? "page" : undefined);
   return (
-    <nav className="nav" aria-label="Main" ref={navRef}>
-      <Link href="/" aria-current={pathname === "/" ? "page" : undefined}>
-        Home
-      </Link>
-      <Link href="/matches" aria-current={current("/matches")}>
-        Matches
-      </Link>
-      <Link href="/progress" aria-current={current("/progress")}>
-        Progress
-      </Link>
-      <Link href="/coach" aria-current={current("/coach")}>
-        Coach
-      </Link>
-      {/* Studio needs a match; it only appears once one is open. */}
-      {inStudio ? (
-        <Link href={pathname} aria-current="page">
-          Studio
-        </Link>
-      ) : null}
+    <nav
+      className="nav glass"
+      aria-label="Main"
+      ref={navRef}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+      }}
+      onKeyDown={(event) => {
+        if (open && event.key === "Escape") {
+          setOpen(false);
+          toggleRef.current?.focus();
+        }
+      }}
+    >
+      <Link className="brand-bead" href="/" aria-label="Round Reviewer home" />
+      <button
+        ref={toggleRef}
+        className="nav-toggle"
+        type="button"
+        aria-label="Navigation"
+        aria-controls="main-links"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2.5 5h11M2.5 11h11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      </button>
+      <div className="nav-links" id="main-links" data-open={open}>
+        <PillBubble value={pathname} />
+        {links.map(({ href, label }) => {
+          const section = (href === "/matches" && inReview) || pathname.startsWith(`${href}/`);
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-current={pathname === href ? "page" : section ? "location" : undefined}
+              onClick={() => setOpen(false)}
+            >
+              {label}
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }

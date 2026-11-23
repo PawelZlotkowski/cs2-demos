@@ -53,6 +53,21 @@ def test_good_answer_passes():
     assert r.finding_ids == ["F12"] and "t:34.5" in r.citations
 
 
+@pytest.mark.parametrize('text,lang', [
+    ('Your movement and shooting were effective because you won the opening duel [F13].', 'en'),
+    ('Your aim was poor despite the kill [F13].', 'en'),
+    ('Twój ruch był skuteczny, co pokazuje zabójstwo [F13].', 'pl'),
+    ('Ta akcja pokazuje trzy ciosy w A site [F13].', 'pl'),
+])
+def test_outcome_does_not_prove_technique_or_mean_melee_hits(text, lang):
+    assert not check(text, lang).ok
+
+
+def test_uncertainty_about_technique_is_allowed():
+    result = check('You won the opening duel [F13]. This does not prove that your movement was correct.')
+    assert result.ok, result.errors
+
+
 def test_round_stats_numbers_and_rounding_are_allowed():
     assert check("You dealt 87 damage in round 7 before dying alone, 25 m from help [F12].").ok
 
@@ -204,6 +219,17 @@ def test_pick_errors():
         assert any(needle in e for e in r.errors), (needle, r.errors)
 
 
+def test_picks_may_not_repeat_one_type_three_times_while_another_exists():
+    """F1, F2 and F6 share a detector; F3 (dry_peek) is another mistake the model could have used.
+    F8 fills the ranker's sixth slot, so the ranker itself keeps to two untraded deaths."""
+    fs = FINDINGS + [finding("F8", round=8, t=30.0, kind="good", detector="good_plays", template="good_plays.clutch")]
+    r = verify_moments([pick("F1"), pick("F2"), pick("F6"), pick("F4", "good"), pick("F5", "good")], fs)
+    assert not r.ok and any("At most 2 mistake moments" in e and "dry_peek" in e for e in r.errors), r.errors
+    only_one_type = [f for f in FINDINGS if f.id != "F3"]
+    r = verify_moments([pick("F1"), pick("F2"), pick("F6"), pick("F4", "good"), pick("F5", "good")], only_one_type)
+    assert not any("At most" in e for e in r.errors), r.errors
+
+
 def test_picks_too_close_in_one_round():
     close = [finding("F8", round=1, t=14.0, detector="dry_peek", template="dry_peek")]
     second = {**pick("F1"), "findingIds": ["F8"], "pickedBecause": "[F8] reason", "t0": 9.0, "t1": 17.0}
@@ -242,6 +268,14 @@ def test_autocite_adds_the_finding_that_holds_the_number():
     assert autocite("You waited 9.9 s.", ctx, ["F1", "F2"]) == "You waited 9.9 s."
 
 
+def test_autocite_cites_the_finding_whose_callout_the_advice_names():
+    ctx = VerifyContext.build([finding("F1", zone="A main")])
+    fixed = autocite("Flash A main before you peek. Hold your angle.", ctx, ["F1"])
+    assert fixed == "Flash A main before you peek [F1]. Hold your angle."
+    assert verify_text(fixed, ctx, "en").ok
+    assert autocite("Flash Palace first.", ctx, ["F1"]) == "Flash Palace first."
+
+
 @pytest.mark.parametrize(
     "text",
     [
@@ -259,3 +293,22 @@ def test_tool_calls_written_as_text_fail(text):
 
 def test_words_close_to_tool_names_pass():
     assert verify_text("You were not traded in Palace [F12], so search for knowledge of trades.", CTX, "en").ok
+
+
+def test_non_adjacent_leads_cannot_reuse_overlapping_video():
+    fs = [finding("F1", round=1, t=10), finding("F2", round=1, t=25)]
+    picks = [{"round": 1, "t0": 5, "t1": 22, "findingIds": ["F1"],
+              "kind": "mistake", "pickedBecause": "[F1] reason"},
+             {"round": 1, "t0": 20, "t1": 28, "findingIds": ["F2"],
+              "kind": "mistake", "pickedBecause": "[F2] reason"}]
+    assert any("overlaps" in e for e in verify_moments(picks, fs).errors)
+
+
+def test_repeated_finding_is_rejected_even_with_different_leads():
+    fs = [finding("F1", round=1, t=10), finding("F2", round=1, t=25),
+          finding("F3", round=1, t=18, kind="context")]
+    picks = [{"round": 1, "t0": 5, "t1": 19, "findingIds": ["F1", "F3"],
+              "kind": "mistake", "pickedBecause": "[F1] reason"},
+             {"round": 1, "t0": 17, "t1": 28, "findingIds": ["F2", "F3"],
+              "kind": "mistake", "pickedBecause": "[F2] reason"}]
+    assert any("repeats findings" in e for e in verify_moments(picks, fs).errors)
